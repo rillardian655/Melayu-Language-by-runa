@@ -1,0 +1,21 @@
+[package]
+name = "melayu"
+version = "0.1.0"
+edition = "2021"
+authors = ["xianly runa <rillardian655@gmail.com>", "Tim Bahasa Melayu"]
+description = "Bahasa pemrograman serumpun untuk serumpun developer (Indonesia, Malaysia, Brunei, Singapura)"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/rillardian655/Melayu-Language-by-runa"
+keywords = ["programming-language", "interpreter", "melayu", "education", "bahasa-melayu"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+
+[[bin]]
+name = "melayu"
+path = "src/main.rs"
+
+[lib]
+name = "melayu_core"
+path = "src/lib.rs"
