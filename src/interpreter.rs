@@ -1,9 +1,10 @@
 use crate::ast::*;
-use crate::builtins::{daftar_fungsi_bawaan, lakukan_baca_input};
+use crate::builtins::{daftar_fungsi_bawaan, lakukan_baca_input, semak_laluan_selamat};
 use crate::errors::{ErrorKind, MelayuError};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
+use std::fs;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
@@ -694,6 +695,94 @@ impl Interpreter {
                 self.evaluate_expr(expr, env)?;
                 Ok(Flow::Lanjut)
             }
+            Stmt::Ambil {
+                sasaran,
+                simbol,
+                alias,
+                pos,
+            } => {
+                let safe_path = semak_laluan_selamat(sasaran, false, *pos)?;
+                let final_path = if !safe_path.exists() && !sasaran.ends_with(".ml") {
+                    let with_ml = safe_path.with_extension("ml");
+                    if with_ml.exists() {
+                        with_ml
+                    } else {
+                        safe_path
+                    }
+                } else {
+                    safe_path
+                };
+
+                if !final_path.exists() {
+                    return Err(MelayuError::akses_fail_disekat(
+                        sasaran,
+                        "Fail modul tidak dijumpai.",
+                        pos.line,
+                        pos.col,
+                    ));
+                }
+
+                let content = fs::read_to_string(&final_path).map_err(|e| {
+                    MelayuError::akses_fail_disekat(
+                        sasaran,
+                        &format!("Gagal membaca fail modul: {}", e),
+                        pos.line,
+                        pos.col,
+                    )
+                })?;
+
+                let mut lexer = crate::lexer::Lexer::new(&content);
+                let tokens = lexer.tokenize()?;
+                let mut parser = crate::parser::Parser::new(tokens);
+                let program = parser.parse()?;
+
+                let module_env = Rc::new(RefCell::new(Environment::with_parent(Rc::clone(env))));
+
+                for s in &program.pernyataan {
+                    match self.execute_stmt(s, &module_env)? {
+                        Flow::Lanjut => {}
+                        Flow::Pulang(_) => break,
+                        Flow::Hentikan | Flow::Teruskan => {}
+                    }
+                }
+
+                let module_vals = module_env.borrow().values.clone();
+
+                if let Some(alias_name) = alias {
+                    let mut map = HashMap::new();
+                    for (k, v) in module_vals {
+                        map.insert(k, v.nilai);
+                    }
+                    env.borrow_mut().define(
+                        alias_name,
+                        Value::Kamus(Rc::new(RefCell::new(map))),
+                        true,
+                    );
+                } else if let Some(syms) = simbol {
+                    for sym in syms {
+                        if let Some(var) = module_vals.get(sym) {
+                            env.borrow_mut().define(sym, var.nilai.clone(), var.tetap);
+                        } else {
+                            return Err(MelayuError::new(
+                                "Alamak!",
+                                &format!(
+                                    "Simbol '{}' tidak dijumpai dalam modul '{}'.",
+                                    sym, sasaran
+                                ),
+                                pos.line,
+                                pos.col,
+                            )
+                            .with_kind(ErrorKind::Runtime));
+                        }
+                    }
+                } else {
+                    for (k, v) in module_vals {
+                        env.borrow_mut().define(&k, v.nilai, v.tetap);
+                    }
+                }
+
+                Ok(Flow::Lanjut)
+            }
             Stmt::Horas(_) | Stmt::Mangan(_) => Ok(Flow::Lanjut),
         }
     }
@@ -1171,12 +1260,54 @@ impl Interpreter {
                         "panjang" => Ok(Value::Nombor(list.borrow().len() as f64)),
                         "berisi" => {
                             if evaluated_args.len() != 1 {
-                                return Err(MelayuError::new("Alamak!", "Kaedah '.berisi()' memerlukan 1 hujah.", pos.line, pos.col)
-                                    .with_kind(ErrorKind::Runtime));
+                                return Err(MelayuError::new(
+                                    "Alamak!",
+                                    "Kaedah '.berisi()' memerlukan 1 hujah.",
+                                    pos.line,
+                                    pos.col,
+                                )
+                                .with_kind(ErrorKind::Runtime));
                             }
                             let borrowed = list.borrow();
                             let found = borrowed.contains(&evaluated_args[0]);
                             Ok(if found { Value::Betul } else { Value::Salah })
+                        }
+                        "isih" => {
+                            let mut borrowed = list.borrow_mut();
+                            borrowed.sort_by(|a, b| match (a, b) {
+                                (Value::Nombor(x), Value::Nombor(y)) => {
+                                    x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)
+                                }
+                                (Value::Teks(x), Value::Teks(y)) => x.cmp(y),
+                                _ => std::cmp::Ordering::Equal,
+                            });
+                            Ok(Value::Senarai(Rc::clone(&list)))
+                        }
+                        "balik" => {
+                            list.borrow_mut().reverse();
+                            Ok(Value::Senarai(Rc::clone(&list)))
+                        }
+                        "cantum" => {
+                            let pemisah = if evaluated_args.is_empty() {
+                                "".to_string()
+                            } else {
+                                match &evaluated_args[0] {
+                                    Value::Teks(s) => s.clone(),
+                                    other => other.to_string(),
+                                }
+                            };
+                            let borrowed = list.borrow();
+                            let parts: Vec<String> =
+                                borrowed.iter().map(|v| v.to_string()).collect();
+                            let result = parts.join(&pemisah);
+                            if result.len() > HAD_SAIZ_TEKS_MAKSIMUM {
+                                return Err(MelayuError::had_memori_terlampau(
+                                    "Saiz teks cantuman melebihi 16 MB",
+                                    pos.line,
+                                    pos.col,
+                                ));
+                            }
+                            Ok(Value::Teks(result))
                         }
                         other => Err(MelayuError::new(
                             "Eh!",
@@ -1185,12 +1316,13 @@ impl Interpreter {
                             pos.col,
                         )
                         .with_kind(ErrorKind::Runtime)
-                        .with_suggestion("Kaedah senarai yang ada: .tambah(item), .buang(indeks), .panjang(), .berisi(item)")),
+                        .with_suggestion("Kaedah senarai yang ada: .tambah(item), .buang(indeks), .panjang(), .berisi(item), .isih(), .balik(), .cantum(pemisah)")),
                     },
                     Value::Kamus(map) => match kaedah.as_str() {
                         "kunci" => {
                             let borrowed = map.borrow();
-                            let keys: Vec<Value> = borrowed.keys().cloned().map(Value::Teks).collect();
+                            let keys: Vec<Value> =
+                                borrowed.keys().cloned().map(Value::Teks).collect();
                             Ok(Value::Senarai(Rc::new(RefCell::new(keys))))
                         }
                         "nilai" => {
@@ -1213,6 +1345,104 @@ impl Interpreter {
                         "hurufKecil" => Ok(Value::Teks(s.to_lowercase())),
                         "panjang" => Ok(Value::Nombor(s.chars().count() as f64)),
                         "potong" => Ok(Value::Teks(s.trim().to_string())),
+                        "pecah" => {
+                            let pemisah = if evaluated_args.is_empty() {
+                                "".to_string()
+                            } else {
+                                match &evaluated_args[0] {
+                                    Value::Teks(p) => p.clone(),
+                                    other => other.to_string(),
+                                }
+                            };
+                            let items: Vec<Value> = if pemisah.is_empty() {
+                                s.chars().map(|c| Value::Teks(c.to_string())).collect()
+                            } else {
+                                s.split(&pemisah)
+                                    .map(|part| Value::Teks(part.to_string()))
+                                    .collect()
+                            };
+                            if items.len() > HAD_ELEMEN_SENARAI_MAKSIMUM {
+                                return Err(MelayuError::had_memori_terlampau(
+                                    "Bilangan elemen hasil pecahan teks melebihi 1,000,000",
+                                    pos.line,
+                                    pos.col,
+                                ));
+                            }
+                            Ok(Value::Senarai(Rc::new(RefCell::new(items))))
+                        }
+                        "ganti" => {
+                            if evaluated_args.len() != 2 {
+                                return Err(MelayuError::new(
+                                    "Alamak!",
+                                    "Kaedah '.ganti(lama, baru)' memerlukan 2 hujah teks.",
+                                    pos.line,
+                                    pos.col,
+                                )
+                                .with_kind(ErrorKind::Runtime));
+                            }
+                            let lama = evaluated_args[0].to_string();
+                            let baru = evaluated_args[1].to_string();
+                            let replaced = s.replace(&lama, &baru);
+                            if replaced.len() > HAD_SAIZ_TEKS_MAKSIMUM {
+                                return Err(MelayuError::had_memori_terlampau(
+                                    "Saiz teks ganti melebihi 16 MB",
+                                    pos.line,
+                                    pos.col,
+                                ));
+                            }
+                            Ok(Value::Teks(replaced))
+                        }
+                        "mulaDengan" => {
+                            if evaluated_args.len() != 1 {
+                                return Err(MelayuError::new(
+                                    "Alamak!",
+                                    "Kaedah '.mulaDengan(awalan)' memerlukan 1 hujah teks.",
+                                    pos.line,
+                                    pos.col,
+                                )
+                                .with_kind(ErrorKind::Runtime));
+                            }
+                            let awalan = evaluated_args[0].to_string();
+                            Ok(if s.starts_with(&awalan) {
+                                Value::Betul
+                            } else {
+                                Value::Salah
+                            })
+                        }
+                        "tamatDengan" => {
+                            if evaluated_args.len() != 1 {
+                                return Err(MelayuError::new(
+                                    "Alamak!",
+                                    "Kaedah '.tamatDengan(akhiran)' memerlukan 1 hujah teks.",
+                                    pos.line,
+                                    pos.col,
+                                )
+                                .with_kind(ErrorKind::Runtime));
+                            }
+                            let akhiran = evaluated_args[0].to_string();
+                            Ok(if s.ends_with(&akhiran) {
+                                Value::Betul
+                            } else {
+                                Value::Salah
+                            })
+                        }
+                        "mengandungi" => {
+                            if evaluated_args.len() != 1 {
+                                return Err(MelayuError::new(
+                                    "Alamak!",
+                                    "Kaedah '.mengandungi(subteks)' memerlukan 1 hujah.",
+                                    pos.line,
+                                    pos.col,
+                                )
+                                .with_kind(ErrorKind::Runtime));
+                            }
+                            let subteks = evaluated_args[0].to_string();
+                            Ok(if s.contains(&subteks) {
+                                Value::Betul
+                            } else {
+                                Value::Salah
+                            })
+                        }
                         other => Err(MelayuError::new(
                             "Eh!",
                             &format!("Kaedah '.{}()' tidak wujud untuk teks.", other),
@@ -1220,7 +1450,7 @@ impl Interpreter {
                             pos.col,
                         )
                         .with_kind(ErrorKind::Runtime)
-                        .with_suggestion("Kaedah teks yang ada: .hurufBesar(), .hurufKecil(), .panjang(), .potong()")),
+                        .with_suggestion("Kaedah teks yang ada: .hurufBesar(), .hurufKecil(), .panjang(), .potong(), .pecah(pemisah), .ganti(lama, baru), .mulaDengan(awalan), .tamatDengan(akhiran), .mengandungi(subteks)")),
                     },
                     other => Err(MelayuError::new(
                         "Eh!",

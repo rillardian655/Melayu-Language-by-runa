@@ -84,3 +84,68 @@ fn test_cuba_tangkap() {
         .unwrap();
     assert_eq!(status, Value::Betul);
 }
+
+#[test]
+fn test_manipulasi_teks_dan_koleksi_lanjutan() {
+    let kod = r#"
+    ada teksAsal = "epal,durian,pisang"
+    ada buah = teksAsal.pecah(",")
+    buah.isih()
+    ada teksTersusun = buah.cantum(" - ")
+    buah.balik()
+    ada terbalik = buah.cantum(",")
+
+    ada ayat = "Selamat Pagi Nusantara"
+    ada diganti = ayat.ganti("Pagi", "Petang")
+    ada mula = ayat.mulaDengan("Selamat")
+    ada tamat = ayat.tamatDengan("Nusantara")
+    ada ada_pagi = ayat.mengandungi("Pagi")
+    "#;
+    let program = huraikan(kod).unwrap();
+    let mut interp = Interpreter::new();
+    interp.interpret(&program).unwrap();
+
+    let env = interp.env.borrow();
+    let pos = melayu_core::ast::LineCol::new(1, 1);
+
+    assert_eq!(
+        env.get("teksTersusun", pos).unwrap(),
+        Value::Teks("durian - epal - pisang".to_string())
+    );
+    assert_eq!(
+        env.get("terbalik", pos).unwrap(),
+        Value::Teks("pisang,epal,durian".to_string())
+    );
+    assert_eq!(
+        env.get("diganti", pos).unwrap(),
+        Value::Teks("Selamat Petang Nusantara".to_string())
+    );
+    assert_eq!(env.get("mula", pos).unwrap(), Value::Betul);
+    assert_eq!(env.get("tamat", pos).unwrap(), Value::Betul);
+    assert_eq!(env.get("ada_pagi", pos).unwrap(), Value::Betul);
+}
+
+#[test]
+fn test_fungsi_matematik_terbina_dalam() {
+    let kod = r#"
+    ada r = bundar(3.6)
+    ada f = lantai(3.9)
+    ada c = siling(3.1)
+    ada m = mutlak(-42)
+    ada mx = maksimum(10, 50, 30)
+    ada mn = minimum(10, 50, 5)
+    "#;
+    let program = huraikan(kod).unwrap();
+    let mut interp = Interpreter::new();
+    interp.interpret(&program).unwrap();
+
+    let env = interp.env.borrow();
+    let pos = melayu_core::ast::LineCol::new(1, 1);
+
+    assert_eq!(env.get("r", pos).unwrap(), Value::Nombor(4.0));
+    assert_eq!(env.get("f", pos).unwrap(), Value::Nombor(3.0));
+    assert_eq!(env.get("c", pos).unwrap(), Value::Nombor(4.0));
+    assert_eq!(env.get("m", pos).unwrap(), Value::Nombor(42.0));
+    assert_eq!(env.get("mx", pos).unwrap(), Value::Nombor(50.0));
+    assert_eq!(env.get("mn", pos).unwrap(), Value::Nombor(5.0));
+}

@@ -2,6 +2,25 @@
 
 Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut format [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.2] - 2026-11-16
+
+### Ditambah (Added)
+- **Sistem Modul & Import Multi-Fail (`ambil`)**:
+  - Menyokong import fail penuh: `ambil "matematik.ml"` atau `ambil "matematik"`.
+  - Menyokong import ruang nama sebagai kamus: `ambil "matematik.ml" sebagai mat`.
+  - Menyokong import simbol terpilih: `ambil kiraDiskaun, adakahGenap daripada "matematik.ml"`.
+  - Dilindungi sepenuhnya oleh benteng keselamatan sandbox anti-traversal.
+- **Ekstensi Rasmi VS Code (`editors/vscode`)**:
+  - Definisi tatabahasa TextMate (`melayu.tmLanguage.json`) untuk pewarnaan sintaks lengkap.
+  - Konfigurasi autolengkap tanda kurung, lipatan kod, dan aturan indentasi pintar (`language-configuration.json`).
+  - Koleksi snippets siap guna untuk semua struktur blok kod (`snippets/melayu.json`).
+- **Alat Manipulasi Teks & Koleksi Lanjutan**:
+  - Kaedah rentetan teks baharu: `.pecah(pemisah)`, `.ganti(lama, baru)`, `.mulaDengan(awalan)`, `.tamatDengan(akhiran)`, `.mengandungi(subteks)`.
+  - Kaedah senarai baharu: `.isih()` (mengisih turutan), `.balik()` (membalikkan susunan), `.cantum(pemisah)` (menggabungkan senarai menjadi rentetan teks).
+  - Utiliti matematik terbina-dalam baharu: `bundar()`, `lantai()`, `siling()`, `mutlak()`, `maksimum()`, `minimum()`.
+- **Contoh Program Baharu**: `examples/matematik_modul.ml` dan `examples/demo_modul.ml`.
+- **Ujian Unit & Integrasi**: Menambah ujian integrasi modul dan kaedah rentetan/koleksi (jumlah 23 ujian lulus).
+
 ## [0.1.1] - 2026-11-16
 
 ### Keselamatan & Pengukuhan Enjin (Security & Hardening)

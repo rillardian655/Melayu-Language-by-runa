@@ -1,0 +1,63 @@
+{
+  "name": "melayu-language-support",
+  "displayName": "MELAYU Language Support",
+  "description": "Sokongan sintaks rasmi dan snippets untuk bahasa pengaturcaraan MELAYU (.ml)",
+  "version": "0.1.2",
+  "publisher": "xianlyruna",
+  "author": {
+    "name": "xianly runa",
+    "email": "rillardian655@gmail.com"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/rillardian655/Melayu-Language-by-runa",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rillardian655/Melayu-Language-by-runa"
+  },
+  "bugs": {
+    "url": "https://github.com/rillardian655/Melayu-Language-by-runa/issues"
+  },
+  "keywords": [
+    "melayu",
+    "melayulang",
+    "programming language",
+    "syntax highlighting",
+    "snippets"
+  ],
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "melayu",
+        "aliases": [
+          "MELAYU",
+          "melayu",
+          "Melayu"
+        ],
+        "extensions": [
+          ".ml"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "melayu",
+        "scopeName": "source.melayu",
+        "path": "./syntaxes/melayu.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "melayu",
+        "path": "./snippets/melayu.json"
+      }
+    ]
+  }
+}

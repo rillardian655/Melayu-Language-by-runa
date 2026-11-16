@@ -23,6 +23,12 @@ pub fn daftar_fungsi_bawaan() -> Vec<(&'static str, BuiltinFn)> {
         ("tulisFail", builtin_tulis_fail),
         ("wujudFail", builtin_wujud_fail),
         ("padamFail", builtin_padam_fail),
+        ("bundar", builtin_bundar),
+        ("lantai", builtin_lantai),
+        ("siling", builtin_siling),
+        ("mutlak", builtin_mutlak),
+        ("maksimum", builtin_maksimum),
+        ("minimum", builtin_minimum),
     ]
 }
 
@@ -142,6 +148,172 @@ pub fn builtin_punca_kuasa_dua(args: &[Value], pos: LineCol) -> Result<Value, Me
             pos.col,
         )),
     }
+}
+
+pub fn builtin_bundar(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Fungsi 'bundar' memerlukan 1 hujah nombor.",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime));
+    }
+    match &args[0] {
+        Value::Nombor(n) => Ok(Value::Nombor(n.round())),
+        other => Err(MelayuError::jenis_salah(
+            "nombor",
+            other.jenis(),
+            pos.line,
+            pos.col,
+        )),
+    }
+}
+
+pub fn builtin_lantai(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Fungsi 'lantai' memerlukan 1 hujah nombor.",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime));
+    }
+    match &args[0] {
+        Value::Nombor(n) => Ok(Value::Nombor(n.floor())),
+        other => Err(MelayuError::jenis_salah(
+            "nombor",
+            other.jenis(),
+            pos.line,
+            pos.col,
+        )),
+    }
+}
+
+pub fn builtin_siling(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Fungsi 'siling' memerlukan 1 hujah nombor.",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime));
+    }
+    match &args[0] {
+        Value::Nombor(n) => Ok(Value::Nombor(n.ceil())),
+        other => Err(MelayuError::jenis_salah(
+            "nombor",
+            other.jenis(),
+            pos.line,
+            pos.col,
+        )),
+    }
+}
+
+pub fn builtin_mutlak(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Fungsi 'mutlak' memerlukan 1 hujah nombor.",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime));
+    }
+    match &args[0] {
+        Value::Nombor(n) => Ok(Value::Nombor(n.abs())),
+        other => Err(MelayuError::jenis_salah(
+            "nombor",
+            other.jenis(),
+            pos.line,
+            pos.col,
+        )),
+    }
+}
+
+pub fn builtin_maksimum(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() < 2 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Fungsi 'maksimum' memerlukan sekurang-kurangnya 2 hujah nombor.",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime));
+    }
+    let mut max_val = match &args[0] {
+        Value::Nombor(n) => *n,
+        other => {
+            return Err(MelayuError::jenis_salah(
+                "nombor",
+                other.jenis(),
+                pos.line,
+                pos.col,
+            ))
+        }
+    };
+    for arg in &args[1..] {
+        match arg {
+            Value::Nombor(n) => {
+                if *n > max_val {
+                    max_val = *n;
+                }
+            }
+            other => {
+                return Err(MelayuError::jenis_salah(
+                    "nombor",
+                    other.jenis(),
+                    pos.line,
+                    pos.col,
+                ))
+            }
+        }
+    }
+    Ok(Value::Nombor(max_val))
+}
+
+pub fn builtin_minimum(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() < 2 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Fungsi 'minimum' memerlukan sekurang-kurangnya 2 hujah nombor.",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime));
+    }
+    let mut min_val = match &args[0] {
+        Value::Nombor(n) => *n,
+        other => {
+            return Err(MelayuError::jenis_salah(
+                "nombor",
+                other.jenis(),
+                pos.line,
+                pos.col,
+            ))
+        }
+    };
+    for arg in &args[1..] {
+        match arg {
+            Value::Nombor(n) => {
+                if *n < min_val {
+                    min_val = *n;
+                }
+            }
+            other => {
+                return Err(MelayuError::jenis_salah(
+                    "nombor",
+                    other.jenis(),
+                    pos.line,
+                    pos.col,
+                ))
+            }
+        }
+    }
+    Ok(Value::Nombor(min_val))
 }
 
 pub fn builtin_ke_teks(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
@@ -306,7 +478,7 @@ pub fn builtin_rawak(args: &[Value], pos: LineCol) -> Result<Value, MelayuError>
 
 pub const HAD_SAIZ_FAIL_MAKSIMUM: u64 = 5 * 1024 * 1024; // 5 MB
 
-fn semak_laluan_selamat(
+pub fn semak_laluan_selamat(
     laluan_str: &str,
     untuk_menulis: bool,
     pos: LineCol,

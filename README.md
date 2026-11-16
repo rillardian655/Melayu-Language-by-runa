@@ -11,7 +11,10 @@
 
   <p align="center">
     <a href="https://github.com/rillardian655/Melayu-Language-by-runa/releases">
-      <img src="https://img.shields.io/badge/Versi-0.1.1_Hardened-00ADD8?style=for-the-badge&logo=git&logoColor=white" alt="Versi" />
+      <img src="https://img.shields.io/badge/Versi-0.1.2-00ADD8?style=for-the-badge&logo=git&logoColor=white" alt="Versi" />
+    </a>
+    <a href="editors/vscode">
+      <img src="https://img.shields.io/badge/VS_Code-Ekstensi_Rasmi-007ACC?style=for-the-badge&logo=visual-studio-code&logoColor=white" alt="VS Code Extension" />
     </a>
     <a href="https://www.rust-lang.org/">
       <img src="https://img.shields.io/badge/Enjin-Rust_1.75+-000000?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" />
@@ -220,6 +223,33 @@ akhirnya
 selesai
 ```
 
+### 4. Sistem Modul & Utiliti Koleksi Lanjutan (v0.1.2)
+
+```melayu
+# Import fungsi terpilih daripada modul luar
+ambil kiraDiskaun daripada "examples/matematik_modul.ml"
+
+# Pecahkan teks menjadi senarai, isih dan cantumkan semula
+ada teksBuah = "mangga,durian,rambutan"
+ada senaraiBuah = teksBuah.pecah(",")
+senaraiBuah.isih()
+
+tunjuk "Senarai buah tersusun: " + senaraiBuah.cantum(" -> ")
+tunjuk "Harga promosi: RM" + kiraDiskaun(100, 20)
+```
+
+---
+
+## Ekstensi Rasmi Visual Studio Code
+
+Pembangun boleh menikmati pengalaman pengaturcaraan yang selesa menggunakan ekstensi rasmi VS Code yang disediakan dalam folder [`editors/vscode/`](editors/vscode/):
+
+* **Pewarnaan Sintaks Penuh**: Syntax highlighting untuk kata kunci Melayu, pembolehubah, jenis data, rentetan, dan pengendali ralat.
+* **Snippets Pintar**: Menaip pantas untuk blok `kerja`, `jika`, `selagi`, `untuk`, `cuba...tangkap`, dan `ambil`.
+* **Konfigurasi Bahasa**: Autolengkap tanda kurung, lipatan kod (*code folding*), dan aturan indentasi automatik.
+
+Sila rujuk panduan pemasangan lengkap di [editors/vscode/README.md](editors/vscode/README.md).
+
 ---
 
 ## Sistem Mesej Ralat Berhemah
@@ -296,7 +326,7 @@ Maklumat terperinci disediakan dalam folder [`docs/`](docs/):
 * Pengendalian ralat runtime (`cuba`, `tangkap`, `baling`, `akhirnya`).
 * Utiliti CLI dan konsol REPL interaktif.
 
-### [x] v0.1.1 — Keselamatan & Sandbox (Rilis Semasa)
+### [x] v0.1.1 — Keselamatan & Sandbox
 * Perlindungan limpahan tindanan (*stack overflow protection*) had rekursi 1,000.
 * Perlindungan DoS gelung tak terhingga (*infinite loop execution step limit*).
 * Pengesahan indeks ketat (penolakan NaN, infiniti, pecahan, pencegahan underflow).
@@ -305,11 +335,14 @@ Maklumat terperinci disediakan dalam folder [`docs/`](docs/):
 * Fungsi nombor rawak berentropi tinggi `rawak(min, max)`.
 * Suite ujian keselamatan khas (`tests/security_test.rs`).
 
-### [ ] v0.2.0 — Modul & Struktur Lanjutan
-* Sistem import fail modular: `ambil "matematik"` dan `dari "fail" ambil fungsi`.
-* Kaedah rentetan lanjutan (`.pecah()`, `.ganti()`, `.cantum()`).
+### [x] v0.1.2 — Modul, Utiliti Koleksi & Ekstensi VS Code (Rilis Semasa)
+* Sistem import fail modular: `ambil "fail.ml"`, `ambil "fail.ml" sebagai alias`, dan `ambil fungsi daripada "fail.ml"`.
+* Kaedah manipulasi teks lanjutan: `.pecah()`, `.ganti()`, `.mulaDengan()`, `.tamatDengan()`, `.mengandungi()`.
+* Kaedah pengurusan senarai: `.isih()`, `.balik()`, `.cantum()`.
+* Fungsi utiliti matematik: `bundar()`, `lantai()`, `siling()`, `mutlak()`, `maksimum()`, `minimum()`.
+* Ekstensi rasmi Visual Studio Code (`editors/vscode/`) dengan pewarnaan sintaks dan snippets.
 
-### [ ] v0.3.0 — Pengaturcaraan Berorientasikan Objek
+### [ ] v0.2.0 — Pengaturcaraan Berorientasikan Objek
 * Definisi kelas: `kelas <Nama> ... selesai`.
 * Pembina dan pewarisan: `bina`, `warisi`, `diri`.
 

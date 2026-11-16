@@ -42,3 +42,4 @@ tangkap ralat_indeks
 selesai
 
 tunjuk "=== SEMUA UJIAN KESELAMATAN BERJAYA ==="
+

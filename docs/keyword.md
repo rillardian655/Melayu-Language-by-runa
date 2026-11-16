@@ -74,6 +74,12 @@ Bahasa MELAYU menyertakan fungsi standard yang dilindungi sistem keselamatan san
 | `tulisFail(laluan, t)` | Menulis fail teks dalam sandbox (had 5 MB) | `tulisFail("log.txt", "OK")` |
 | `wujudFail(laluan)` | Menyemak sama ada fail wujud | `wujudFail("data.txt")` |
 | `padamFail(laluan)` | Memadam fail dalam direktori kerja semasa | `padamFail("log.txt")` |
+| `bundar(n)` | Membundarkan angka kepada integer terdekat | `bundar(3.7)` $\to$ `4` |
+| `lantai(n)` | Mengira nilai lantai matematik ($\lfloor n \rfloor$) | `lantai(3.9)` $\to$ `3` |
+| `siling(n)` | Mengira nilai siling matematik ($\lceil n \rceil$) | `siling(3.1)` $\to$ `4` |
+| `mutlak(n)` | Mengira nilai mutlak ($|n|$) | `mutlak(-42)` $\to$ `42` |
+| `maksimum(a, b, ...)` | Mengembalikan nilai tertinggi | `maksimum(10, 50, 30)` $\to$ `50` |
+| `minimum(a, b, ...)` | Mengembalikan nilai terendah | `minimum(10, 50, 5)` $\to$ `5` |
 
 > **Nota Keselamatan Sandbox:** Operasi fail dihalang daripada mengakses laluan di luar direktori kerja (Path Traversal Protection) demi mengelakkan pencerobohan sistem fail.
 

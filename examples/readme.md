@@ -13,6 +13,8 @@ Direktori ini mengandungi pelbagai contoh atur cara yang ditulis menggunakan bah
 | `tebak_angka.ml` | Permainan teka nombor interaktif | `rawak()`, perbandingan |
 | `sintaks_lengkap.ml` | Demonstrasi semua ciri sintaks v0.1.0 | Koleksi, gelung, kamus, pengendalian ralat |
 | `keselamatan_dan_fail.ml` | Demo keselamatan & sandbox operasi fail v0.1.1 | `rawak()`, `tulisFail()`, `bacaFail()`, anti-traversal |
+| `matematik_modul.ml` | Modul contoh fungsi pengiraan dan pemalar | Modul pustaka yang boleh diimport |
+| `demo_modul.ml` | Demo sistem import modul & alat koleksi lanjutan v0.1.2 | `ambil`, `.pecah()`, `.isih()`, `.cantum()`, `.ganti()` |
 
 ## Cara Menjalankan
 
@@ -25,6 +27,7 @@ melayu jalankan examples/kalkulator.ml
 melayu jalankan examples/fibonacci.ml
 melayu jalankan examples/tebak_angka.ml
 melayu jalankan examples/keselamatan_dan_fail.ml
+melayu jalankan examples/demo_modul.ml
 melayu jalankan examples/sintaks_lengkap.ml
 ```
 

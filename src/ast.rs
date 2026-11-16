@@ -205,6 +205,12 @@ pub enum Stmt {
     Ungkapan(Expr, LineCol),
     Horas(LineCol),
     Mangan(LineCol),
+    Ambil {
+        sasaran: String,
+        simbol: Option<Vec<String>>,
+        alias: Option<String>,
+        pos: LineCol,
+    },
 }
 
 impl Stmt {
@@ -226,6 +232,7 @@ impl Stmt {
             Stmt::Ungkapan(_, pos) => *pos,
             Stmt::Horas(pos) => *pos,
             Stmt::Mangan(pos) => *pos,
+            Stmt::Ambil { pos, .. } => *pos,
         }
     }
 }

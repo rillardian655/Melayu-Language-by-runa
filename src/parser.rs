@@ -54,6 +54,7 @@ impl Parser {
             }
             TokenKind::Cuba => self.parse_cuba(),
             TokenKind::Baling => self.parse_baling(),
+            TokenKind::Ambil => self.parse_ambil(),
             TokenKind::Horas => {
                 self.advance();
                 self.expect_stmt_delimiter()?;
@@ -596,6 +597,118 @@ impl Parser {
         let expr = self.parse_expression()?;
         self.expect_stmt_delimiter()?;
         Ok(Stmt::Baling(expr, pos))
+    }
+
+    fn parse_ambil(&mut self) -> Result<Stmt, MelayuError> {
+        let start_tok = self.advance(); // lewati 'ambil'
+        let pos = LineCol::new(start_tok.line, start_tok.column);
+
+        // Bentuk 1: ambil "fail.ml" [sebagai alias]
+        if let TokenKind::Teks(ref path_str) = self.peek().kind {
+            let sasaran = path_str.clone();
+            self.advance();
+
+            let mut alias = None;
+            if self.match_token(TokenKind::Sebagai) {
+                let alias_name = match self.parse_ident_token() {
+                    Some(id) => id,
+                    None => {
+                        let cur = self.peek();
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            &format!(
+                                "Diharapkan nama alias selepas 'sebagai', tetapi dapat '{}'.",
+                                cur.lexeme
+                            ),
+                            cur.line,
+                            cur.column,
+                        )
+                        .with_kind(ErrorKind::Parser)
+                        .with_suggestion("Contoh: ambil \"matematik.ml\" sebagai mat"));
+                    }
+                };
+                alias = Some(alias_name);
+            }
+
+            self.expect_stmt_delimiter()?;
+            return Ok(Stmt::Ambil {
+                sasaran,
+                simbol: None,
+                alias,
+                pos,
+            });
+        }
+
+        // Bentuk 2: ambil simbol1, simbol2 daripada "fail.ml"
+        let mut simbols = Vec::new();
+        loop {
+            let id = match self.parse_ident_token() {
+                Some(name) => name,
+                None => {
+                    let cur = self.peek();
+                    return Err(MelayuError::new(
+                        "Alamak!",
+                        &format!(
+                            "Diharapkan nama simbol atau laluan fail selepas 'ambil', tetapi dapat '{}'.",
+                            cur.lexeme
+                        ),
+                        cur.line,
+                        cur.column,
+                    )
+                    .with_kind(ErrorKind::Parser)
+                    .with_suggestion("Contoh: ambil \"kira.ml\" atau ambil tambah, tolak daripada \"kira.ml\""));
+                }
+            };
+            simbols.push(id);
+            if !self.match_token(TokenKind::Koma) {
+                break;
+            }
+        }
+
+        if !self.match_token(TokenKind::Daripada) {
+            let cur = self.peek();
+            return Err(MelayuError::new(
+                "Alamak!",
+                &format!(
+                    "Diharapkan 'daripada' selepas senarai simbol yang diambil, tetapi dapat '{}'.",
+                    cur.lexeme
+                ),
+                cur.line,
+                cur.column,
+            )
+            .with_kind(ErrorKind::Parser)
+            .with_suggestion("Contoh: ambil tambah, tolak daripada \"matematik.ml\""));
+        }
+
+        let sasaran = match self.peek().kind {
+            TokenKind::Teks(ref s) => {
+                let p = s.clone();
+                self.advance();
+                p
+            }
+            ref _other => {
+                let cur = self.peek();
+                return Err(MelayuError::new(
+                    "Alamak!",
+                    &format!(
+                        "Diharapkan rentetan laluan fail selepas 'daripada', tetapi dapat '{}'.",
+                        cur.lexeme
+                    ),
+                    cur.line,
+                    cur.column,
+                )
+                .with_kind(ErrorKind::Parser)
+                .with_suggestion("Contoh: ambil tambah daripada \"matematik.ml\""));
+            }
+        };
+
+        self.expect_stmt_delimiter()?;
+        Ok(Stmt::Ambil {
+            sasaran,
+            simbol: Some(simbols),
+            alias: None,
+            pos,
+        })
     }
 
     fn parse_assignment_or_expr_stmt(&mut self) -> Result<Stmt, MelayuError> {

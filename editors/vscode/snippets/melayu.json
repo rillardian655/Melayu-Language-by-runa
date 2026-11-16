@@ -1,0 +1,112 @@
+{
+  "Deklarasi Pembolehubah (ada)": {
+    "prefix": "ada",
+    "body": [
+      "ada ${1:nama} = ${2:nilai}"
+    ],
+    "description": "Deklarasi pembolehubah mutabel"
+  },
+  "Deklarasi Pemalar (tetap)": {
+    "prefix": "tetap",
+    "body": [
+      "tetap ${1:NAMA} = ${2:nilai}"
+    ],
+    "description": "Deklarasi pemalar malar (tidak boleh ubah)"
+  },
+  "Deklarasi Fungsi (kerja)": {
+    "prefix": "kerja",
+    "body": [
+      "kerja ${1:namaFungsi}(${2:parameter})",
+      "\t${3:# kod anda}",
+      "\tpulang ${4:nilai}",
+      "selesai"
+    ],
+    "description": "Blok deklarasi fungsi Melayu"
+  },
+  "Syarat Jika (jika)": {
+    "prefix": "jika",
+    "body": [
+      "jika ${1:syarat}",
+      "\t${2:# blok laksana}",
+      "selesai"
+    ],
+    "description": "Blok syarat jika"
+  },
+  "Syarat Jika-Tidak (jika ... jika tidak)": {
+    "prefix": "jikatidak",
+    "body": [
+      "jika ${1:syarat}",
+      "\t${2:# jika benar}",
+      "jika tidak",
+      "\t${3:# jika salah}",
+      "selesai"
+    ],
+    "description": "Blok syarat jika berserta alternatif"
+  },
+  "Gelung Selagi (selagi)": {
+    "prefix": "selagi",
+    "body": [
+      "selagi ${1:syarat}",
+      "\t${2:# badan gelung}",
+      "selesai"
+    ],
+    "description": "Gelung berasaskan syarat (while loop)"
+  },
+  "Gelung Elemen (untuk ... dalam)": {
+    "prefix": "untukdalam",
+    "body": [
+      "untuk ${1:item} dalam ${2:senarai}",
+      "\ttunjuk ${1:item}",
+      "selesai"
+    ],
+    "description": "Gelung lelaran elemen senarai (for-in loop)"
+  },
+  "Gelung Julat (untuk ... dari ... hingga)": {
+    "prefix": "untukjulat",
+    "body": [
+      "untuk ${1:i} dari ${2:1} hingga ${3:10}",
+      "\ttunjuk ${1:i}",
+      "selesai"
+    ],
+    "description": "Gelung julat angka (for-range loop)"
+  },
+  "Pengendalian Ralat (cuba ... tangkap)": {
+    "prefix": "cuba",
+    "body": [
+      "cuba",
+      "\t${1:# operasi berisiko}",
+      "tangkap ${2:ralat}",
+      "\ttunjuk \"Ralat dikesan: \" + ${2:ralat}",
+      "selesai"
+    ],
+    "description": "Blok perlindungan dan tangkapan ralat"
+  },
+  "Import Modul (ambil)": {
+    "prefix": "ambil",
+    "body": [
+      "ambil \"${1:modul.ml}\""
+    ],
+    "description": "Import keseluruhan fail modul"
+  },
+  "Import Modul Sebagai Alias (ambil sebagai)": {
+    "prefix": "ambilsebagai",
+    "body": [
+      "ambil \"${1:modul.ml}\" sebagai ${2:alias}"
+    ],
+    "description": "Import modul ke dalam ruang nama kamus"
+  },
+  "Import Simbol Terpilih (ambil daripada)": {
+    "prefix": "ambildaripada",
+    "body": [
+      "ambil ${1:fungsi} daripada \"${2:modul.ml}\""
+    ],
+    "description": "Import fungsi atau pembolehubah terpilih daripada fail modul"
+  },
+  "Papar Output (tunjuk)": {
+    "prefix": "tunjuk",
+    "body": [
+      "tunjuk ${1:mesej}"
+    ],
+    "description": "Mencetak mesej ke terminal"
+  }
+}

@@ -1,0 +1,135 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "MELAYU",
+  "scopeName": "source.melayu",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#constants" },
+    { "include": "#composite_keywords" },
+    { "include": "#keywords" },
+    { "include": "#builtins" },
+    { "include": "#methods" },
+    { "include": "#operators" },
+    { "include": "#types" },
+    { "include": "#function_declaration" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.melayu",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.melayu",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.melayu",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.melayu",
+          "match": "\\b[0-9]+(\\.[0-9]+)?\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.melayu",
+          "match": "\\b(betul|salah)\\b"
+        },
+        {
+          "name": "constant.language.null.melayu",
+          "match": "\\bkosong\\b"
+        }
+      ]
+    },
+    "composite_keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.melayu",
+          "match": "\\b(jika\\s+tidak\\s+jika|jika\\s+tidak|baca\\s+nombor|sama\\s+dengan|tidak\\s+sama|lebih\\s+sama|kurang\\s+sama)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.melayu",
+          "match": "\\b(jika|selagi|untuk|dalam|dari|hingga|langkah|hentikan|teruskan|pulang|selesai|cuba|tangkap|baling|akhirnya|ambil|daripada|sebagai|horas|mangan)\\b"
+        },
+        {
+          "name": "keyword.declaration.melayu",
+          "match": "\\b(ada|tetap|kerja)\\b"
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.melayu",
+          "match": "\\b(tunjuk|baca|panjang|jenis|hurufBesar|hurufKecil|puncaKuasaDua|rawak|bacaFail|tulisFail|wujudFail|padamFail|bundar|lantai|siling|mutlak|maksimum|minimum)\\b"
+        }
+      ]
+    },
+    "methods": {
+      "patterns": [
+        {
+          "match": "\\.([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+          "captures": {
+            "1": {
+              "name": "entity.name.function.member.melayu"
+            }
+          }
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.word.melayu",
+          "match": "\\b(tambah|tolak|kali|bahagi|modulo|lebih|kurang|dan|atau|bukan)\\b"
+        },
+        {
+          "name": "keyword.operator.symbol.melayu",
+          "match": "(==|!=|>=|<=|>|<|\\+|-|\\*|/|%|&&|\\|\\||!|=)"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.melayu",
+          "match": "\\b(teks|nombor|senarai|kamus)\\b"
+        }
+      ]
+    },
+    "function_declaration": {
+      "patterns": [
+        {
+          "match": "\\bkerja\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(",
+          "captures": {
+            "1": {
+              "name": "entity.name.function.melayu"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

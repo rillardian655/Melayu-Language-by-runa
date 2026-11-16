@@ -137,4 +137,55 @@ Bahasa MELAYU dilengkapi dengan benteng keselamatan aras enjin untuk melindungi 
 4. **Perlindungan 'Path Traversal'**: Operasi fail (`bacaFail`, `tulisFail`, `wujudFail`, `padamFail`) disekat daripada mengakses luar direktori kerja projek.
 5. **Had Saiz Fail**: Bacaan dan penulisan fail dihadkan kepada saiz maksimum 5 MB.
 
+---
+
+## 8. Sistem Modul & Import (`ambil`) (v0.1.2)
+
+Bahasa MELAYU menyokong pengurusan kod multi-fail modular:
+
+### Bentuk 1: Import Fail Penuh
+```melayu
+ambil "matematik.ml"
+# Semua fungsi dan pembolehubah daripada fail boleh diakses terus
+```
+
+### Bentuk 2: Import Ruang Nama (Namespace / Kamus)
+```melayu
+ambil "matematik.ml" sebagai mat
+ada hasil = mat["kiraDiskaun"](100, 10)
+```
+
+### Bentuk 3: Import Simbol Terpilih
+```melayu
+ambil kiraDiskaun, adakahGenap daripada "matematik.ml"
+ada diskaun = kiraDiskaun(200, 15)
+```
+
+---
+
+## 9. Kaedah Manipulasi Teks & Senarai Lanjutan (v0.1.2)
+
+### Kaedah Rentetan Teks:
+* `.pecah(pemisah)`: Memecahkan teks menjadi senarai rentetan.
+* `.ganti(lama, baru)`: Menggantikan teks sasaran dengan teks baharu.
+* `.mulaDengan(awalan)`: Menyemak sama ada teks bermula dengan awalan tertentu (`betul`/`salah`).
+* `.tamatDengan(akhiran)`: Menyemak sama ada teks berakhir dengan akhiran tertentu.
+* `.mengandungi(subteks)`: Menyemak kehadiran subteks.
+* `.hurufBesar()`, `.hurufKecil()`, `.panjang()`, `.potong()`.
+
+### Kaedah Senarai:
+* `.isih()`: Menyusun elemen senarai mengikut turutan menaik.
+* `.balik()`: Membalikkan susunan elemen senarai.
+* `.cantum(pemisah)`: Menggabungkan elemen senarai menjadi satu rentetan teks.
+* `.tambah(item)`, `.buang(indeks)`, `.panjang()`, `.berisi(item)`.
+
+### Utiliti Matematik Terbina-Dalam:
+* `bundar(n)`: Pembundaran angka ke nombor bulat terdekat.
+* `lantai(n)`: Nilai lantai matematik ($\lfloor n \rfloor$).
+* `siling(n)`: Nilai siling matematik ($\lceil n \rceil$).
+* `mutlak(n)`: Nilai mutlak ($|n|$).
+* `maksimum(a, b, ...)`: Mencari nilai terbesar.
+* `minimum(a, b, ...)`: Mencari nilai terkecil.
+
+
 
