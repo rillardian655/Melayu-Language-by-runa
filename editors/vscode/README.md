@@ -38,3 +38,4 @@ npx @vscode/vsce package
 
 Fail `melayu-language-support-0.1.2.vsix` akan dijana dan boleh dipasang melalui menu VS Code:
 `Extensions -> ... (Views and More Actions) -> Install from VSIX...`.
+

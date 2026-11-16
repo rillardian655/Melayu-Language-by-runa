@@ -3,6 +3,7 @@
   "displayName": "MELAYU Language Support",
   "description": "Sokongan sintaks rasmi dan snippets untuk bahasa pengaturcaraan MELAYU (.ml)",
   "version": "0.1.2",
+  "icon": "./icon.svg",
   "publisher": "xianlyruna",
   "author": {
     "name": "xianly runa",
@@ -61,3 +62,4 @@
     ]
   }
 }
+

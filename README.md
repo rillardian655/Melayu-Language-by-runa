@@ -1,7 +1,13 @@
 <div align="center">
 
   <a href="https://github.com/rillardian655/Melayu-Language-by-runa">
-    <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=800&size=34&pause=1000&color=27F2FF&center=true&vCenter=true&width=750&height=85&lines=MELAYU+PROGRAMMING+LANGUAGE;BAHASA+PROGRAMMING+SERUMPUN;NUSANTARA+DEVELOPER+ECOSYSTEM" alt="MELAYU Header Banner" />
+    <img src="assets/logo.svg" alt="MELAYU Programming Language Logo" width="850" />
+  </a>
+
+  <br/><br/>
+
+  <a href="https://github.com/rillardian655/Melayu-Language-by-runa">
+    <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=800&size=26&pause=1000&color=27F2FF&center=true&vCenter=true&width=750&height=60&lines=BAHASA+PROGRAMMING+SERUMPUN;NUSANTARA+DEVELOPER+ECOSYSTEM;KOD+DALAM+BAHASA+SENDIRI" alt="MELAYU Header Banner" />
   </a>
 
   <p align="center">

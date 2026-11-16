@@ -32,3 +32,4 @@
     "decreaseIndentPattern": "^\\s*(jika\\s+tidak\\s+jika|jika\\s+tidak|tangkap|akhirnya|selesai)\\b.*$"
   }
 }
+
