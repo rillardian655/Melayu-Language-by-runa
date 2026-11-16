@@ -53,4 +53,3 @@ fn test_pengesan_typo() {
     let err = lexer.tokenize().expect_err("Sepatutnya ralat typo");
     assert!(err.message.contains("bukan keyword Melayu"));
 }
-

@@ -189,8 +189,73 @@ pub enum Flow {
     Teruskan,
 }
 
+// -----------------------------------------------------------------------------
+// HAD KESELAMATAN & SANDBOX PENGHURAI MELAYU
+// -----------------------------------------------------------------------------
+pub const HAD_REKURSI_LALAI: usize = 1_000;
+pub const HAD_LANGKAH_LALAI: u64 = 10_000_000;
+pub const HAD_SAIZ_TEKS_MAKSIMUM: usize = 16 * 1024 * 1024; // 16 MB
+pub const HAD_ELEMEN_SENARAI_MAKSIMUM: usize = 1_000_000; // 1 juta elemen
+
+/// Memastikan nombor indeks sah: terhingga, bukan perpuluhan, dan dalam julat yang dibenarkan.
+pub fn sahkan_indeks(n: f64, len: usize, pos: LineCol) -> Result<usize, MelayuError> {
+    if !n.is_finite() {
+        return Err(MelayuError::indeks_tidak_sah(
+            "Indeks mestilah nombor terhingga (bukan NaN atau Infiniti).",
+            pos.line,
+            pos.col,
+        ));
+    }
+
+    if n.fract() != 0.0 {
+        return Err(MelayuError::indeks_tidak_sah(
+            &format!(
+                "Indeks mestilah nombor bulat (integer), bukan pecahan atau perpuluhan ({}).",
+                n
+            ),
+            pos.line,
+            pos.col,
+        ));
+    }
+
+    let idx = n as isize;
+    let actual_idx = if idx < 0 {
+        let abs_idx = idx.unsigned_abs();
+        if abs_idx > len {
+            return Err(MelayuError::indeks_tidak_sah(
+                &format!(
+                    "Indeks negatif {} di luar julat saiz semasa ({}).",
+                    idx, len
+                ),
+                pos.line,
+                pos.col,
+            ));
+        }
+        len - abs_idx
+    } else {
+        idx as usize
+    };
+
+    if actual_idx >= len {
+        return Err(MelayuError::indeks_tidak_sah(
+            &format!(
+                "Indeks {} di luar julat yang sah (saiz sebenar: {}).",
+                n, len
+            ),
+            pos.line,
+            pos.col,
+        ));
+    }
+
+    Ok(actual_idx)
+}
+
 pub struct Interpreter {
     pub env: Rc<RefCell<Environment>>,
+    pub kedalaman_panggilan: usize,
+    pub had_rekursi: usize,
+    pub jumlah_langkah: u64,
+    pub had_langkah: Option<u64>,
 }
 
 impl Default for Interpreter {
@@ -209,7 +274,23 @@ impl Interpreter {
                 .define(nama, Value::Bawaan(nama.to_string(), func), true);
         }
 
-        Self { env }
+        Self {
+            env,
+            kedalaman_panggilan: 0,
+            had_rekursi: HAD_REKURSI_LALAI,
+            jumlah_langkah: 0,
+            had_langkah: Some(HAD_LANGKAH_LALAI),
+        }
+    }
+
+    pub fn with_step_limit(mut self, limit: Option<u64>) -> Self {
+        self.had_langkah = limit;
+        self
+    }
+
+    pub fn with_recursion_limit(mut self, limit: usize) -> Self {
+        self.had_rekursi = limit;
+        self
     }
 
     pub fn interpret(&mut self, program: &Program) -> Result<Value, MelayuError> {
@@ -246,6 +327,14 @@ impl Interpreter {
         stmt: &Stmt,
         env: &Rc<RefCell<Environment>>,
     ) -> Result<Flow, MelayuError> {
+        self.jumlah_langkah += 1;
+        if let Some(had) = self.had_langkah {
+            if self.jumlah_langkah > had {
+                let pos = stmt.pos();
+                return Err(MelayuError::had_langkah_terlampau(had, pos.line, pos.col));
+            }
+        }
+
         match stmt {
             Stmt::IsytiharPembolehubah {
                 nama, tetap, nilai, ..
@@ -271,27 +360,8 @@ impl Interpreter {
                             Value::Senarai(list) => match idx_val {
                                 Value::Nombor(n) => {
                                     let mut borrowed = list.borrow_mut();
-                                    let idx = n as isize;
-                                    let actual_idx = if idx < 0 {
-                                        (borrowed.len() as isize + idx) as usize
-                                    } else {
-                                        idx as usize
-                                    };
-                                    if actual_idx < borrowed.len() {
-                                        borrowed[actual_idx] = val;
-                                    } else {
-                                        return Err(MelayuError::new(
-                                            "Aduh!",
-                                            &format!(
-                                                "Indeks {} di luar julat senarai yang bersaiz {}.",
-                                                n,
-                                                borrowed.len()
-                                            ),
-                                            pos.line,
-                                            pos.col,
-                                        )
-                                        .with_kind(ErrorKind::Runtime));
-                                    }
+                                    let actual_idx = sahkan_indeks(n, borrowed.len(), *pos)?;
+                                    borrowed[actual_idx] = val;
                                 }
                                 other => {
                                     return Err(MelayuError::jenis_salah(
@@ -721,9 +791,38 @@ impl Interpreter {
                 match op {
                     BinaryOp::Tambah => match (&left_val, &right_val) {
                         (Value::Nombor(a), Value::Nombor(b)) => Ok(Value::Nombor(a + b)),
-                        (Value::Teks(a), b) => Ok(Value::Teks(format!("{}{}", a, b))),
-                        (a, Value::Teks(b)) => Ok(Value::Teks(format!("{}{}", a, b))),
+                        (Value::Teks(a), b) => {
+                            let b_str = b.to_string();
+                            if a.len() + b_str.len() > HAD_SAIZ_TEKS_MAKSIMUM {
+                                return Err(MelayuError::had_memori_terlampau(
+                                    "Saiz rentetan teks melebihi had keselamatan maksimum (16 MB)",
+                                    pos.line,
+                                    pos.col,
+                                ));
+                            }
+                            Ok(Value::Teks(format!("{}{}", a, b_str)))
+                        }
+                        (a, Value::Teks(b)) => {
+                            let a_str = a.to_string();
+                            if a_str.len() + b.len() > HAD_SAIZ_TEKS_MAKSIMUM {
+                                return Err(MelayuError::had_memori_terlampau(
+                                    "Saiz rentetan teks melebihi had keselamatan maksimum (16 MB)",
+                                    pos.line,
+                                    pos.col,
+                                ));
+                            }
+                            Ok(Value::Teks(format!("{}{}", a_str, b)))
+                        }
                         (Value::Senarai(a), Value::Senarai(b)) => {
+                            let a_len = a.borrow().len();
+                            let b_len = b.borrow().len();
+                            if a_len + b_len > HAD_ELEMEN_SENARAI_MAKSIMUM {
+                                return Err(MelayuError::had_memori_terlampau(
+                                    "Jumlah elemen senarai cantuman melebihi had keselamatan (1,000,000)",
+                                    pos.line,
+                                    pos.col,
+                                ));
+                            }
                             let mut combined = a.borrow().clone();
                             combined.extend(b.borrow().clone());
                             Ok(Value::Senarai(Rc::new(RefCell::new(combined))))
@@ -884,6 +983,14 @@ impl Interpreter {
                             .with_kind(ErrorKind::Runtime));
                         }
 
+                        if self.kedalaman_panggilan >= self.had_rekursi {
+                            return Err(MelayuError::rekursi_berlebihan(
+                                self.had_rekursi,
+                                pos.line,
+                                pos.col,
+                            ));
+                        }
+
                         let call_env =
                             Rc::new(RefCell::new(Environment::with_parent(Rc::clone(&closure))));
                         for (i, (p_name, _)) in parameter.iter().enumerate() {
@@ -892,22 +999,27 @@ impl Interpreter {
                                 .define(p_name, evaluated_args[i].clone(), false);
                         }
 
-                        for s in &badan {
-                            match self.execute_stmt(s, &call_env)? {
-                                Flow::Lanjut => {}
-                                Flow::Pulang(v) => return Ok(v),
-                                Flow::Hentikan | Flow::Teruskan => {
-                                    return Err(MelayuError::new(
-                                        "Woy!",
-                                        "'hentikan' atau 'teruskan' tidak sah di luar gelung.",
-                                        pos.line,
-                                        pos.col,
-                                    )
-                                    .with_kind(ErrorKind::Runtime));
+                        self.kedalaman_panggilan += 1;
+                        let hasil = (|| -> Result<Value, MelayuError> {
+                            for s in &badan {
+                                match self.execute_stmt(s, &call_env)? {
+                                    Flow::Lanjut => {}
+                                    Flow::Pulang(v) => return Ok(v),
+                                    Flow::Hentikan | Flow::Teruskan => {
+                                        return Err(MelayuError::new(
+                                            "Woy!",
+                                            "'hentikan' atau 'teruskan' tidak sah di luar gelung.",
+                                            pos.line,
+                                            pos.col,
+                                        )
+                                        .with_kind(ErrorKind::Runtime));
+                                    }
                                 }
                             }
-                        }
-                        Ok(Value::Kosong)
+                            Ok(Value::Kosong)
+                        })();
+                        self.kedalaman_panggilan -= 1;
+                        hasil
                     }
                     other => Err(MelayuError::new(
                         "Eh!",
@@ -930,27 +1042,8 @@ impl Interpreter {
                     Value::Senarai(list) => match idx_val {
                         Value::Nombor(n) => {
                             let borrowed = list.borrow();
-                            let idx = n as isize;
-                            let actual_idx = if idx < 0 {
-                                (borrowed.len() as isize + idx) as usize
-                            } else {
-                                idx as usize
-                            };
-                            if actual_idx < borrowed.len() {
-                                Ok(borrowed[actual_idx].clone())
-                            } else {
-                                Err(MelayuError::new(
-                                    "Aduh!",
-                                    &format!(
-                                        "Indeks {} di luar julat senarai bersaiz {}.",
-                                        n,
-                                        borrowed.len()
-                                    ),
-                                    pos.line,
-                                    pos.col,
-                                )
-                                .with_kind(ErrorKind::Runtime))
-                            }
+                            let actual_idx = sahkan_indeks(n, borrowed.len(), *pos)?;
+                            Ok(borrowed[actual_idx].clone())
                         }
                         other => Err(MelayuError::jenis_salah(
                             "nombor",
@@ -970,22 +1063,8 @@ impl Interpreter {
                     Value::Teks(s) => match idx_val {
                         Value::Nombor(n) => {
                             let chars: Vec<char> = s.chars().collect();
-                            let idx = n as usize;
-                            if idx < chars.len() {
-                                Ok(Value::Teks(chars[idx].to_string()))
-                            } else {
-                                Err(MelayuError::new(
-                                    "Aduh!",
-                                    &format!(
-                                        "Indeks rentetan {} di luar julat panjang {}.",
-                                        n,
-                                        chars.len()
-                                    ),
-                                    pos.line,
-                                    pos.col,
-                                )
-                                .with_kind(ErrorKind::Runtime))
-                            }
+                            let actual_idx = sahkan_indeks(n, chars.len(), *pos)?;
+                            Ok(Value::Teks(chars[actual_idx].to_string()))
                         }
                         other => Err(MelayuError::jenis_salah(
                             "nombor",
@@ -1052,7 +1131,15 @@ impl Interpreter {
                                 )
                                 .with_kind(ErrorKind::Runtime));
                             }
-                            list.borrow_mut().push(evaluated_args[0].clone());
+                            let mut borrowed = list.borrow_mut();
+                            if borrowed.len() >= HAD_ELEMEN_SENARAI_MAKSIMUM {
+                                return Err(MelayuError::had_memori_terlampau(
+                                    "Bilangan elemen senarai melebihi had keselamatan maksimum (1,000,000)",
+                                    pos.line,
+                                    pos.col,
+                                ));
+                            }
+                            borrowed.push(evaluated_args[0].clone());
                             Ok(Value::Kosong)
                         }
                         "buang" => {
@@ -1068,21 +1155,16 @@ impl Interpreter {
                             match evaluated_args[0] {
                                 Value::Nombor(n) => {
                                     let mut borrowed = list.borrow_mut();
-                                    let idx = n as usize;
-                                    if idx < borrowed.len() {
-                                        Ok(borrowed.remove(idx))
-                                    } else {
-                                        Err(MelayuError::new(
-                                            "Aduh!",
-                                            &format!("Indeks {} di luar julat senarai.", n),
-                                            pos.line,
-                                            pos.col,
-                                        )
-                                        .with_kind(ErrorKind::Runtime))
-                                    }
+                                    let actual_idx = sahkan_indeks(n, borrowed.len(), *pos)?;
+                                    Ok(borrowed.remove(actual_idx))
                                 }
                                 ref other => {
-                                    Err(MelayuError::jenis_salah("nombor", other.jenis(), pos.line, pos.col))
+                                    Err(MelayuError::jenis_salah(
+                                        "nombor",
+                                        other.jenis(),
+                                        pos.line,
+                                        pos.col,
+                                    ))
                                 }
                             }
                         }

@@ -36,4 +36,3 @@ fn test_ralat_ubah_tetap() {
     let err = jalankan(kod).expect_err("Sepatutnya ralat");
     assert!(err.message.contains("pembolehubah tetap"));
 }
-

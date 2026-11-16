@@ -55,3 +55,26 @@ Bahasa Melayu menyokong penggunaan perkataan mahupun simbol antarabangsa secara 
 * `atau` $\equiv$ `||`
 * `bukan` $\equiv$ `!`
 
+## Fungsi Terbina-Dalam (Built-in Functions) & Keselamatan
+
+Bahasa MELAYU menyertakan fungsi standard yang dilindungi sistem keselamatan sandbox:
+
+| Fungsi | Penerangan | Contoh |
+|---|---|---|
+| `panjang(x)` | Mengira saiz senarai, kamus, atau panjang teks | `panjang([1, 2, 3])` |
+| `jenis(x)` | Menyemak nama jenis data | `jenis(42)` $\to$ `"nombor"` |
+| `hurufBesar(t)` | Menukar rentetan teks kepada huruf besar | `hurufBesar("hai")` $\to$ `"HAI"` |
+| `hurufKecil(t)` | Menukar rentetan teks kepada huruf kecil | `hurufKecil("HAI")` $\to$ `"hai"` |
+| `puncaKuasaDua(n)` | Mengira punca kuasa dua ($\sqrt{n}$) | `puncaKuasaDua(16)` $\to$ `4` |
+| `teks(x)` | Menukar sebarang nilai kepada teks | `teks(100)` $\to$ `"100"` |
+| `nombor(x)` | Menukar teks angka kepada nombor | `nombor("3.14")` $\to$ `3.14` |
+| `rawak()` | Menjana nombor perpuluhan rawak 0.0 - 1.0 | `rawak()` |
+| `rawak(min, max)` | Menjana nombor bulat rawak dalam julat [min, max] | `rawak(1, 100)` |
+| `bacaFail(laluan)` | Membaca fail teks dalam sandbox (had 5 MB) | `bacaFail("data.txt")` |
+| `tulisFail(laluan, t)` | Menulis fail teks dalam sandbox (had 5 MB) | `tulisFail("log.txt", "OK")` |
+| `wujudFail(laluan)` | Menyemak sama ada fail wujud | `wujudFail("data.txt")` |
+| `padamFail(laluan)` | Memadam fail dalam direktori kerja semasa | `padamFail("log.txt")` |
+
+> **Nota Keselamatan Sandbox:** Operasi fail dihalang daripada mengakses laluan di luar direktori kerja (Path Traversal Protection) demi mengelakkan pencerobohan sistem fail.
+
+

@@ -11,13 +11,16 @@
 
   <p align="center">
     <a href="https://github.com/rillardian655/Melayu-Language-by-runa/releases">
-      <img src="https://img.shields.io/badge/Versi-0.1.0_MVP-00ADD8?style=for-the-badge&logo=git&logoColor=white" alt="Versi" />
+      <img src="https://img.shields.io/badge/Versi-0.1.1_Hardened-00ADD8?style=for-the-badge&logo=git&logoColor=white" alt="Versi" />
     </a>
     <a href="https://www.rust-lang.org/">
       <img src="https://img.shields.io/badge/Enjin-Rust_1.75+-000000?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" />
     </a>
     <a href="LICENSE">
       <img src="https://img.shields.io/badge/Lesen-MIT-22C55E?style=for-the-badge&logo=open-source-initiative&logoColor=white" alt="Lesen MIT" />
+    </a>
+    <a href="https://github.com/rillardian655/Melayu-Language-by-runa">
+      <img src="https://img.shields.io/badge/Keselamatan-Sandboxed_Safe-10B981?style=for-the-badge&logo=shield&logoColor=white" alt="Keselamatan" />
     </a>
     <a href="https://github.com/rillardian655/Melayu-Language-by-runa">
       <img src="https://img.shields.io/badge/Platform-Linux_|_macOS_|_Windows-6366F1?style=for-the-badge&logo=linux&logoColor=white" alt="Platform" />
@@ -249,6 +252,26 @@ Aduh! Ada ralat di baris 1, lajur 16:
 
 ---
 
+## Ciri Keselamatan & Pengukuhan Sandbox (Security Hardened)
+
+Bermula dari versi v0.1.1, enjin MELAYU dilengkapi ciri perlindungan keselamatan aras sistem hos:
+
+1. **Perlindungan 'Stack Overflow' (CWE-674)**: Had rekursi fungsi ditetapkan maksimum 1,000 tahap secara lalai bagi menghalang keruntuhan proses hos (*native stack overflow*).
+2. **Pencegahan 'Runaway Loop' / DoS (CWE-400)**: Had pelaksanaan 10,000,000 langkah secara automatik menamatkan gelung tak terhingga (*infinite loop*) secara selamat.
+3. **Pengesahan Indeks Ketat**:
+   - Menolak indeks `NaN`, `Infiniti`, atau nombor pecahan/perpuluhan (`senarai[1.5]`).
+   - Menyokong indeks negatif yang sah (contoh: `senarai[-1]` untuk elemen terakhir).
+4. **Perlindungan 'Path Traversal' Sandbox**:
+   - Fungsi operasi fail (`bacaFail`, `tulisFail`, `wujudFail`, `padamFail`) disaring ketat.
+   - Percubaan mengakses laluan luar seperti `../` atau direktori sistem disekat sepenuhnya.
+5. **Had Memori & Saiz Fail**:
+   - Bacaan dan penulisan fail dihadkan kepada saiz maksimum 5 MB.
+   - Cantuman teks dihadkan kepada 16 MB dan cantuman senarai kepada 1,000,000 elemen untuk mengelakkan keletihan memori (*OOM bomb*).
+6. **Penjana Nombor Rawak Berentropi Tinggi**:
+   - Menyertakan `rawak()` dan `rawak(min, max)` berasaskan algoritma SplitMix64 tanpa sebarang kebergantungan luar.
+
+---
+
 ## Dokumentasi Rasmi
 
 Maklumat terperinci disediakan dalam folder [`docs/`](docs/):
@@ -263,7 +286,7 @@ Maklumat terperinci disediakan dalam folder [`docs/`](docs/):
 
 ## Pelan Hala Tuju (Roadmap)
 
-### [x] v0.1.0 — MVP (Rilis Semasa)
+### [x] v0.1.0 — MVP
 * Pembolehubah mutabel (`ada`) dan pemalar (`tetap`).
 * Jenis data primitif (`teks`, `nombor`, `betul`, `salah`, `kosong`).
 * Kawalan aliran (`jika`, `jika tidak jika`, `jika tidak`, `selesai`).
@@ -273,10 +296,18 @@ Maklumat terperinci disediakan dalam folder [`docs/`](docs/):
 * Pengendalian ralat runtime (`cuba`, `tangkap`, `baling`, `akhirnya`).
 * Utiliti CLI dan konsol REPL interaktif.
 
-### [ ] v0.2.0 — Modul & I/O Sistem Fail
+### [x] v0.1.1 — Keselamatan & Sandbox (Rilis Semasa)
+* Perlindungan limpahan tindanan (*stack overflow protection*) had rekursi 1,000.
+* Perlindungan DoS gelung tak terhingga (*infinite loop execution step limit*).
+* Pengesahan indeks ketat (penolakan NaN, infiniti, pecahan, pencegahan underflow).
+* Sandbox operasi fail (`bacaFail`, `tulisFail`, `wujudFail`, `padamFail`) dengan perlindungan *path traversal*.
+* Had saiz fail (5 MB) dan had saiz memori (16 MB teks, 1M elemen senarai).
+* Fungsi nombor rawak berentropi tinggi `rawak(min, max)`.
+* Suite ujian keselamatan khas (`tests/security_test.rs`).
+
+### [ ] v0.2.0 — Modul & Struktur Lanjutan
 * Sistem import fail modular: `ambil "matematik"` dan `dari "fail" ambil fungsi`.
-* Operasi fail terbina-dalam: `bacaFail()` dan `tulisFail()`.
-* Fungsi rawak dan kaedah rentetan lanjutan (`.pecah()`, `.ganti()`, `.cantum()`).
+* Kaedah rentetan lanjutan (`.pecah()`, `.ganti()`, `.cantum()`).
 
 ### [ ] v0.3.0 — Pengaturcaraan Berorientasikan Objek
 * Definisi kelas: `kelas <Nama> ... selesai`.

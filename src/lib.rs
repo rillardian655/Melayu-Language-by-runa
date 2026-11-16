@@ -32,4 +32,3 @@ pub fn jalankan(source: &str) -> Result<Value, MelayuError> {
     let mut interpreter = Interpreter::new();
     interpreter.interpret(&program)
 }
-

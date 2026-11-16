@@ -123,3 +123,18 @@ akhirnya
 selesai
 ```
 
+---
+
+## 7. Ciri Keselamatan & Sandbox Fail (v0.1.1)
+
+Bahasa MELAYU dilengkapi dengan benteng keselamatan aras enjin untuk melindungi sistem hos:
+
+1. **Perlindungan 'Stack Overflow'**: Had kedalaman rekursi fungsi ditetapkan kepada 1,000 tahap secara lalai.
+2. **Perlindungan 'Runaway Loop' DoS**: Had langkah pelaksanaan memastikan gelung tak terhingga ditamatkan secara anggun.
+3. **Pengesahan Indeks Ketat**:
+   - Menolak indeks tidak terhingga (`NaN`, `Infiniti`) atau perpuluhan (`s[1.5]`).
+   - Menyokong indeks negatif yang sah (contoh `senarai[-1]` untuk elemen terakhir).
+4. **Perlindungan 'Path Traversal'**: Operasi fail (`bacaFail`, `tulisFail`, `wujudFail`, `padamFail`) disekat daripada mengakses luar direktori kerja projek.
+5. **Had Saiz Fail**: Bacaan dan penulisan fail dihadkan kepada saiz maksimum 5 MB.
+
+

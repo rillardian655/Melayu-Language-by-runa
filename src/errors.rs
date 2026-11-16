@@ -157,6 +157,86 @@ impl MelayuError {
             source_line: None,
         }
     }
+
+    pub fn rekursi_berlebihan(had: usize, line: usize, col: usize) -> Self {
+        Self {
+            kind: ErrorKind::Runtime,
+            title: "Alamak!".to_string(),
+            message: format!(
+                "Had rekursi maksimum ({}) telah dicapai! Fungsi memanggil dirinya terlalu dalam.",
+                had
+            ),
+            suggestion: Some(
+                "Pastikan fungsi rekursif anda mempunyai kes asas (base case) untuk berhenti."
+                    .to_string(),
+            ),
+            line,
+            column: col,
+            source_line: None,
+        }
+    }
+
+    pub fn had_langkah_terlampau(had: u64, line: usize, col: usize) -> Self {
+        Self {
+            kind: ErrorKind::Runtime,
+            title: "Woy!".to_string(),
+            message: format!(
+                "Had pelaksanaan selamat ({}) langkah telah terlampau! Program dihentikan untuk mengelakkan pembekuan (infinite loop).",
+                had
+            ),
+            suggestion: Some(
+                "Semak gelung 'selagi' atau 'untuk', pastikan syarat penamatan dapat dicapai."
+                    .to_string(),
+            ),
+            line,
+            column: col,
+            source_line: None,
+        }
+    }
+
+    pub fn indeks_tidak_sah(mesej: &str, line: usize, col: usize) -> Self {
+        Self {
+            kind: ErrorKind::Runtime,
+            title: "Aduh!".to_string(),
+            message: mesej.to_string(),
+            suggestion: Some(
+                "Pastikan indeks adalah nombor bulat yang sah dalam julat yang betul.".to_string(),
+            ),
+            line,
+            column: col,
+            source_line: None,
+        }
+    }
+
+    pub fn had_memori_terlampau(mesej: &str, line: usize, col: usize) -> Self {
+        Self {
+            kind: ErrorKind::Runtime,
+            title: "Alamak!".to_string(),
+            message: format!("Had penggunaan memori selamat terlampau: {}.", mesej),
+            suggestion: Some(
+                "Elakkan penyambungan rentetan atau penambahan senarai yang terlalu besar dalam satu operasi."
+                    .to_string(),
+            ),
+            line,
+            column: col,
+            source_line: None,
+        }
+    }
+
+    pub fn akses_fail_disekat(laluan: &str, sebab: &str, line: usize, col: usize) -> Self {
+        Self {
+            kind: ErrorKind::Runtime,
+            title: "Woy!".to_string(),
+            message: format!("Akses fail keselamatan disekat untuk '{}': {}", laluan, sebab),
+            suggestion: Some(
+                "Operasi fail dihadkan kepada direktori kerja semasa dan saiz fail maksimum 5 MB demi keselamatan."
+                    .to_string(),
+            ),
+            line,
+            column: col,
+            source_line: None,
+        }
+    }
 }
 
 impl fmt::Display for MelayuError {

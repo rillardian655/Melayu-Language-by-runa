@@ -1,17 +1,15 @@
 # tebak_angka.ml
-# Permainan tebak nombor menggunakan baca nombor()
+# Permainan tebak nombor menggunakan rawak() dan logik keadaan
 
-ada rahsia = 42
+ada rahsia = rawak(1, 100)
 ada tekaan = 0
 ada cubaan = 0
 
 tunjuk "Selamat datang ke permainan tebak angka!"
-tunjuk "Saya dah simpan satu nombor rahsia antara 1 hingga 100."
+tunjuk "Saya dah simpan satu nombor rahsia rawak antara 1 hingga 100: " + rahsia
 
-# Nota: Dalam persekitaran interaktif, gelung ini akan membaca input anda
-# Di sini kita simulasikan satu tekaan:
-tunjuk "Masukkan tekaan kau (contoh 42):"
-tekaan = 42
+# Simulasi tekaan pertama
+tekaan = rahsia
 cubaan = cubaan tambah 1
 
 jika tekaan kurang rahsia

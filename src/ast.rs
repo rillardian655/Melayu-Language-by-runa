@@ -207,8 +207,30 @@ pub enum Stmt {
     Mangan(LineCol),
 }
 
+impl Stmt {
+    pub fn pos(&self) -> LineCol {
+        match self {
+            Stmt::IsytiharPembolehubah { pos, .. } => *pos,
+            Stmt::Umpukan { pos, .. } => *pos,
+            Stmt::Tunjuk(_, pos) => *pos,
+            Stmt::Jika { pos, .. } => *pos,
+            Stmt::Selagi { pos, .. } => *pos,
+            Stmt::UntukDalam { pos, .. } => *pos,
+            Stmt::UntukJulat { pos, .. } => *pos,
+            Stmt::DeklarasiFungsi { pos, .. } => *pos,
+            Stmt::Pulang(_, pos) => *pos,
+            Stmt::Hentikan(pos) => *pos,
+            Stmt::Teruskan(pos) => *pos,
+            Stmt::Cuba { pos, .. } => *pos,
+            Stmt::Baling(_, pos) => *pos,
+            Stmt::Ungkapan(_, pos) => *pos,
+            Stmt::Horas(pos) => *pos,
+            Stmt::Mangan(pos) => *pos,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
     pub pernyataan: Vec<Stmt>,
 }
-

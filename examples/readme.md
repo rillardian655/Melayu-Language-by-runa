@@ -10,8 +10,9 @@ Direktori ini mengandungi pelbagai contoh atur cara yang ditulis menggunakan bah
 | `fizzbuzz.ml` | Algoritma klasik FizzBuzz | `untuk ... dari ... hingga`, `jika`, `modulo` |
 | `kalkulator.ml` | Kalkulator empat operasi asas | `kerja`, `pulang`, `cuba ... tangkap` |
 | `fibonacci.ml` | Kiraan jujukan Fibonacci | Fungsi rekursif |
-| `tebak_angka.ml` | Permainan teka nombor interaktif | `baca nombor()`, perbandingan |
+| `tebak_angka.ml` | Permainan teka nombor interaktif | `rawak()`, perbandingan |
 | `sintaks_lengkap.ml` | Demonstrasi semua ciri sintaks v0.1.0 | Koleksi, gelung, kamus, pengendalian ralat |
+| `keselamatan_dan_fail.ml` | Demo keselamatan & sandbox operasi fail v0.1.1 | `rawak()`, `tulisFail()`, `bacaFail()`, anti-traversal |
 
 ## Cara Menjalankan
 
@@ -22,6 +23,8 @@ melayu jalankan examples/hello.ml
 melayu jalankan examples/fizzbuzz.ml
 melayu jalankan examples/kalkulator.ml
 melayu jalankan examples/fibonacci.ml
+melayu jalankan examples/tebak_angka.ml
+melayu jalankan examples/keselamatan_dan_fail.ml
 melayu jalankan examples/sintaks_lengkap.ml
 ```
 
