@@ -96,7 +96,7 @@
   <g transform="translate(262, 168)">
     <rect x="0" y="0" width="460" height="30" rx="15" fill="#131E33" stroke="#27F2FF" stroke-width="1" stroke-opacity="0.3" />
     <text x="230" y="20" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Fira Code', monospace" font-weight="600" font-size="12" letter-spacing="2" fill="#27F2FF" text-anchor="middle">
-      INDONESIA &bull; MALAYSIA &bull; BRUNEI &bull; SINGAPURA
+      INDONESIA • MALAYSIA • BRUNEI • SINGAPURA
     </text>
   </g>
 </svg>

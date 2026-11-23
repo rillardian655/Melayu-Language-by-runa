@@ -1,7 +1,7 @@
 <div align="center">
 
   <a href="https://github.com/rillardian655/Melayu-Language-by-runa">
-    <img src="assets/logo.svg" alt="MELAYU Programming Language Logo" width="850" />
+    <img src="assets/logo.png" alt="MELAYU Programming Language Logo" width="850" />
   </a>
 
   <br/><br/>
