@@ -198,6 +198,25 @@
       "selesai"
     ],
     "description": "Pembina objek dalam kelas (constructor)"
+  },
+  "Kaedah Instans Kelas (kaedah)": {
+    "prefix": "kaedah",
+    "body": [
+      "kerja ${1:namaKaedah}(${2:parameter})",
+      "\t${3:# logik kaedah}",
+      "\tpulang ${4:nilai}",
+      "selesai"
+    ],
+    "description": "Kaedah fungsi di dalam blok kelas"
+  },
+  "Pengesahan Syarat (semak)": {
+    "prefix": "semak",
+    "body": [
+      "jika bukan ${1:syarat}",
+      "\tpulang \"${2:Mesej ralat}\"",
+      "selesai"
+    ],
+    "description": "Blok guard clause semakan syarat"
   }
 }
 
