@@ -44,7 +44,11 @@
         "extensions": [
           ".ml"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/melayu-light.svg",
+          "dark": "./icons/melayu.svg"
+        }
       }
     ],
     "grammars": [
