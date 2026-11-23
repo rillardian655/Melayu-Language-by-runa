@@ -2,6 +2,35 @@
 
 Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut format [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.2.0] - 2026-11-23
+
+### Ditambah (Added)
+- **Operasi Fungsian Senarai (Higher-Order Functions)**:
+  - `.petakan(fungsi)` (Map): Mengubah setiap elemen senarai kepada hasil pemanggilan fungsi penukar.
+  - `.tapis(fungsi)` (Filter): Menyaring elemen senarai yang mengembalikan nilai benar (`betul`).
+  - `.kiraSemua(fungsi, awal)` (Reduce / Fold): Mengumpul elemen senarai menjadi satu nilai terakumulasi.
+  - `.cari(fungsi)` (Find): Mencari elemen pertama yang menepati syarat fungsi carian.
+  - `.indeks(item)` (IndexOf): Mencari kedudukan indeks elemen atau mengembalikan `-1` jika tiada.
+  - `.setiapSatu(fungsi)` (ForEach): Menjalankan callback bagi setiap elemen senarai secara berurutan.
+- **Enjin Format JSON Asli Selamat (Zero-Dependency JSON Engine)**:
+  - `bacaJSON(teks)` / `dariJSON(teks)`: Menghurai teks JSON standard secara rekursif kepada struktur objek MELAYU (`kamus`, `senarai`, `teks`, `nombor`, `betul`, `salah`, `kosong`).
+  - Dilengkapi perlindungan limpahan kedalaman struktur JSON terhad maksimum 500 tingkat.
+  - `tulisJSON(nilai, cantik?)` / `keJSON(nilai, cantik?)`: Menukar objek data MELAYU kepada format rentetan JSON standard dengan pilihan pemformatan kemas (*pretty-print*).
+- **Utiliti Tarikh & Waktu Kalendar Sivil Gregory**:
+  - `capMasa()`: Mengembalikan cap masa Unix semasa (saat).
+  - `masaKini()`: Mengembalikan masa jam sistem semasa dalam format `"HH:MM:SS"`.
+  - `tarikhKini()`: Mengembalikan tarikh kalendar sivil Gregory semasa dalam format `"YYYY-MM-DD"`.
+- **Kaedah Manipulasi Teks & Kamus Baharu**:
+  - Teks: `.ulang(n)`, `.selitDepan(panjang, aksara?)`, `.selitBelakang(panjang, aksara?)`, `.hurufAwalBesar()`.
+  - Kamus: `.adaKunci(kunci)`, `.buang(kunci)`.
+- **Ekstensi VS Code v0.2.0**:
+  - Kemas kini tatabahasa TextMate menyokong semua fungsi terbina-dalam baharu.
+  - Penambahan snippets: `bacajson`, `tulisjson`, `petakan`, `tapis`, `kirasemua`, `capmasa`, `masakini`.
+- **Suite Ujian Menyeluruh**:
+  - Penambahan ujian fungsian senarai, kamus, teks lanjutan, enjin JSON, dan fungsi masa di `tests/interpreter_test.rs` (jumlah keseluruhan 28 ujian lulus 100%).
+- **Program Contoh Baharu**:
+  - `examples/pemprosesan_data_dan_json.ml` memperagakan pemprosesan pesanan jualan dengan operasi fungsian, manipulasi teks berformat, dan serialisasi JSON.
+
 ## [0.1.2] - 2026-11-16
 
 ### Ditambah (Added)

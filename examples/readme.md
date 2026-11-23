@@ -15,6 +15,7 @@ Direktori ini mengandungi pelbagai contoh atur cara yang ditulis menggunakan bah
 | `keselamatan_dan_fail.ml` | Demo keselamatan & sandbox operasi fail v0.1.1 | `rawak()`, `tulisFail()`, `bacaFail()`, anti-traversal |
 | `matematik_modul.ml` | Modul contoh fungsi pengiraan dan pemalar | Modul pustaka yang boleh diimport |
 | `demo_modul.ml` | Demo sistem import modul & alat koleksi lanjutan v0.1.2 | `ambil`, `.pecah()`, `.isih()`, `.cantum()`, `.ganti()` |
+| `pemprosesan_data_dan_json.ml` | Demo pemprosesan data fungsian, enjin JSON & masa v0.2.0 | `bacaJSON`, `tulisJSON`, `.petakan()`, `.tapis()`, `.kiraSemua()`, `tarikhKini()` |
 
 ## Cara Menjalankan
 
@@ -28,6 +29,7 @@ melayu jalankan examples/fibonacci.ml
 melayu jalankan examples/tebak_angka.ml
 melayu jalankan examples/keselamatan_dan_fail.ml
 melayu jalankan examples/demo_modul.ml
+melayu jalankan examples/pemprosesan_data_dan_json.ml
 melayu jalankan examples/sintaks_lengkap.ml
 ```
 

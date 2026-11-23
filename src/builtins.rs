@@ -1,9 +1,12 @@
 use crate::ast::LineCol;
 use crate::errors::{ErrorKind, MelayuError};
 use crate::interpreter::Value;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Component, Path, PathBuf};
+use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -29,6 +32,13 @@ pub fn daftar_fungsi_bawaan() -> Vec<(&'static str, BuiltinFn)> {
         ("mutlak", builtin_mutlak),
         ("maksimum", builtin_maksimum),
         ("minimum", builtin_minimum),
+        ("bacaJSON", builtin_baca_json),
+        ("dariJSON", builtin_baca_json),
+        ("tulisJSON", builtin_tulis_json),
+        ("keJSON", builtin_tulis_json),
+        ("capMasa", builtin_cap_masa),
+        ("masaKini", builtin_masa_kini),
+        ("tarikhKini", builtin_tarikh_kini),
     ]
 }
 
@@ -807,4 +817,677 @@ pub fn builtin_padam_fail(args: &[Value], pos: LineCol) -> Result<Value, MelayuE
     } else {
         Ok(Value::Salah)
     }
+}
+
+// ==========================================
+// JSON Parser & Serializer Bawaan
+// ==========================================
+
+struct SimpleJsonParser {
+    chars: Vec<char>,
+    pos: usize,
+    depth: usize,
+    call_pos: LineCol,
+}
+
+impl SimpleJsonParser {
+    fn new(input: &str, call_pos: LineCol) -> Self {
+        Self {
+            chars: input.chars().collect(),
+            pos: 0,
+            depth: 0,
+            call_pos,
+        }
+    }
+
+    fn skip_whitespace(&mut self) {
+        while self.pos < self.chars.len() && self.chars[self.pos].is_whitespace() {
+            self.pos += 1;
+        }
+    }
+
+    fn peek(&mut self) -> Option<char> {
+        self.skip_whitespace();
+        if self.pos < self.chars.len() {
+            Some(self.chars[self.pos])
+        } else {
+            None
+        }
+    }
+
+    fn advance(&mut self) -> Option<char> {
+        self.skip_whitespace();
+        if self.pos < self.chars.len() {
+            let ch = self.chars[self.pos];
+            self.pos += 1;
+            Some(ch)
+        } else {
+            None
+        }
+    }
+
+    fn expect_char(&mut self, expected: char) -> Result<(), MelayuError> {
+        self.skip_whitespace();
+        if self.pos < self.chars.len() && self.chars[self.pos] == expected {
+            self.pos += 1;
+            Ok(())
+        } else {
+            let found = if self.pos < self.chars.len() {
+                format!("'{}'", self.chars[self.pos])
+            } else {
+                "akhir teks".to_string()
+            };
+            Err(MelayuError::new(
+                "Aduh!",
+                &format!(
+                    "Diharapkan aksara '{}' dalam JSON, tetapi menjumpai {}.",
+                    expected, found
+                ),
+                self.call_pos.line,
+                self.call_pos.col,
+            )
+            .with_kind(ErrorKind::Runtime))
+        }
+    }
+
+    fn parse_value(&mut self) -> Result<Value, MelayuError> {
+        if self.depth > 500 {
+            return Err(MelayuError::had_memori_terlampau(
+                "Kedalaman struktur JSON melebihi had keselamatan (500)",
+                self.call_pos.line,
+                self.call_pos.col,
+            ));
+        }
+
+        self.skip_whitespace();
+        let ch = match self.peek() {
+            Some(c) => c,
+            None => {
+                return Err(MelayuError::new(
+                    "Aduh!",
+                    "Format JSON kosong atau tidak lengkap.",
+                    self.call_pos.line,
+                    self.call_pos.col,
+                )
+                .with_kind(ErrorKind::Runtime));
+            }
+        };
+
+        match ch {
+            '{' => self.parse_object(),
+            '[' => self.parse_array(),
+            '"' => self.parse_string().map(Value::Teks),
+            't' | 'f' => self.parse_bool(),
+            'n' => self.parse_null(),
+            '-' | '0'..='9' => self.parse_number(),
+            other => Err(MelayuError::new(
+                "Aduh!",
+                &format!("Aksara tidak dijangka dalam JSON: '{}'", other),
+                self.call_pos.line,
+                self.call_pos.col,
+            )
+            .with_kind(ErrorKind::Runtime)),
+        }
+    }
+
+    fn parse_object(&mut self) -> Result<Value, MelayuError> {
+        self.expect_char('{')?;
+        self.depth += 1;
+        let mut map = HashMap::new();
+
+        self.skip_whitespace();
+        if let Some('}') = self.peek() {
+            self.advance();
+            self.depth -= 1;
+            return Ok(Value::Kamus(Rc::new(RefCell::new(map))));
+        }
+
+        loop {
+            self.skip_whitespace();
+            let key = self.parse_string()?;
+            self.expect_char(':')?;
+            let val = self.parse_value()?;
+            map.insert(key, val);
+
+            self.skip_whitespace();
+            match self.peek() {
+                Some(',') => {
+                    self.advance();
+                    self.skip_whitespace();
+                    if let Some('}') = self.peek() {
+                        return Err(MelayuError::new(
+                            "Aduh!",
+                            "Koma berlebihan (trailing comma) tidak dibenarkan dalam JSON.",
+                            self.call_pos.line,
+                            self.call_pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                }
+                Some('}') => {
+                    self.advance();
+                    break;
+                }
+                other => {
+                    let found = match other {
+                        Some(c) => format!("'{}'", c),
+                        None => "akhir teks".to_string(),
+                    };
+                    return Err(MelayuError::new(
+                        "Aduh!",
+                        &format!(
+                            "Diharapkan ',' atau '}}' dalam objek JSON, tetapi menjumpai {}.",
+                            found
+                        ),
+                        self.call_pos.line,
+                        self.call_pos.col,
+                    )
+                    .with_kind(ErrorKind::Runtime));
+                }
+            }
+        }
+
+        self.depth -= 1;
+        Ok(Value::Kamus(Rc::new(RefCell::new(map))))
+    }
+
+    fn parse_array(&mut self) -> Result<Value, MelayuError> {
+        self.expect_char('[')?;
+        self.depth += 1;
+        let mut list = Vec::new();
+
+        self.skip_whitespace();
+        if let Some(']') = self.peek() {
+            self.advance();
+            self.depth -= 1;
+            return Ok(Value::Senarai(Rc::new(RefCell::new(list))));
+        }
+
+        loop {
+            let val = self.parse_value()?;
+            list.push(val);
+
+            self.skip_whitespace();
+            match self.peek() {
+                Some(',') => {
+                    self.advance();
+                    self.skip_whitespace();
+                    if let Some(']') = self.peek() {
+                        return Err(MelayuError::new(
+                            "Aduh!",
+                            "Koma berlebihan (trailing comma) tidak dibenarkan dalam senarai JSON.",
+                            self.call_pos.line,
+                            self.call_pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                }
+                Some(']') => {
+                    self.advance();
+                    break;
+                }
+                other => {
+                    let found = match other {
+                        Some(c) => format!("'{}'", c),
+                        None => "akhir teks".to_string(),
+                    };
+                    return Err(MelayuError::new(
+                        "Aduh!",
+                        &format!(
+                            "Diharapkan ',' atau ']' dalam senarai JSON, tetapi menjumpai {}.",
+                            found
+                        ),
+                        self.call_pos.line,
+                        self.call_pos.col,
+                    )
+                    .with_kind(ErrorKind::Runtime));
+                }
+            }
+        }
+
+        self.depth -= 1;
+        Ok(Value::Senarai(Rc::new(RefCell::new(list))))
+    }
+
+    fn parse_string(&mut self) -> Result<String, MelayuError> {
+        self.expect_char('"')?;
+        let mut s = String::new();
+
+        while self.pos < self.chars.len() {
+            let ch = self.chars[self.pos];
+            self.pos += 1;
+            match ch {
+                '"' => return Ok(s),
+                '\\' => {
+                    if self.pos >= self.chars.len() {
+                        return Err(MelayuError::new(
+                            "Aduh!",
+                            "Aksara lolos '\\' tidak lengkap pada akhir teks JSON.",
+                            self.call_pos.line,
+                            self.call_pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let esc = self.chars[self.pos];
+                    self.pos += 1;
+                    match esc {
+                        '"' => s.push('"'),
+                        '\\' => s.push('\\'),
+                        '/' => s.push('/'),
+                        'b' => s.push('\x08'),
+                        'f' => s.push('\x0C'),
+                        'n' => s.push('\n'),
+                        'r' => s.push('\r'),
+                        't' => s.push('\t'),
+                        'u' => {
+                            if self.pos + 4 > self.chars.len() {
+                                return Err(MelayuError::new(
+                                    "Aduh!",
+                                    "Kod Unicode '\\uXXXX' tidak lengkap dalam JSON.",
+                                    self.call_pos.line,
+                                    self.call_pos.col,
+                                )
+                                .with_kind(ErrorKind::Runtime));
+                            }
+                            let hex_str: String =
+                                self.chars[self.pos..self.pos + 4].iter().collect();
+                            self.pos += 4;
+                            match u32::from_str_radix(&hex_str, 16) {
+                                Ok(code) => match char::from_u32(code) {
+                                    Some(c) => s.push(c),
+                                    None => {
+                                        return Err(MelayuError::new(
+                                            "Aduh!",
+                                            &format!(
+                                                "Titik kod Unicode tidak sah '\\u{}'.",
+                                                hex_str
+                                            ),
+                                            self.call_pos.line,
+                                            self.call_pos.col,
+                                        )
+                                        .with_kind(ErrorKind::Runtime));
+                                    }
+                                },
+                                Err(_) => {
+                                    return Err(MelayuError::new(
+                                        "Aduh!",
+                                        &format!("Perenam-belas (hex) tidak sah '\\u{}'.", hex_str),
+                                        self.call_pos.line,
+                                        self.call_pos.col,
+                                    )
+                                    .with_kind(ErrorKind::Runtime));
+                                }
+                            }
+                        }
+                        other => {
+                            return Err(MelayuError::new(
+                                "Aduh!",
+                                &format!("Aksara lolos tidak sah '\\{}' dalam JSON.", other),
+                                self.call_pos.line,
+                                self.call_pos.col,
+                            )
+                            .with_kind(ErrorKind::Runtime));
+                        }
+                    }
+                }
+                other => s.push(other),
+            }
+        }
+
+        Err(MelayuError::new(
+            "Aduh!",
+            "Tanda petik penutup teks '\"' tidak dijumpai sebelum akhir fail.",
+            self.call_pos.line,
+            self.call_pos.col,
+        )
+        .with_kind(ErrorKind::Runtime))
+    }
+
+    fn parse_number(&mut self) -> Result<Value, MelayuError> {
+        let start = self.pos;
+        if self.pos < self.chars.len() && self.chars[self.pos] == '-' {
+            self.pos += 1;
+        }
+
+        while self.pos < self.chars.len() && self.chars[self.pos].is_ascii_digit() {
+            self.pos += 1;
+        }
+
+        if self.pos < self.chars.len() && self.chars[self.pos] == '.' {
+            self.pos += 1;
+            while self.pos < self.chars.len() && self.chars[self.pos].is_ascii_digit() {
+                self.pos += 1;
+            }
+        }
+
+        if self.pos < self.chars.len()
+            && (self.chars[self.pos] == 'e' || self.chars[self.pos] == 'E')
+        {
+            self.pos += 1;
+            if self.pos < self.chars.len()
+                && (self.chars[self.pos] == '+' || self.chars[self.pos] == '-')
+            {
+                self.pos += 1;
+            }
+            while self.pos < self.chars.len() && self.chars[self.pos].is_ascii_digit() {
+                self.pos += 1;
+            }
+        }
+
+        let num_str: String = self.chars[start..self.pos].iter().collect();
+        match num_str.parse::<f64>() {
+            Ok(n) => Ok(Value::Nombor(n)),
+            Err(_) => Err(MelayuError::new(
+                "Aduh!",
+                &format!("Format nombor tidak sah dalam JSON: '{}'", num_str),
+                self.call_pos.line,
+                self.call_pos.col,
+            )
+            .with_kind(ErrorKind::Runtime)),
+        }
+    }
+
+    fn parse_bool(&mut self) -> Result<Value, MelayuError> {
+        if self.pos + 4 <= self.chars.len() {
+            let slice: String = self.chars[self.pos..self.pos + 4].iter().collect();
+            if slice == "true" {
+                self.pos += 4;
+                return Ok(Value::Betul);
+            }
+        }
+        if self.pos + 5 <= self.chars.len() {
+            let slice: String = self.chars[self.pos..self.pos + 5].iter().collect();
+            if slice == "false" {
+                self.pos += 5;
+                return Ok(Value::Salah);
+            }
+        }
+        Err(MelayuError::new(
+            "Aduh!",
+            "Nilai boolean tidak sah dalam JSON.",
+            self.call_pos.line,
+            self.call_pos.col,
+        )
+        .with_kind(ErrorKind::Runtime))
+    }
+
+    fn parse_null(&mut self) -> Result<Value, MelayuError> {
+        if self.pos + 4 <= self.chars.len() {
+            let slice: String = self.chars[self.pos..self.pos + 4].iter().collect();
+            if slice == "null" {
+                self.pos += 4;
+                return Ok(Value::Kosong);
+            }
+        }
+        Err(MelayuError::new(
+            "Aduh!",
+            "Nilai null tidak sah dalam JSON.",
+            self.call_pos.line,
+            self.call_pos.col,
+        )
+        .with_kind(ErrorKind::Runtime))
+    }
+}
+
+pub fn escape_json_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\x08' => out.push_str("\\b"),
+            '\x0C' => out.push_str("\\f"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => {
+                out.push_str(&format!("\\u{:04x}", c as u32));
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+pub fn nilai_ke_json_string(
+    val: &Value,
+    cantik: bool,
+    kedalaman: usize,
+    pos: LineCol,
+) -> Result<String, MelayuError> {
+    if kedalaman > 500 {
+        return Err(MelayuError::had_memori_terlampau(
+            "Kedalaman struktur penukaran ke JSON melebihi had keselamatan (500)",
+            pos.line,
+            pos.col,
+        ));
+    }
+
+    match val {
+        Value::Kosong => Ok("null".to_string()),
+        Value::Betul => Ok("true".to_string()),
+        Value::Salah => Ok("false".to_string()),
+        Value::Nombor(n) => {
+            if n.is_nan() || n.is_infinite() {
+                Ok("null".to_string())
+            } else if n.fract() == 0.0 && n.abs() < 9_007_199_254_740_992.0 {
+                Ok((*n as i64).to_string())
+            } else {
+                Ok(n.to_string())
+            }
+        }
+        Value::Teks(s) => Ok(escape_json_string(s)),
+        Value::Senarai(list) => {
+            let borrowed = list.borrow();
+            if borrowed.is_empty() {
+                return Ok("[]".to_string());
+            }
+
+            if cantik {
+                let indent_item = "  ".repeat(kedalaman + 1);
+                let indent_close = "  ".repeat(kedalaman);
+                let mut parts = Vec::new();
+                for item in borrowed.iter() {
+                    let s = nilai_ke_json_string(item, true, kedalaman + 1, pos)?;
+                    parts.push(format!("{}{}", indent_item, s));
+                }
+                Ok(format!("[\n{}\n{}]", parts.join(",\n"), indent_close))
+            } else {
+                let mut parts = Vec::new();
+                for item in borrowed.iter() {
+                    parts.push(nilai_ke_json_string(item, false, kedalaman + 1, pos)?);
+                }
+                Ok(format!("[{}]", parts.join(",")))
+            }
+        }
+        Value::Kamus(map) => {
+            let borrowed = map.borrow();
+            if borrowed.is_empty() {
+                return Ok("{}".to_string());
+            }
+
+            let mut keys: Vec<&String> = borrowed.keys().collect();
+            keys.sort();
+
+            if cantik {
+                let indent_item = "  ".repeat(kedalaman + 1);
+                let indent_close = "  ".repeat(kedalaman);
+                let mut parts = Vec::new();
+                for k in keys {
+                    let v = borrowed.get(k).unwrap();
+                    let v_str = nilai_ke_json_string(v, true, kedalaman + 1, pos)?;
+                    let k_escaped = escape_json_string(k);
+                    parts.push(format!("{}{}: {}", indent_item, k_escaped, v_str));
+                }
+                Ok(format!("{{\n{}\n{}}}", parts.join(",\n"), indent_close))
+            } else {
+                let mut parts = Vec::new();
+                for k in keys {
+                    let v = borrowed.get(k).unwrap();
+                    let v_str = nilai_ke_json_string(v, false, kedalaman + 1, pos)?;
+                    let k_escaped = escape_json_string(k);
+                    parts.push(format!("{}:{}", k_escaped, v_str));
+                }
+                Ok(format!("{{{}}}", parts.join(",")))
+            }
+        }
+        other => Err(MelayuError::new(
+            "Alamak!",
+            &format!(
+                "Jenis '{}' tidak boleh ditukar ke format JSON.",
+                other.jenis()
+            ),
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime)),
+    }
+}
+
+pub fn builtin_baca_json(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!(
+                "Fungsi 'bacaJSON' memerlukan 1 hujah teks, tetapi menerima {}.",
+                args.len()
+            ),
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime)
+        .with_suggestion("Contoh: ada data = bacaJSON(\"{\\\"nama\\\": \\\"Ali\\\"}\")"));
+    }
+
+    let teks = match &args[0] {
+        Value::Teks(s) => s.as_str(),
+        other => {
+            return Err(MelayuError::jenis_salah(
+                "teks",
+                other.jenis(),
+                pos.line,
+                pos.col,
+            ));
+        }
+    };
+
+    let mut parser = SimpleJsonParser::new(teks, pos);
+    let val = parser.parse_value()?;
+    parser.skip_whitespace();
+    if parser.pos < parser.chars.len() {
+        return Err(MelayuError::new(
+            "Aduh!",
+            "Terdapat aksara berlebihan selepas data JSON yang sah.",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime));
+    }
+    Ok(val)
+}
+
+pub fn builtin_tulis_json(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.is_empty() || args.len() > 2 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!(
+                "Fungsi 'tulisJSON' memerlukan 1 atau 2 hujah (nilai, cantik?), tetapi menerima {}.",
+                args.len()
+            ),
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime)
+        .with_suggestion("Contoh: tulisJSON(data) atau tulisJSON(data, betul)"));
+    }
+
+    let cantik = if args.len() == 2 {
+        args[1].is_truthy()
+    } else {
+        false
+    };
+
+    let json_str = nilai_ke_json_string(&args[0], cantik, 0, pos)?;
+    Ok(Value::Teks(json_str))
+}
+
+// ==========================================
+// Utiliti Tarikh & Masa Bawaan
+// ==========================================
+
+fn hari_ke_tarikh(hari_sejak_epoch: i64) -> (i32, u32, u32) {
+    let z = hari_sejak_epoch + 719468;
+    let era = (if z >= 0 { z } else { z - 146096 }) / 146097;
+    let doe = (z - era * 146097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = (yoe as i64) + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    (y as i32, m, d)
+}
+
+fn dapatkan_masa_kini_komponen() -> (i32, u32, u32, u64, u64, u64, u64) {
+    let duration = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let total_secs = duration.as_secs();
+    let hari = (total_secs / 86400) as i64;
+    let (tahun, bulan, hari_hb) = hari_ke_tarikh(hari);
+    let sisa = total_secs % 86400;
+    let jam = sisa / 3600;
+    let minit = (sisa % 3600) / 60;
+    let saat = sisa % 60;
+    (tahun, bulan, hari_hb, jam, minit, saat, total_secs)
+}
+
+pub fn builtin_cap_masa(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if !args.is_empty() {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Fungsi 'capMasa' tidak memerlukan sebarang hujah.",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime));
+    }
+    let duration = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    Ok(Value::Nombor(duration.as_secs() as f64))
+}
+
+pub fn builtin_masa_kini(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if !args.is_empty() {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Fungsi 'masaKini' tidak memerlukan sebarang hujah.",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime));
+    }
+    let (_, _, _, jam, minit, saat, _) = dapatkan_masa_kini_komponen();
+    Ok(Value::Teks(format!("{:02}:{:02}:{:02}", jam, minit, saat)))
+}
+
+pub fn builtin_tarikh_kini(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if !args.is_empty() {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Fungsi 'tarikhKini' tidak memerlukan sebarang hujah.",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime));
+    }
+    let (tahun, bulan, hari_hb, _, _, _, _) = dapatkan_masa_kini_komponen();
+    Ok(Value::Teks(format!(
+        "{:04}-{:02}-{:02}",
+        tahun, bulan, hari_hb
+    )))
 }

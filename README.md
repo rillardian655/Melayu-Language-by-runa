@@ -17,7 +17,7 @@
 
   <p align="center">
     <a href="https://github.com/rillardian655/Melayu-Language-by-runa/releases">
-      <img src="https://img.shields.io/badge/Versi-0.1.2-00ADD8?style=for-the-badge&logo=git&logoColor=white" alt="Versi" />
+      <img src="https://img.shields.io/badge/Versi-0.2.0-00ADD8?style=for-the-badge&logo=git&logoColor=white" alt="Versi" />
     </a>
     <a href="editors/vscode">
       <img src="https://img.shields.io/badge/VS_Code-Ekstensi_Rasmi-007ACC?style=for-the-badge&logo=visual-studio-code&logoColor=white" alt="VS Code Extension" />
@@ -244,6 +244,24 @@ tunjuk "Senarai buah tersusun: " + senaraiBuah.cantum(" -> ")
 tunjuk "Harga promosi: RM" + kiraDiskaun(100, 20)
 ```
 
+### 5. Pemprosesan Data Fungsian, Enjin JSON & Masa (v0.2.0)
+
+```melayu
+# Menghurai teks JSON piawai
+ada dataPesanan = bacaJSON("{\"produk\": \"Kopi Luwak\", \"harga\": [25, 30, 45]}")
+
+# Operasi fungsian senarai (tapis & petakan)
+kerja mahal(harga)
+    pulang harga lebih sama 30
+selesai
+
+ada hargaPremium = dataPesanan["harga"].tapis(mahal)
+tunjuk "Harga premium: " + hargaPremium.cantum(", ")
+
+# Tarikh dan masa kalendar sistem
+tunjuk "Invois dikeluarkan pada: " + tarikhKini() + " " + masaKini()
+```
+
 ---
 
 ## Ekstensi Rasmi Visual Studio Code
@@ -341,14 +359,21 @@ Maklumat terperinci disediakan dalam folder [`docs/`](docs/):
 * Fungsi nombor rawak berentropi tinggi `rawak(min, max)`.
 * Suite ujian keselamatan khas (`tests/security_test.rs`).
 
-### [x] v0.1.2 — Modul, Utiliti Koleksi & Ekstensi VS Code (Rilis Semasa)
+### [x] v0.1.2 — Modul, Utiliti Koleksi & Ekstensi VS Code
 * Sistem import fail modular: `ambil "fail.ml"`, `ambil "fail.ml" sebagai alias`, dan `ambil fungsi daripada "fail.ml"`.
 * Kaedah manipulasi teks lanjutan: `.pecah()`, `.ganti()`, `.mulaDengan()`, `.tamatDengan()`, `.mengandungi()`.
 * Kaedah pengurusan senarai: `.isih()`, `.balik()`, `.cantum()`.
 * Fungsi utiliti matematik: `bundar()`, `lantai()`, `siling()`, `mutlak()`, `maksimum()`, `minimum()`.
 * Ekstensi rasmi Visual Studio Code (`editors/vscode/`) dengan pewarnaan sintaks dan snippets.
 
-### [ ] v0.2.0 — Pengaturcaraan Berorientasikan Objek
+### [x] v0.2.0 — Pemprosesan Data Fungsian, Enjin JSON & Masa (Rilis Semasa)
+* Operasi fungsian senarai: `.petakan()`, `.tapis()`, `.kiraSemua()`, `.cari()`, `.indeks()`, `.setiapSatu()`.
+* Enjin JSON selamat tanpa kebergantungan luar: `bacaJSON()` dan `tulisJSON()`.
+* Utiliti kalendar & masa berketepatan tinggi: `capMasa()`, `masaKini()`, `tarikhKini()`.
+* Kaedah manipulasi rentetan & kamus baharu: `.ulang()`, `.selitDepan()`, `.selitBelakang()`, `.hurufAwalBesar()`, `.adaKunci()`, `.buang()`.
+* Pengukuhan ujian dengan 28 suite ujian komprehensif.
+
+### [ ] v0.3.0 — Pengaturcaraan Berorientasikan Objek
 * Definisi kelas: `kelas <Nama> ... selesai`.
 * Pembina dan pewarisan: `bina`, `warisi`, `diri`.
 

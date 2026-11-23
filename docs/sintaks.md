@@ -187,5 +187,61 @@ ada diskaun = kiraDiskaun(200, 15)
 * `maksimum(a, b, ...)`: Mencari nilai terbesar.
 * `minimum(a, b, ...)`: Mencari nilai terkecil.
 
+---
+
+## 10. Pemprosesan Data Fungsian, Enjin JSON & Utiliti Masa (v0.2.0)
+
+Bermula versi v0.2.0, bahasa MELAYU menyokong pemprosesan data aras tinggi dan pertukaran format web moden secara terbina-dalam tanpa sebarang kebergantungan luar:
+
+### Operasi Fungsian Senarai (Higher-Order Functions):
+* `.petakan(fungsi)`: Mengubah setiap elemen senarai kepada nilai baharu menggunakan fungsi penukar (*map*).
+* `.tapis(fungsi)`: Menyaring senarai mengikut syarat fungsi logik (*filter*).
+* `.kiraSemua(fungsi, nilaiAwal)`: Mengumpul dan meringkaskan elemen senarai menjadi satu nilai (*reduce / fold*).
+* `.cari(fungsi)`: Mencari elemen pertama yang memenuhi syarat fungsi (*find*).
+* `.indeks(item)`: Mengembalikan indeks elemen atau `-1` jika tiada (*indexOf*).
+* `.setiapSatu(fungsi)`: Menjalankan fungsi bagi setiap elemen tanpa memulangkan senarai (*forEach*).
+
+```melayu
+ada nombor = [1, 2, 3, 4, 5, 6]
+
+kerja ganda(x)
+    pulang x kali 2
+selesai
+
+kerja genap(x)
+    pulang (x % 2) == 0
+selesai
+
+ada nomborGenap = nombor.tapis(genap)           # [2, 4, 6]
+ada digandakan = nomborGenap.petakan(ganda)     # [4, 8, 12]
+```
+
+### Enjin Pertukaran Format JSON Terbina-Dalam:
+* `bacaJSON(teks)`: Menghurai teks JSON standard kepada struktur objek kamus/senarai MELAYU. Dilindungi benteng kedalaman rekursi keselamatan sehingga 500 peringkat.
+* `tulisJSON(nilai, cantik?)`: Menukar sebarang struktur data MELAYU kepada teks JSON. Pilihan boolean `betul` menghasilkan format inden kemas (*pretty-print*).
+
+```melayu
+ada teksData = "{\"nama\": \"Nusantara\", \"populasi\": 280000000}"
+ada data = bacaJSON(teksData)
+tunjuk data["nama"]     # Nusantara
+
+data["status"] = "Maju"
+ada jsonKemas = tulisJSON(data, betul)
+```
+
+### Kaedah Rentetan Teks & Kamus Lanjutan:
+* `.ulang(n)`: Mengulang teks sebanyak `n` kali.
+* `.selitDepan(panjang, aksara?)`: Melapik aksara di hadapan rentetan (*padStart*).
+* `.selitBelakang(panjang, aksara?)`: Melapik aksara di belakang rentetan (*padEnd*).
+* `.hurufAwalBesar()`: Menukar aksara pertama menjadi huruf besar (*capitalize*).
+* `kamus.adaKunci(kunci)`: Menyemak kewujudan kunci dalam kamus (`betul`/`salah`).
+* `kamus.buang(kunci)`: Memadam kunci daripada kamus dan mengembalikan nilainya.
+
+### Utiliti Tarikh & Masa Berketepatan Tinggi:
+* `capMasa()`: Mengembalikan cap masa Unix semasa (saat sejak era Unix 1970 UTC).
+* `masaKini()`: Mengembalikan rentetan masa jam semasa mengikut format 24 jam `"HH:MM:SS"`.
+* `tarikhKini()`: Mengembalikan rentetan tarikh kalendar Gregory semasa mengikut format piawai ISO `"YYYY-MM-DD"`.
+
+
 
 

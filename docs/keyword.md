@@ -80,7 +80,37 @@ Bahasa MELAYU menyertakan fungsi standard yang dilindungi sistem keselamatan san
 | `mutlak(n)` | Mengira nilai mutlak ($|n|$) | `mutlak(-42)` $\to$ `42` |
 | `maksimum(a, b, ...)` | Mengembalikan nilai tertinggi | `maksimum(10, 50, 30)` $\to$ `50` |
 | `minimum(a, b, ...)` | Mengembalikan nilai terendah | `minimum(10, 50, 5)` $\to$ `5` |
+| `bacaJSON(teks)` | Menghurai teks JSON kepada struktur data asli MELAYU | `bacaJSON("{\"a\": 1}")` |
+| `tulisJSON(nilai, cantik?)` | Menukar data MELAYU ke format teks JSON piawai | `tulisJSON(data, betul)` |
+| `capMasa()` | Mengembalikan cap masa Unix semasa dalam saat | `capMasa()` |
+| `masaKini()` | Mengembalikan masa semasa sistem format "HH:MM:SS" | `masaKini()` |
+| `tarikhKini()` | Mengembalikan tarikh semasa sistem format "YYYY-MM-DD" | `tarikhKini()` |
+
+## Kaedah Struktur Data (Methods)
+
+| Sasaran | Kaedah | Penerangan | Contoh |
+|---|---|---|---|
+| **Senarai** | `.petakan(fungsi)` | Memetakan setiap elemen (*map*) | `nombor.petakan(ganda)` |
+| | `.tapis(fungsi)` | Menyaring elemen mengikut syarat (*filter*) | `nombor.tapis(genap)` |
+| | `.kiraSemua(fungsi, awal)` | Meringkaskan senarai ke satu nilai (*reduce*) | `nombor.kiraSemua(tambah, 0)` |
+| | `.cari(fungsi)` | Mencari elemen pertama yang sepadan (*find*) | `nombor.cari(adakahWujud)` |
+| | `.indeks(item)` | Mencari indeks elemen (`-1` jika tiada) | `senarai.indeks("durian")` |
+| | `.setiapSatu(fungsi)` | Menjalankan tindakan bagi setiap elemen (*forEach*) | `senarai.setiapSatu(papar)` |
+| | `.isih()` | Menyusun elemen secara menaik | `senarai.isih()` |
+| | `.balik()` | Membalikkan susunan elemen | `senarai.balik()` |
+| | `.cantum(pemisah)` | Menggabungkan elemen menjadi teks | `senarai.cantum(", ")` |
+| **Kamus** | `.adaKunci(kunci)` | Menyemak kewujudan kunci dalam kamus | `kamus.adaKunci("nama")` |
+| | `.buang(kunci)` | Memadam kunci dan memulangkan nilainya | `kamus.buang("umur")` |
+| | `.kunci()` | Mengembalikan senarai semua kunci | `kamus.kunci()` |
+| | `.nilai()` | Mengembalikan senarai semua nilai | `kamus.nilai()` |
+| **Teks** | `.ulang(n)` | Mengulang teks sebanyak n kali | `"*".ulang(10)` |
+| | `.selitDepan(panjang, aksara?)` | Melapik aksara dari depan (*padStart*) | `"42".selitDepan(5, "0")` |
+| | `.selitBelakang(panjang, aksara?)` | Melapik aksara dari belakang (*padEnd*) | `"Tajuk".selitBelakang(15, ".")` |
+| | `.hurufAwalBesar()` | Menukar huruf pertama menjadi huruf besar | `"melayu".hurufAwalBesar()` |
+| | `.pecah(pemisah)` | Memecah teks menjadi senarai rentetan | `"a,b,c".pecah(",")` |
+| | `.ganti(lama, baru)` | Menggantikan teks padanan | `"hai dunia".ganti("hai", "salam")` |
 
 > **Nota Keselamatan Sandbox:** Operasi fail dihalang daripada mengakses laluan di luar direktori kerja (Path Traversal Protection) demi mengelakkan pencerobohan sistem fail.
+
 
 

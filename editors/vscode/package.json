@@ -2,7 +2,7 @@
   "name": "melayu-language-support",
   "displayName": "MELAYU Language Support",
   "description": "Sokongan sintaks rasmi dan snippets untuk bahasa pengaturcaraan MELAYU (.ml)",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "./icon.svg",
   "publisher": "xianlyruna",
   "author": {

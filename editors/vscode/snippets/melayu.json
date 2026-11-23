@@ -108,6 +108,56 @@
       "tunjuk ${1:mesej}"
     ],
     "description": "Mencetak mesej ke terminal"
+  },
+  "Hurai JSON (bacaJSON)": {
+    "prefix": "bacajson",
+    "body": [
+      "ada ${1:data} = bacaJSON(${2:teksJSON})"
+    ],
+    "description": "Menghurai teks JSON kepada kamus atau senarai MELAYU"
+  },
+  "Tulis JSON (tulisJSON)": {
+    "prefix": "tulisjson",
+    "body": [
+      "ada ${1:teks} = tulisJSON(${2:data}, ${3:betul})"
+    ],
+    "description": "Menukar data MELAYU kepada teks JSON (cantik atau padat)"
+  },
+  "Petakan Senarai (.petakan)": {
+    "prefix": "petakan",
+    "body": [
+      "ada ${1:hasil} = ${2:senarai}.petakan(${3:fungsiPenukar})"
+    ],
+    "description": "Operasi fungsian map pada senarai"
+  },
+  "Tapis Senarai (.tapis)": {
+    "prefix": "tapis",
+    "body": [
+      "ada ${1:hasil} = ${2:senarai}.tapis(${3:fungsiSyarat})"
+    ],
+    "description": "Operasi fungsian filter pada senarai"
+  },
+  "Kira Semua Senarai (.kiraSemua)": {
+    "prefix": "kirasemua",
+    "body": [
+      "ada ${1:jumlah} = ${2:senarai}.kiraSemua(${3:fungsiAkumulasi}, ${4:0})"
+    ],
+    "description": "Operasi fungsian reduce pada senarai"
+  },
+  "Cap Masa Semasa (capMasa)": {
+    "prefix": "capmasa",
+    "body": [
+      "ada ${1:masaEpoch} = capMasa()"
+    ],
+    "description": "Mendapatkan cap masa Unix semasa dalam saat"
+  },
+  "Tarikh & Masa Kini": {
+    "prefix": "masakini",
+    "body": [
+      "ada ${1:tarikh} = tarikhKini()",
+      "ada ${2:masa} = masaKini()"
+    ],
+    "description": "Mendapatkan tarikh dan masa kalendar semasa"
   }
 }
 

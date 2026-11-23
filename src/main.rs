@@ -37,7 +37,7 @@ fn main() {
             cetak_bantuan();
         }
         "versi" | "--version" | "-v" => {
-            println!("MELAYU v0.1.2");
+            println!("MELAYU v0.2.0");
             println!("Bahasa programming serumpun, untuk serumpun developer.");
         }
         fail if fail.ends_with(".ml") => {

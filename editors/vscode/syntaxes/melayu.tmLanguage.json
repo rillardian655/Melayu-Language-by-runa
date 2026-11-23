@@ -83,7 +83,7 @@
       "patterns": [
         {
           "name": "support.function.builtin.melayu",
-          "match": "\\b(tunjuk|baca|panjang|jenis|hurufBesar|hurufKecil|puncaKuasaDua|rawak|bacaFail|tulisFail|wujudFail|padamFail|bundar|lantai|siling|mutlak|maksimum|minimum)\\b"
+          "match": "\\b(tunjuk|baca|panjang|jenis|hurufBesar|hurufKecil|puncaKuasaDua|rawak|bacaFail|tulisFail|wujudFail|padamFail|bundar|lantai|siling|mutlak|maksimum|minimum|bacaJSON|dariJSON|tulisJSON|keJSON|capMasa|masaKini|tarikhKini)\\b"
         }
       ]
     },

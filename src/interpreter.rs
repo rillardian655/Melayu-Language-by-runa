@@ -323,6 +323,670 @@ impl Interpreter {
         Ok(Value::Kosong)
     }
 
+    pub fn panggil_nilai(
+        &mut self,
+        func_val: &Value,
+        evaluated_args: &[Value],
+        pos: LineCol,
+    ) -> Result<Value, MelayuError> {
+        match func_val {
+            Value::Bawaan(_, func) => func(evaluated_args, pos),
+            Value::Fungsi {
+                nama,
+                parameter,
+                badan,
+                closure,
+            } => {
+                if parameter.len() != evaluated_args.len() {
+                    return Err(MelayuError::new(
+                        "Alamak!",
+                        &format!(
+                            "Fungsi '{}' memerlukan {} hujah, tetapi menerima {}.",
+                            nama,
+                            parameter.len(),
+                            evaluated_args.len()
+                        ),
+                        pos.line,
+                        pos.col,
+                    )
+                    .with_kind(ErrorKind::Runtime));
+                }
+
+                if self.kedalaman_panggilan >= self.had_rekursi {
+                    return Err(MelayuError::rekursi_berlebihan(
+                        self.had_rekursi,
+                        pos.line,
+                        pos.col,
+                    ));
+                }
+
+                let call_env = Rc::new(RefCell::new(Environment::with_parent(Rc::clone(closure))));
+                for (i, (p_name, _)) in parameter.iter().enumerate() {
+                    call_env
+                        .borrow_mut()
+                        .define(p_name, evaluated_args[i].clone(), false);
+                }
+
+                self.kedalaman_panggilan += 1;
+                let hasil = (|| -> Result<Value, MelayuError> {
+                    for s in badan {
+                        match self.execute_stmt(s, &call_env)? {
+                            Flow::Lanjut => {}
+                            Flow::Pulang(v) => return Ok(v),
+                            Flow::Hentikan | Flow::Teruskan => {
+                                return Err(MelayuError::new(
+                                    "Woy!",
+                                    "'hentikan' atau 'teruskan' tidak sah di luar gelung.",
+                                    pos.line,
+                                    pos.col,
+                                )
+                                .with_kind(ErrorKind::Runtime));
+                            }
+                        }
+                    }
+                    Ok(Value::Kosong)
+                })();
+                self.kedalaman_panggilan -= 1;
+                hasil
+            }
+            other => Err(MelayuError::new(
+                "Eh!",
+                &format!("'{}' bukan fungsi yang boleh dipanggil.", other.jenis()),
+                pos.line,
+                pos.col,
+            )
+            .with_kind(ErrorKind::Runtime)),
+        }
+    }
+
+    pub fn panggil_kaedah(
+        &mut self,
+        target_val: Value,
+        kaedah: &str,
+        evaluated_args: &[Value],
+        pos: LineCol,
+    ) -> Result<Value, MelayuError> {
+        match target_val {
+            Value::Senarai(list) => match kaedah {
+                "tambah" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.tambah()' memerlukan 1 elemen untuk dimasukkan.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let mut borrowed = list.borrow_mut();
+                    if borrowed.len() >= HAD_ELEMEN_SENARAI_MAKSIMUM {
+                        return Err(MelayuError::had_memori_terlampau(
+                            "Bilangan elemen senarai melebihi had keselamatan maksimum (1,000,000)",
+                            pos.line,
+                            pos.col,
+                        ));
+                    }
+                    borrowed.push(evaluated_args[0].clone());
+                    Ok(Value::Kosong)
+                }
+                "buang" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.buang(indeks)' memerlukan 1 hujah nombor indeks.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    match evaluated_args[0] {
+                        Value::Nombor(n) => {
+                            let mut borrowed = list.borrow_mut();
+                            let actual_idx = sahkan_indeks(n, borrowed.len(), pos)?;
+                            Ok(borrowed.remove(actual_idx))
+                        }
+                        ref other => {
+                            Err(MelayuError::jenis_salah(
+                                "nombor",
+                                other.jenis(),
+                                pos.line,
+                                pos.col,
+                            ))
+                        }
+                    }
+                }
+                "panjang" => Ok(Value::Nombor(list.borrow().len() as f64)),
+                "berisi" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.berisi()' memerlukan 1 hujah.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let borrowed = list.borrow();
+                    let found = borrowed.contains(&evaluated_args[0]);
+                    Ok(if found { Value::Betul } else { Value::Salah })
+                }
+                "isih" => {
+                    let mut borrowed = list.borrow_mut();
+                    borrowed.sort_by(|a, b| match (a, b) {
+                        (Value::Nombor(x), Value::Nombor(y)) => {
+                            x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)
+                        }
+                        (Value::Teks(x), Value::Teks(y)) => x.cmp(y),
+                        _ => std::cmp::Ordering::Equal,
+                    });
+                    Ok(Value::Senarai(Rc::clone(&list)))
+                }
+                "balik" => {
+                    list.borrow_mut().reverse();
+                    Ok(Value::Senarai(Rc::clone(&list)))
+                }
+                "cantum" => {
+                    let pemisah = if evaluated_args.is_empty() {
+                        "".to_string()
+                    } else {
+                        match &evaluated_args[0] {
+                            Value::Teks(s) => s.clone(),
+                            other => other.to_string(),
+                        }
+                    };
+                    let borrowed = list.borrow();
+                    let parts: Vec<String> =
+                        borrowed.iter().map(|v| v.to_string()).collect();
+                    let result = parts.join(&pemisah);
+                    if result.len() > HAD_SAIZ_TEKS_MAKSIMUM {
+                        return Err(MelayuError::had_memori_terlampau(
+                            "Saiz teks cantuman melebihi 16 MB",
+                            pos.line,
+                            pos.col,
+                        ));
+                    }
+                    Ok(Value::Teks(result))
+                }
+                "petakan" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.petakan(fungsi)' memerlukan 1 hujah fungsi penukar.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let func_val = &evaluated_args[0];
+                    let items = list.borrow().clone();
+                    let mut mapped = Vec::with_capacity(items.len());
+                    for item in items {
+                        let res = self.panggil_nilai(func_val, &[item], pos)?;
+                        mapped.push(res);
+                    }
+                    if mapped.len() > HAD_ELEMEN_SENARAI_MAKSIMUM {
+                        return Err(MelayuError::had_memori_terlampau(
+                            "Bilangan elemen senarai petakan melebihi had keselamatan (1,000,000)",
+                            pos.line,
+                            pos.col,
+                        ));
+                    }
+                    Ok(Value::Senarai(Rc::new(RefCell::new(mapped))))
+                }
+                "tapis" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.tapis(fungsi)' memerlukan 1 hujah fungsi penapis.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let func_val = &evaluated_args[0];
+                    let items = list.borrow().clone();
+                    let mut filtered = Vec::new();
+                    for item in items {
+                        let res =
+                            self.panggil_nilai(func_val, std::slice::from_ref(&item), pos)?;
+                        if res.is_truthy() {
+                            filtered.push(item);
+                        }
+                    }
+                    Ok(Value::Senarai(Rc::new(RefCell::new(filtered))))
+                }
+                "kiraSemua" => {
+                    if evaluated_args.len() != 2 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.kiraSemua(fungsi, awal)' memerlukan 2 hujah (fungsi pengumpul, nilai awal).",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let func_val = &evaluated_args[0];
+                    let mut terkumpul = evaluated_args[1].clone();
+                    let items = list.borrow().clone();
+                    for item in items {
+                        terkumpul = self.panggil_nilai(func_val, &[terkumpul, item], pos)?;
+                    }
+                    Ok(terkumpul)
+                }
+                "cari" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.cari(fungsi)' memerlukan 1 hujah fungsi carian.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let func_val = &evaluated_args[0];
+                    let items = list.borrow().clone();
+                    for item in items {
+                        let res =
+                            self.panggil_nilai(func_val, std::slice::from_ref(&item), pos)?;
+                        if res.is_truthy() {
+                            return Ok(item);
+                        }
+                    }
+                    Ok(Value::Kosong)
+                }
+                "indeks" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.indeks(item)' memerlukan 1 hujah.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let target = &evaluated_args[0];
+                    let borrowed = list.borrow();
+                    let idx = borrowed.iter().position(|v| v == target);
+                    match idx {
+                        Some(i) => Ok(Value::Nombor(i as f64)),
+                        None => Ok(Value::Nombor(-1.0)),
+                    }
+                }
+                "setiapSatu" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.setiapSatu(fungsi)' memerlukan 1 hujah fungsi callback.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let func_val = &evaluated_args[0];
+                    let items = list.borrow().clone();
+                    for item in items {
+                        self.panggil_nilai(func_val, &[item], pos)?;
+                    }
+                    Ok(Value::Kosong)
+                }
+                other => Err(MelayuError::new(
+                    "Eh!",
+                    &format!("Kaedah '.{}()' tidak wujud untuk senarai.", other),
+                    pos.line,
+                    pos.col,
+                )
+                .with_kind(ErrorKind::Runtime)
+                .with_suggestion("Kaedah senarai yang ada: .tambah(item), .buang(indeks), .panjang(), .berisi(item), .isih(), .balik(), .cantum(pemisah), .petakan(fungsi), .tapis(fungsi), .kiraSemua(fungsi, awal), .cari(fungsi), .indeks(item), .setiapSatu(fungsi)")),
+            },
+            Value::Kamus(map) => match kaedah {
+                "kunci" => {
+                    let borrowed = map.borrow();
+                    let keys: Vec<Value> =
+                        borrowed.keys().cloned().map(Value::Teks).collect();
+                    Ok(Value::Senarai(Rc::new(RefCell::new(keys))))
+                }
+                "nilai" => {
+                    let borrowed = map.borrow();
+                    let values: Vec<Value> = borrowed.values().cloned().collect();
+                    Ok(Value::Senarai(Rc::new(RefCell::new(values))))
+                }
+                "panjang" => Ok(Value::Nombor(map.borrow().len() as f64)),
+                "adaKunci" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.adaKunci(kunci)' memerlukan 1 hujah.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let key = match &evaluated_args[0] {
+                        Value::Teks(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    let exists = map.borrow().contains_key(&key);
+                    Ok(if exists { Value::Betul } else { Value::Salah })
+                }
+                "buang" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.buang(kunci)' memerlukan 1 hujah nama kunci.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let key = match &evaluated_args[0] {
+                        Value::Teks(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    let removed = map.borrow_mut().remove(&key);
+                    Ok(removed.unwrap_or(Value::Kosong))
+                }
+                other => Err(MelayuError::new(
+                    "Eh!",
+                    &format!("Kaedah '.{}()' tidak wujud untuk kamus.", other),
+                    pos.line,
+                    pos.col,
+                )
+                .with_kind(ErrorKind::Runtime)
+                .with_suggestion("Kaedah kamus yang ada: .kunci(), .nilai(), .panjang(), .adaKunci(kunci), .buang(kunci)")),
+            },
+            Value::Teks(s) => match kaedah {
+                "hurufBesar" => Ok(Value::Teks(s.to_uppercase())),
+                "hurufKecil" => Ok(Value::Teks(s.to_lowercase())),
+                "hurufAwalBesar" => {
+                    let mut c = s.chars();
+                    let res = match c.next() {
+                        None => String::new(),
+                        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                    };
+                    Ok(Value::Teks(res))
+                }
+                "panjang" => Ok(Value::Nombor(s.chars().count() as f64)),
+                "potong" => Ok(Value::Teks(s.trim().to_string())),
+                "pecah" => {
+                    let pemisah = if evaluated_args.is_empty() {
+                        "".to_string()
+                    } else {
+                        match &evaluated_args[0] {
+                            Value::Teks(p) => p.clone(),
+                            other => other.to_string(),
+                        }
+                    };
+                    let items: Vec<Value> = if pemisah.is_empty() {
+                        s.chars().map(|c| Value::Teks(c.to_string())).collect()
+                    } else {
+                        s.split(&pemisah)
+                            .map(|part| Value::Teks(part.to_string()))
+                            .collect()
+                    };
+                    if items.len() > HAD_ELEMEN_SENARAI_MAKSIMUM {
+                        return Err(MelayuError::had_memori_terlampau(
+                            "Bilangan elemen hasil pecahan teks melebihi 1,000,000",
+                            pos.line,
+                            pos.col,
+                        ));
+                    }
+                    Ok(Value::Senarai(Rc::new(RefCell::new(items))))
+                }
+                "ganti" => {
+                    if evaluated_args.len() != 2 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.ganti(lama, baru)' memerlukan 2 hujah teks.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let lama = evaluated_args[0].to_string();
+                    let baru = evaluated_args[1].to_string();
+                    let replaced = s.replace(&lama, &baru);
+                    if replaced.len() > HAD_SAIZ_TEKS_MAKSIMUM {
+                        return Err(MelayuError::had_memori_terlampau(
+                            "Saiz teks ganti melebihi 16 MB",
+                            pos.line,
+                            pos.col,
+                        ));
+                    }
+                    Ok(Value::Teks(replaced))
+                }
+                "ulang" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.ulang(bilangan)' memerlukan 1 hujah nombor.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    match evaluated_args[0] {
+                        Value::Nombor(n) => {
+                            if n < 0.0 || n.fract() != 0.0 {
+                                return Err(MelayuError::new(
+                                    "Aduh!",
+                                    "Bilangan ulangan mestilah integer positif (0 atau lebih).",
+                                    pos.line,
+                                    pos.col,
+                                )
+                                .with_kind(ErrorKind::Runtime));
+                            }
+                            let count = n as usize;
+                            let saiz = s.len().saturating_mul(count);
+                            if saiz > HAD_SAIZ_TEKS_MAKSIMUM {
+                                return Err(MelayuError::had_memori_terlampau(
+                                    "Saiz teks hasil ulangan melebihi had 16 MB.",
+                                    pos.line,
+                                    pos.col,
+                                ));
+                            }
+                            Ok(Value::Teks(s.repeat(count)))
+                        }
+                        ref other => Err(MelayuError::jenis_salah(
+                            "nombor",
+                            other.jenis(),
+                            pos.line,
+                            pos.col,
+                        )),
+                    }
+                }
+                "selitDepan" => {
+                    if evaluated_args.is_empty() || evaluated_args.len() > 2 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.selitDepan(panjang, aksara?)' memerlukan 1 atau 2 hujah.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let sasaran = match evaluated_args[0] {
+                        Value::Nombor(n) => {
+                            if n < 0.0 {
+                                0
+                            } else {
+                                n as usize
+                            }
+                        }
+                        ref other => {
+                            return Err(MelayuError::jenis_salah(
+                                "nombor",
+                                other.jenis(),
+                                pos.line,
+                                pos.col,
+                            ));
+                        }
+                    };
+                    let pad_str = if evaluated_args.len() == 2 {
+                        match &evaluated_args[1] {
+                            Value::Teks(t) => {
+                                if t.is_empty() {
+                                    " ".to_string()
+                                } else {
+                                    t.clone()
+                                }
+                            }
+                            other => other.to_string(),
+                        }
+                    } else {
+                        " ".to_string()
+                    };
+                    let char_count = s.chars().count();
+                    if char_count >= sasaran {
+                        Ok(Value::Teks(s))
+                    } else {
+                        let mut hasil = String::new();
+                        let pad_needed = sasaran - char_count;
+                        let pad_chars: Vec<char> = pad_str.chars().collect();
+                        for i in 0..pad_needed {
+                            hasil.push(pad_chars[i % pad_chars.len()]);
+                        }
+                        hasil.push_str(&s);
+                        if hasil.len() > HAD_SAIZ_TEKS_MAKSIMUM {
+                            return Err(MelayuError::had_memori_terlampau(
+                                "Saiz teks selit melebihi had 16 MB.",
+                                pos.line,
+                                pos.col,
+                            ));
+                        }
+                        Ok(Value::Teks(hasil))
+                    }
+                }
+                "selitBelakang" => {
+                    if evaluated_args.is_empty() || evaluated_args.len() > 2 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.selitBelakang(panjang, aksara?)' memerlukan 1 atau 2 hujah.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let sasaran = match evaluated_args[0] {
+                        Value::Nombor(n) => {
+                            if n < 0.0 {
+                                0
+                            } else {
+                                n as usize
+                            }
+                        }
+                        ref other => {
+                            return Err(MelayuError::jenis_salah(
+                                "nombor",
+                                other.jenis(),
+                                pos.line,
+                                pos.col,
+                            ));
+                        }
+                    };
+                    let pad_str = if evaluated_args.len() == 2 {
+                        match &evaluated_args[1] {
+                            Value::Teks(t) => {
+                                if t.is_empty() {
+                                    " ".to_string()
+                                } else {
+                                    t.clone()
+                                }
+                            }
+                            other => other.to_string(),
+                        }
+                    } else {
+                        " ".to_string()
+                    };
+                    let char_count = s.chars().count();
+                    if char_count >= sasaran {
+                        Ok(Value::Teks(s))
+                    } else {
+                        let mut hasil = s;
+                        let pad_needed = sasaran - char_count;
+                        let pad_chars: Vec<char> = pad_str.chars().collect();
+                        for i in 0..pad_needed {
+                            hasil.push(pad_chars[i % pad_chars.len()]);
+                        }
+                        if hasil.len() > HAD_SAIZ_TEKS_MAKSIMUM {
+                            return Err(MelayuError::had_memori_terlampau(
+                                "Saiz teks selit melebihi had 16 MB.",
+                                pos.line,
+                                pos.col,
+                            ));
+                        }
+                        Ok(Value::Teks(hasil))
+                    }
+                }
+                "mulaDengan" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.mulaDengan(awalan)' memerlukan 1 hujah teks.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let awalan = evaluated_args[0].to_string();
+                    Ok(if s.starts_with(&awalan) {
+                        Value::Betul
+                    } else {
+                        Value::Salah
+                    })
+                }
+                "tamatDengan" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.tamatDengan(akhiran)' memerlukan 1 hujah teks.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let akhiran = evaluated_args[0].to_string();
+                    Ok(if s.ends_with(&akhiran) {
+                        Value::Betul
+                    } else {
+                        Value::Salah
+                    })
+                }
+                "mengandungi" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.mengandungi(subteks)' memerlukan 1 hujah.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let subteks = evaluated_args[0].to_string();
+                    Ok(if s.contains(&subteks) {
+                        Value::Betul
+                    } else {
+                        Value::Salah
+                    })
+                }
+                other => Err(MelayuError::new(
+                    "Eh!",
+                    &format!("Kaedah '.{}()' tidak wujud untuk teks.", other),
+                    pos.line,
+                    pos.col,
+                )
+                .with_kind(ErrorKind::Runtime)
+                .with_suggestion("Kaedah teks yang ada: .hurufBesar(), .hurufKecil(), .hurufAwalBesar(), .panjang(), .potong(), .pecah(pemisah), .ganti(lama, baru), .ulang(n), .selitDepan(panjang, aksara?), .selitBelakang(panjang, aksara?), .mulaDengan(awalan), .tamatDengan(akhiran), .mengandungi(subteks)")),
+            },
+            other => Err(MelayuError::new(
+                "Eh!",
+                &format!("Jenis '{}' tidak mempunyai kaedah '.{}()'.", other.jenis(), kaedah),
+                pos.line,
+                pos.col,
+            )
+            .with_kind(ErrorKind::Runtime)),
+        }
+    }
+
     pub fn execute_stmt(
         &mut self,
         stmt: &Stmt,
@@ -1048,76 +1712,7 @@ impl Interpreter {
                 for arg in argumen {
                     evaluated_args.push(self.evaluate_expr(arg, env)?);
                 }
-
-                match func_val {
-                    Value::Bawaan(_, func) => func(&evaluated_args, *pos),
-                    Value::Fungsi {
-                        nama,
-                        parameter,
-                        badan,
-                        closure,
-                    } => {
-                        if parameter.len() != evaluated_args.len() {
-                            return Err(MelayuError::new(
-                                "Alamak!",
-                                &format!(
-                                    "Fungsi '{}' memerlukan {} hujah, tetapi menerima {}.",
-                                    nama,
-                                    parameter.len(),
-                                    evaluated_args.len()
-                                ),
-                                pos.line,
-                                pos.col,
-                            )
-                            .with_kind(ErrorKind::Runtime));
-                        }
-
-                        if self.kedalaman_panggilan >= self.had_rekursi {
-                            return Err(MelayuError::rekursi_berlebihan(
-                                self.had_rekursi,
-                                pos.line,
-                                pos.col,
-                            ));
-                        }
-
-                        let call_env =
-                            Rc::new(RefCell::new(Environment::with_parent(Rc::clone(&closure))));
-                        for (i, (p_name, _)) in parameter.iter().enumerate() {
-                            call_env
-                                .borrow_mut()
-                                .define(p_name, evaluated_args[i].clone(), false);
-                        }
-
-                        self.kedalaman_panggilan += 1;
-                        let hasil = (|| -> Result<Value, MelayuError> {
-                            for s in &badan {
-                                match self.execute_stmt(s, &call_env)? {
-                                    Flow::Lanjut => {}
-                                    Flow::Pulang(v) => return Ok(v),
-                                    Flow::Hentikan | Flow::Teruskan => {
-                                        return Err(MelayuError::new(
-                                            "Woy!",
-                                            "'hentikan' atau 'teruskan' tidak sah di luar gelung.",
-                                            pos.line,
-                                            pos.col,
-                                        )
-                                        .with_kind(ErrorKind::Runtime));
-                                    }
-                                }
-                            }
-                            Ok(Value::Kosong)
-                        })();
-                        self.kedalaman_panggilan -= 1;
-                        hasil
-                    }
-                    other => Err(MelayuError::new(
-                        "Eh!",
-                        &format!("'{}' bukan fungsi yang boleh dipanggil.", other.jenis()),
-                        pos.line,
-                        pos.col,
-                    )
-                    .with_kind(ErrorKind::Runtime)),
-                }
+                self.panggil_nilai(&func_val, &evaluated_args, *pos)
             }
             Expr::AksesIndeks {
                 sasaran,
@@ -1207,259 +1802,7 @@ impl Interpreter {
                 for arg in argumen {
                     evaluated_args.push(self.evaluate_expr(arg, env)?);
                 }
-
-                match target_val {
-                    Value::Senarai(list) => match kaedah.as_str() {
-                        "tambah" => {
-                            if evaluated_args.len() != 1 {
-                                return Err(MelayuError::new(
-                                    "Alamak!",
-                                    "Kaedah '.tambah()' memerlukan 1 elemen untuk dimasukkan.",
-                                    pos.line,
-                                    pos.col,
-                                )
-                                .with_kind(ErrorKind::Runtime));
-                            }
-                            let mut borrowed = list.borrow_mut();
-                            if borrowed.len() >= HAD_ELEMEN_SENARAI_MAKSIMUM {
-                                return Err(MelayuError::had_memori_terlampau(
-                                    "Bilangan elemen senarai melebihi had keselamatan maksimum (1,000,000)",
-                                    pos.line,
-                                    pos.col,
-                                ));
-                            }
-                            borrowed.push(evaluated_args[0].clone());
-                            Ok(Value::Kosong)
-                        }
-                        "buang" => {
-                            if evaluated_args.len() != 1 {
-                                return Err(MelayuError::new(
-                                    "Alamak!",
-                                    "Kaedah '.buang(indeks)' memerlukan 1 hujah nombor indeks.",
-                                    pos.line,
-                                    pos.col,
-                                )
-                                .with_kind(ErrorKind::Runtime));
-                            }
-                            match evaluated_args[0] {
-                                Value::Nombor(n) => {
-                                    let mut borrowed = list.borrow_mut();
-                                    let actual_idx = sahkan_indeks(n, borrowed.len(), *pos)?;
-                                    Ok(borrowed.remove(actual_idx))
-                                }
-                                ref other => {
-                                    Err(MelayuError::jenis_salah(
-                                        "nombor",
-                                        other.jenis(),
-                                        pos.line,
-                                        pos.col,
-                                    ))
-                                }
-                            }
-                        }
-                        "panjang" => Ok(Value::Nombor(list.borrow().len() as f64)),
-                        "berisi" => {
-                            if evaluated_args.len() != 1 {
-                                return Err(MelayuError::new(
-                                    "Alamak!",
-                                    "Kaedah '.berisi()' memerlukan 1 hujah.",
-                                    pos.line,
-                                    pos.col,
-                                )
-                                .with_kind(ErrorKind::Runtime));
-                            }
-                            let borrowed = list.borrow();
-                            let found = borrowed.contains(&evaluated_args[0]);
-                            Ok(if found { Value::Betul } else { Value::Salah })
-                        }
-                        "isih" => {
-                            let mut borrowed = list.borrow_mut();
-                            borrowed.sort_by(|a, b| match (a, b) {
-                                (Value::Nombor(x), Value::Nombor(y)) => {
-                                    x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)
-                                }
-                                (Value::Teks(x), Value::Teks(y)) => x.cmp(y),
-                                _ => std::cmp::Ordering::Equal,
-                            });
-                            Ok(Value::Senarai(Rc::clone(&list)))
-                        }
-                        "balik" => {
-                            list.borrow_mut().reverse();
-                            Ok(Value::Senarai(Rc::clone(&list)))
-                        }
-                        "cantum" => {
-                            let pemisah = if evaluated_args.is_empty() {
-                                "".to_string()
-                            } else {
-                                match &evaluated_args[0] {
-                                    Value::Teks(s) => s.clone(),
-                                    other => other.to_string(),
-                                }
-                            };
-                            let borrowed = list.borrow();
-                            let parts: Vec<String> =
-                                borrowed.iter().map(|v| v.to_string()).collect();
-                            let result = parts.join(&pemisah);
-                            if result.len() > HAD_SAIZ_TEKS_MAKSIMUM {
-                                return Err(MelayuError::had_memori_terlampau(
-                                    "Saiz teks cantuman melebihi 16 MB",
-                                    pos.line,
-                                    pos.col,
-                                ));
-                            }
-                            Ok(Value::Teks(result))
-                        }
-                        other => Err(MelayuError::new(
-                            "Eh!",
-                            &format!("Kaedah '.{}()' tidak wujud untuk senarai.", other),
-                            pos.line,
-                            pos.col,
-                        )
-                        .with_kind(ErrorKind::Runtime)
-                        .with_suggestion("Kaedah senarai yang ada: .tambah(item), .buang(indeks), .panjang(), .berisi(item), .isih(), .balik(), .cantum(pemisah)")),
-                    },
-                    Value::Kamus(map) => match kaedah.as_str() {
-                        "kunci" => {
-                            let borrowed = map.borrow();
-                            let keys: Vec<Value> =
-                                borrowed.keys().cloned().map(Value::Teks).collect();
-                            Ok(Value::Senarai(Rc::new(RefCell::new(keys))))
-                        }
-                        "nilai" => {
-                            let borrowed = map.borrow();
-                            let values: Vec<Value> = borrowed.values().cloned().collect();
-                            Ok(Value::Senarai(Rc::new(RefCell::new(values))))
-                        }
-                        "panjang" => Ok(Value::Nombor(map.borrow().len() as f64)),
-                        other => Err(MelayuError::new(
-                            "Eh!",
-                            &format!("Kaedah '.{}()' tidak wujud untuk kamus.", other),
-                            pos.line,
-                            pos.col,
-                        )
-                        .with_kind(ErrorKind::Runtime)
-                        .with_suggestion("Kaedah kamus yang ada: .kunci(), .nilai(), .panjang()")),
-                    },
-                    Value::Teks(s) => match kaedah.as_str() {
-                        "hurufBesar" => Ok(Value::Teks(s.to_uppercase())),
-                        "hurufKecil" => Ok(Value::Teks(s.to_lowercase())),
-                        "panjang" => Ok(Value::Nombor(s.chars().count() as f64)),
-                        "potong" => Ok(Value::Teks(s.trim().to_string())),
-                        "pecah" => {
-                            let pemisah = if evaluated_args.is_empty() {
-                                "".to_string()
-                            } else {
-                                match &evaluated_args[0] {
-                                    Value::Teks(p) => p.clone(),
-                                    other => other.to_string(),
-                                }
-                            };
-                            let items: Vec<Value> = if pemisah.is_empty() {
-                                s.chars().map(|c| Value::Teks(c.to_string())).collect()
-                            } else {
-                                s.split(&pemisah)
-                                    .map(|part| Value::Teks(part.to_string()))
-                                    .collect()
-                            };
-                            if items.len() > HAD_ELEMEN_SENARAI_MAKSIMUM {
-                                return Err(MelayuError::had_memori_terlampau(
-                                    "Bilangan elemen hasil pecahan teks melebihi 1,000,000",
-                                    pos.line,
-                                    pos.col,
-                                ));
-                            }
-                            Ok(Value::Senarai(Rc::new(RefCell::new(items))))
-                        }
-                        "ganti" => {
-                            if evaluated_args.len() != 2 {
-                                return Err(MelayuError::new(
-                                    "Alamak!",
-                                    "Kaedah '.ganti(lama, baru)' memerlukan 2 hujah teks.",
-                                    pos.line,
-                                    pos.col,
-                                )
-                                .with_kind(ErrorKind::Runtime));
-                            }
-                            let lama = evaluated_args[0].to_string();
-                            let baru = evaluated_args[1].to_string();
-                            let replaced = s.replace(&lama, &baru);
-                            if replaced.len() > HAD_SAIZ_TEKS_MAKSIMUM {
-                                return Err(MelayuError::had_memori_terlampau(
-                                    "Saiz teks ganti melebihi 16 MB",
-                                    pos.line,
-                                    pos.col,
-                                ));
-                            }
-                            Ok(Value::Teks(replaced))
-                        }
-                        "mulaDengan" => {
-                            if evaluated_args.len() != 1 {
-                                return Err(MelayuError::new(
-                                    "Alamak!",
-                                    "Kaedah '.mulaDengan(awalan)' memerlukan 1 hujah teks.",
-                                    pos.line,
-                                    pos.col,
-                                )
-                                .with_kind(ErrorKind::Runtime));
-                            }
-                            let awalan = evaluated_args[0].to_string();
-                            Ok(if s.starts_with(&awalan) {
-                                Value::Betul
-                            } else {
-                                Value::Salah
-                            })
-                        }
-                        "tamatDengan" => {
-                            if evaluated_args.len() != 1 {
-                                return Err(MelayuError::new(
-                                    "Alamak!",
-                                    "Kaedah '.tamatDengan(akhiran)' memerlukan 1 hujah teks.",
-                                    pos.line,
-                                    pos.col,
-                                )
-                                .with_kind(ErrorKind::Runtime));
-                            }
-                            let akhiran = evaluated_args[0].to_string();
-                            Ok(if s.ends_with(&akhiran) {
-                                Value::Betul
-                            } else {
-                                Value::Salah
-                            })
-                        }
-                        "mengandungi" => {
-                            if evaluated_args.len() != 1 {
-                                return Err(MelayuError::new(
-                                    "Alamak!",
-                                    "Kaedah '.mengandungi(subteks)' memerlukan 1 hujah.",
-                                    pos.line,
-                                    pos.col,
-                                )
-                                .with_kind(ErrorKind::Runtime));
-                            }
-                            let subteks = evaluated_args[0].to_string();
-                            Ok(if s.contains(&subteks) {
-                                Value::Betul
-                            } else {
-                                Value::Salah
-                            })
-                        }
-                        other => Err(MelayuError::new(
-                            "Eh!",
-                            &format!("Kaedah '.{}()' tidak wujud untuk teks.", other),
-                            pos.line,
-                            pos.col,
-                        )
-                        .with_kind(ErrorKind::Runtime)
-                        .with_suggestion("Kaedah teks yang ada: .hurufBesar(), .hurufKecil(), .panjang(), .potong(), .pecah(pemisah), .ganti(lama, baru), .mulaDengan(awalan), .tamatDengan(akhiran), .mengandungi(subteks)")),
-                    },
-                    other => Err(MelayuError::new(
-                        "Eh!",
-                        &format!("Jenis '{}' tidak mempunyai kaedah '.{}()'.", other.jenis(), kaedah),
-                        pos.line,
-                        pos.col,
-                    )
-                    .with_kind(ErrorKind::Runtime)),
-                }
+                self.panggil_kaedah(target_val, kaedah, &evaluated_args, *pos)
             }
             Expr::BacaInput(pos) => match lakukan_baca_input() {
                 Ok(s) => Ok(Value::Teks(s)),
