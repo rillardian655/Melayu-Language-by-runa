@@ -209,6 +209,14 @@ impl Lexer {
                             start_line,
                             start_col,
                         ));
+                    } else if self.peek() == '>' {
+                        self.advance();
+                        tokens.push(Token::new(
+                            TokenKind::AnakPanahTebal,
+                            "=>",
+                            start_line,
+                            start_col,
+                        ));
                     } else {
                         tokens.push(Token::new(
                             TokenKind::SamaDenganSatu,
@@ -281,15 +289,37 @@ impl Lexer {
                     if self.peek() == '|' {
                         self.advance();
                         tokens.push(Token::new(TokenKind::Atau, "||", start_line, start_col));
+                    } else if self.peek() == '>' {
+                        self.advance();
+                        tokens.push(Token::new(TokenKind::Pipa, "|>", start_line, start_col));
                     } else {
                         return Err(MelayuError::new(
                             "Eh!",
-                            "Simbol '|' tunggal tidak dikenali. Gunakan '||' atau kata 'atau'.",
+                            "Simbol '|' tunggal tidak dikenali. Gunakan '||' untuk 'atau' atau '|>' untuk saluran paip.",
                             start_line,
                             start_col,
                         )
                         .with_kind(ErrorKind::Lexer)
-                        .with_suggestion("Gunakan perkataan 'atau' atau simbol '||'."));
+                        .with_suggestion("Gunakan perkataan 'atau', simbol '||', atau operator saluran paip '|>'."));
+                    }
+                }
+                '?' => {
+                    self.advance();
+                    if self.peek() == '?' {
+                        self.advance();
+                        tokens.push(Token::new(TokenKind::NullCoalesce, "??", start_line, start_col));
+                    } else if self.peek() == '.' {
+                        self.advance();
+                        tokens.push(Token::new(TokenKind::QuestionDot, "?.", start_line, start_col));
+                    } else {
+                        return Err(MelayuError::new(
+                            "Eh!",
+                            "Simbol '?' tunggal tidak dikenali. Gunakan '??' untuk nilai lalai atau '?.' untuk akses selamat.",
+                            start_line,
+                            start_col,
+                        )
+                        .with_kind(ErrorKind::Lexer)
+                        .with_suggestion("Contoh: nilai ?? \"lalai\" atau objek?.sifat"));
                     }
                 }
                 '"' => {
@@ -660,6 +690,14 @@ impl Lexer {
             "diri" => TokenKind::Diri,
             "warisi" => TokenKind::Warisi,
             "induk" => TokenKind::Induk,
+
+            // Kata Kunci v0.4.0
+            "padan" => TokenKind::Padan,
+            "bila" => TokenKind::Bila,
+            "lain" => TokenKind::Lain,
+            "uji" => TokenKind::Uji,
+            "semak" => TokenKind::Semak,
+            "alir" => TokenKind::Alir,
 
             // Jenis & Nilai Literal
             "teks" => TokenKind::TipeTeks,

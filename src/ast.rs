@@ -113,6 +113,53 @@ pub enum Expr {
     },
     BacaInput(LineCol),
     BacaNomborInput(LineCol),
+
+    // Ungkapan Baru v0.4.0
+    SaluranPaip {
+        kiri: Box<Expr>,
+        kanan: Box<Expr>,
+        pos: LineCol,
+    },
+    NullCoalesce {
+        kiri: Box<Expr>,
+        kanan: Box<Expr>,
+        pos: LineCol,
+    },
+    AksesSelamatSifat {
+        sasaran: Box<Expr>,
+        sifat: String,
+        pos: LineCol,
+    },
+    PanggilSelamatKaedah {
+        sasaran: Box<Expr>,
+        kaedah: String,
+        argumen: Vec<Expr>,
+        pos: LineCol,
+    },
+    Padan(Box<PadanAST>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PadanAST {
+    pub sasaran: Box<Expr>,
+    pub kes: Vec<KesPadan>,
+    pub lain: Option<Box<Expr>>,
+    pub pos: LineCol,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PadanPola {
+    Nilai(Box<Expr>),
+    Julat(Box<Expr>, Box<Expr>), // mula hingga tamat
+    Lain,                        // 'lain'
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KesPadan {
+    pub pola: PadanPola,
+    pub syarat: Option<Box<Expr>>,
+    pub hasil: Box<Expr>,
+    pub pos: LineCol,
 }
 
 impl Expr {
@@ -130,6 +177,11 @@ impl Expr {
             Expr::PanggilKaedah { pos, .. } => *pos,
             Expr::BacaInput(pos) => *pos,
             Expr::BacaNomborInput(pos) => *pos,
+            Expr::SaluranPaip { pos, .. } => *pos,
+            Expr::NullCoalesce { pos, .. } => *pos,
+            Expr::AksesSelamatSifat { pos, .. } => *pos,
+            Expr::PanggilSelamatKaedah { pos, .. } => *pos,
+            Expr::Padan(p) => p.pos,
         }
     }
 }
@@ -225,6 +277,18 @@ pub enum Stmt {
         pos: LineCol,
     },
     DeklarasiKelas(Box<DeklarasiKelasAST>),
+
+    // Pernyataan Baru v0.4.0
+    Uji {
+        nama: String,
+        badan: Vec<Stmt>,
+        pos: LineCol,
+    },
+    Semak {
+        syarat: Expr,
+        mesej: Option<Expr>,
+        pos: LineCol,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -257,6 +321,8 @@ impl Stmt {
             Stmt::Horas(pos) => *pos,
             Stmt::Mangan(pos) => *pos,
             Stmt::Ambil { pos, .. } => *pos,
+            Stmt::Uji { pos, .. } => *pos,
+            Stmt::Semak { pos, .. } => *pos,
         }
     }
 }

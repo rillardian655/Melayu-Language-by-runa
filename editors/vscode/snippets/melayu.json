@@ -212,11 +212,36 @@
   "Pengesahan Syarat (semak)": {
     "prefix": "semak",
     "body": [
-      "jika bukan ${1:syarat}",
-      "\tpulang \"${2:Mesej ralat}\"",
+      "semak ${1:syarat}, \"${2:Mesej ralat sekiranya gagal}\""
+    ],
+    "description": "Pernyataan semakan penegasan (assertion)"
+  },
+  "Padanan Corak (padan)": {
+    "prefix": "padan",
+    "body": [
+      "padan ${1:sasaran}",
+      "\tbila ${2:pola} => ${3:hasil}",
+      "\tlain => ${4:lalai}",
       "selesai"
     ],
-    "description": "Blok guard clause semakan syarat"
+    "description": "Blok padanan corak ekspresif (pattern matching)"
+  },
+  "Ujian Unit (uji)": {
+    "prefix": "uji",
+    "body": [
+      "uji \"${1:Tajuk Ujian}\"",
+      "\tada ${2:hasil} = ${3:kiraan}",
+      "\tsemak ${2:hasil} == ${4:dijangka}, \"${5:Penjelasan ralat}\"",
+      "selesai"
+    ],
+    "description": "Blok ujian unit terbina-dalam Melayu"
+  },
+  "Saluran Paip (paip)": {
+    "prefix": "paip",
+    "body": [
+      "${1:data} |> ${2:fungsi1} |> ${3:fungsi2}"
+    ],
+    "description": "Rantaian saluran paip data (|>) Melayu"
   }
 }
 

@@ -72,7 +72,7 @@
       "patterns": [
         {
           "name": "keyword.control.melayu",
-          "match": "\\b(jika|selagi|untuk|dalam|dari|hingga|langkah|hentikan|teruskan|pulang|selesai|cuba|tangkap|baling|akhirnya|ambil|daripada|sebagai|horas|mangan)\\b"
+          "match": "\\b(jika|selagi|untuk|dalam|dari|hingga|langkah|hentikan|teruskan|pulang|selesai|cuba|tangkap|baling|akhirnya|ambil|daripada|sebagai|horas|mangan|padan|bila|lain|uji|semak|alir)\\b"
         },
         {
           "name": "keyword.declaration.melayu",
@@ -112,7 +112,7 @@
         },
         {
           "name": "keyword.operator.symbol.melayu",
-          "match": "(==|!=|>=|<=|>|<|\\+|-|\\*|/|%|&&|\\|\\||!|=)"
+          "match": "(==|!=|>=|<=|>|<|\\+|-|\\*|/|%|&&|\\|\\||!|=|\\|>|\\?\\?|\\?\\.|=>)"
         }
       ]
     },

@@ -56,6 +56,8 @@ impl Parser {
             TokenKind::Cuba => self.parse_cuba(),
             TokenKind::Baling => self.parse_baling(),
             TokenKind::Ambil => self.parse_ambil(),
+            TokenKind::Uji => self.parse_uji(),
+            TokenKind::Semak => self.parse_semak(),
             TokenKind::Horas => {
                 self.advance();
                 self.expect_stmt_delimiter()?;
@@ -1016,6 +1018,65 @@ impl Parser {
         })
     }
 
+    fn parse_uji(&mut self) -> Result<Stmt, MelayuError> {
+        let tok = self.advance(); // lewati 'uji'
+        let pos = LineCol::new(tok.line, tok.column);
+        let nama = match self.peek().kind {
+            TokenKind::Teks(ref s) => {
+                let n = s.clone();
+                self.advance();
+                n
+            }
+            _ => {
+                let cur = self.peek();
+                return Err(MelayuError::new(
+                    "Alamak!",
+                    "Diharapkan nama keterangan ujian dalam tanda petik selepas kata kunci 'uji'.",
+                    cur.line,
+                    cur.column,
+                )
+                .with_kind(ErrorKind::Parser)
+                .with_suggestion("Contoh: uji \"Kalkulator Tambah\""));
+            }
+        };
+
+        self.expect_stmt_delimiter()?;
+        let mut badan = Vec::new();
+        while !self.check(TokenKind::Selesai) && !self.is_at_end() {
+            if self.check(TokenKind::BarisBaru) {
+                self.advance();
+                continue;
+            }
+            badan.push(self.parse_statement()?);
+        }
+
+        if !self.match_token(TokenKind::Selesai) {
+            let cur = self.peek();
+            return Err(MelayuError::blok_tak_tutup(
+                "uji",
+                tok.line,
+                cur.line,
+                cur.column,
+            ));
+        }
+        self.expect_stmt_delimiter()?;
+        Ok(Stmt::Uji { nama, badan, pos })
+    }
+
+    fn parse_semak(&mut self) -> Result<Stmt, MelayuError> {
+        let tok = self.advance(); // lewati 'semak'
+        let pos = LineCol::new(tok.line, tok.column);
+        let syarat = self.parse_expression()?;
+
+        let mut mesej = None;
+        if self.match_token(TokenKind::Koma) {
+            mesej = Some(self.parse_expression()?);
+        }
+
+        self.expect_stmt_delimiter()?;
+        Ok(Stmt::Semak { syarat, mesej, pos })
+    }
+
     fn parse_assignment_or_expr_stmt(&mut self) -> Result<Stmt, MelayuError> {
         let expr = self.parse_expression()?;
         let pos = expr.pos();
@@ -1059,7 +1120,69 @@ impl Parser {
     // ----------------------------------------------------
 
     pub fn parse_expression(&mut self) -> Result<Expr, MelayuError> {
-        self.parse_logic_or()
+        self.parse_pipeline()
+    }
+
+    fn parse_pipeline(&mut self) -> Result<Expr, MelayuError> {
+        let mut left = self.parse_null_coalesce()?;
+
+        loop {
+            let mut offset = 0;
+            while self.peek_at(offset).kind == TokenKind::BarisBaru {
+                offset += 1;
+            }
+            if self.peek_at(offset).kind == TokenKind::Pipa || self.peek_at(offset).kind == TokenKind::Alir {
+                for _ in 0..offset {
+                    self.advance();
+                }
+                let op_tok = self.advance();
+                let pos = LineCol::new(op_tok.line, op_tok.column);
+                while self.check(TokenKind::BarisBaru) {
+                    self.advance();
+                }
+                let right = self.parse_null_coalesce()?;
+                left = Expr::SaluranPaip {
+                    kiri: Box::new(left),
+                    kanan: Box::new(right),
+                    pos,
+                };
+            } else {
+                break;
+            }
+        }
+
+        Ok(left)
+    }
+
+    fn parse_null_coalesce(&mut self) -> Result<Expr, MelayuError> {
+        let mut left = self.parse_logic_or()?;
+
+        loop {
+            let mut offset = 0;
+            while self.peek_at(offset).kind == TokenKind::BarisBaru {
+                offset += 1;
+            }
+            if self.peek_at(offset).kind == TokenKind::NullCoalesce {
+                for _ in 0..offset {
+                    self.advance();
+                }
+                let op_tok = self.advance();
+                let pos = LineCol::new(op_tok.line, op_tok.column);
+                while self.check(TokenKind::BarisBaru) {
+                    self.advance();
+                }
+                let right = self.parse_logic_or()?;
+                left = Expr::NullCoalesce {
+                    kiri: Box::new(left),
+                    kanan: Box::new(right),
+                    pos,
+                };
+            } else {
+                break;
+            }
+        }
+
+        Ok(left)
     }
 
     fn parse_logic_or(&mut self) -> Result<Expr, MelayuError> {
@@ -1329,6 +1452,65 @@ impl Parser {
                         pos,
                     };
                 }
+            } else if self.match_token(TokenKind::QuestionDot) {
+                // Akses selamat: obj?.sifat atau obj?.kaedah(...)
+                let pos = expr.pos();
+                let name_tok = self.advance();
+                let name = match name_tok.kind {
+                    TokenKind::Pengenal(n) => n,
+                    TokenKind::Tambah => "tambah".to_string(),
+                    TokenKind::Tolak => "tolak".to_string(),
+                    TokenKind::Bina => "bina".to_string(),
+                    TokenKind::Kelas => "kelas".to_string(),
+                    TokenKind::Induk => "induk".to_string(),
+                    TokenKind::Diri => "diri".to_string(),
+                    TokenKind::Kamus => "kamus".to_string(),
+                    TokenKind::Senarai => "senarai".to_string(),
+                    _ => {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Diharapkan nama sifat atau kaedah selepas '?.'",
+                            name_tok.line,
+                            name_tok.column,
+                        )
+                        .with_kind(ErrorKind::Parser)
+                        .with_suggestion("Contoh: profil?.nama atau rekod?.kira()"));
+                    }
+                };
+
+                if self.match_token(TokenKind::KurungBuka) {
+                    let mut args = Vec::new();
+                    if !self.check(TokenKind::KurungTutup) {
+                        loop {
+                            args.push(self.parse_expression()?);
+                            if !self.match_token(TokenKind::Koma) {
+                                break;
+                            }
+                        }
+                    }
+                    if !self.match_token(TokenKind::KurungTutup) {
+                        let cur = self.peek();
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Diharapkan ')' untuk menutup hujah kaedah selamat.",
+                            cur.line,
+                            cur.column,
+                        )
+                        .with_kind(ErrorKind::Parser));
+                    }
+                    expr = Expr::PanggilSelamatKaedah {
+                        sasaran: Box::new(expr),
+                        kaedah: name,
+                        argumen: args,
+                        pos,
+                    };
+                } else {
+                    expr = Expr::AksesSelamatSifat {
+                        sasaran: Box::new(expr),
+                        sifat: name,
+                        pos,
+                    };
+                }
             } else {
                 break;
             }
@@ -1424,6 +1606,7 @@ impl Parser {
                 }
                 Ok(Expr::BacaNomborInput(pos))
             }
+            TokenKind::Padan => self.parse_padan_expr(pos),
 
             _ => Err(MelayuError::new(
                 "Eh!",
@@ -1478,6 +1661,107 @@ impl Parser {
         Ok(Expr::Kamus(pasangan, pos))
     }
 
+    fn parse_padan_expr(&mut self, pos: LineCol) -> Result<Expr, MelayuError> {
+        let sasaran = self.parse_logic_or()?;
+        self.expect_stmt_delimiter()?;
+
+        let mut kes = Vec::new();
+        let mut lain = None;
+
+        while !self.check(TokenKind::Selesai) && !self.is_at_end() {
+            if self.check(TokenKind::BarisBaru) {
+                self.advance();
+                continue;
+            }
+
+            if self.match_token(TokenKind::Bila) {
+                let case_tok = self.peek();
+                let case_pos = LineCol::new(case_tok.line, case_tok.column);
+
+                // Pola: Nilai atau Julat
+                let mula_expr = self.parse_logic_or()?;
+                let pola = if self.match_token(TokenKind::Hingga) {
+                    let tamat_expr = self.parse_logic_or()?;
+                    PadanPola::Julat(Box::new(mula_expr), Box::new(tamat_expr))
+                } else {
+                    PadanPola::Nilai(Box::new(mula_expr))
+                };
+
+                // Klausa pengawal pilihan: 'jika <syarat>'
+                let syarat = if self.match_token(TokenKind::Jika) {
+                    Some(Box::new(self.parse_logic_or()?))
+                } else {
+                    None
+                };
+
+                if !self.match_token(TokenKind::AnakPanahTebal) {
+                    let cur = self.peek();
+                    return Err(MelayuError::new(
+                        "Alamak!",
+                        "Diharapkan tanda '=>' selepas klausa 'bila'.",
+                        cur.line,
+                        cur.column,
+                    )
+                    .with_kind(ErrorKind::Parser)
+                    .with_suggestion("Contoh: bila 1 => \"Satu\" atau bila x jika x > 0 => \"Positif\""));
+                }
+
+                let hasil = self.parse_expression()?;
+                kes.push(KesPadan {
+                    pola,
+                    syarat,
+                    hasil: Box::new(hasil),
+                    pos: case_pos,
+                });
+                self.expect_stmt_delimiter()?;
+            } else if self.match_token(TokenKind::Lain) {
+                if !self.match_token(TokenKind::AnakPanahTebal) {
+                    let cur = self.peek();
+                    return Err(MelayuError::new(
+                        "Alamak!",
+                        "Diharapkan tanda '=>' selepas 'lain'.",
+                        cur.line,
+                        cur.column,
+                    )
+                    .with_kind(ErrorKind::Parser)
+                    .with_suggestion("Contoh: lain => \"Nilai lalai\""));
+                }
+                let hasil = self.parse_expression()?;
+                lain = Some(Box::new(hasil));
+                self.expect_stmt_delimiter()?;
+            } else {
+                let cur = self.peek();
+                return Err(MelayuError::new(
+                    "Alamak!",
+                    &format!(
+                        "Diharapkan 'bila', 'lain', atau 'selesai' dalam blok 'padan', tetapi dapat '{}'.",
+                        cur.lexeme
+                    ),
+                    cur.line,
+                    cur.column,
+                )
+                .with_kind(ErrorKind::Parser));
+            }
+        }
+
+        if !self.match_token(TokenKind::Selesai) {
+            let cur = self.peek();
+            return Err(MelayuError::blok_tak_tutup(
+                "padan",
+                pos.line,
+                cur.line,
+                cur.column,
+            ));
+        }
+
+        Ok(Expr::Padan(Box::new(PadanAST {
+            sasaran: Box::new(sasaran),
+            kes,
+            lain,
+            pos,
+        })))
+    }
+
     // ----------------------------------------------------
     // Pembantu (Helpers)
     // ----------------------------------------------------
@@ -1505,6 +1789,8 @@ impl Parser {
             || self.check(TokenKind::JikaTidakJika)
             || self.check(TokenKind::Tangkap)
             || self.check(TokenKind::Akhirnya)
+            || self.check(TokenKind::Bila)
+            || self.check(TokenKind::Lain)
         {
             Ok(())
         } else {
@@ -1528,6 +1814,15 @@ impl Parser {
             &self.tokens[self.tokens.len() - 1]
         } else {
             &self.tokens[self.cursor]
+        }
+    }
+
+    fn peek_at(&self, offset: usize) -> &Token {
+        let idx = self.cursor + offset;
+        if idx >= self.tokens.len() {
+            &self.tokens[self.tokens.len() - 1]
+        } else {
+            &self.tokens[idx]
         }
     }
 

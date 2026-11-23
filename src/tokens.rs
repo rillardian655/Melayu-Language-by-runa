@@ -49,6 +49,20 @@ pub enum TokenKind {
     Warisi,
     Induk,
 
+    // Kata Kunci Baru v0.4.0
+    Padan,          // padan
+    Bila,           // bila
+    Lain,           // lain
+    Uji,            // uji
+    Semak,          // semak
+    Alir,           // alir (alias untuk |>)
+
+    // Operator Baru v0.4.0
+    Pipa,           // |> (Pipeline)
+    NullCoalesce,   // ??
+    QuestionDot,    // ?.
+    AnakPanahTebal, // =>
+
     // Jenis (Types)
     TipeTeks,
     TipeNombor,
@@ -155,6 +169,16 @@ impl fmt::Display for TokenKind {
             TokenKind::Diri => write!(f, "diri"),
             TokenKind::Warisi => write!(f, "warisi"),
             TokenKind::Induk => write!(f, "induk"),
+            TokenKind::Padan => write!(f, "padan"),
+            TokenKind::Bila => write!(f, "bila"),
+            TokenKind::Lain => write!(f, "lain"),
+            TokenKind::Uji => write!(f, "uji"),
+            TokenKind::Semak => write!(f, "semak"),
+            TokenKind::Alir => write!(f, "alir"),
+            TokenKind::Pipa => write!(f, "|>"),
+            TokenKind::NullCoalesce => write!(f, "??"),
+            TokenKind::QuestionDot => write!(f, "?."),
+            TokenKind::AnakPanahTebal => write!(f, "=>"),
             TokenKind::TipeTeks => write!(f, "tipe:teks"),
             TokenKind::TipeNombor => write!(f, "tipe:nombor"),
             TokenKind::TipeBetul => write!(f, "tipe:betul"),

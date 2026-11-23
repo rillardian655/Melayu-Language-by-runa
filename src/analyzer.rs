@@ -404,11 +404,24 @@ impl Analyzer {
                 }
             }
             Stmt::Horas(_) | Stmt::Mangan(_) => {}
+            Stmt::Uji { badan, .. } => {
+                self.enter_scope();
+                for s in badan {
+                    self.analyze_stmt(s)?;
+                }
+                self.exit_scope();
+            }
+            Stmt::Semak { syarat, mesej, .. } => {
+                self.analyze_expr(syarat)?;
+                if let Some(m) = mesej {
+                    self.analyze_expr(m)?;
+                }
+            }
         }
         Ok(())
     }
 
-    fn analyze_expr(&self, expr: &Expr) -> Result<(), MelayuError> {
+    fn analyze_expr(&mut self, expr: &Expr) -> Result<(), MelayuError> {
         match expr {
             Expr::Literal(..) => Ok(()),
             Expr::Pengenal(nama, pos) => {
@@ -466,6 +479,62 @@ impl Analyzer {
                 Ok(())
             }
             Expr::BacaInput(_) | Expr::BacaNomborInput(_) => Ok(()),
+            Expr::SaluranPaip { kiri, kanan, .. } => {
+                self.analyze_expr(kiri)?;
+                self.analyze_expr(kanan)?;
+                Ok(())
+            }
+            Expr::NullCoalesce { kiri, kanan, .. } => {
+                self.analyze_expr(kiri)?;
+                self.analyze_expr(kanan)?;
+                Ok(())
+            }
+            Expr::AksesSelamatSifat { sasaran, .. } => {
+                self.analyze_expr(sasaran)?;
+                Ok(())
+            }
+            Expr::PanggilSelamatKaedah {
+                sasaran, argumen, ..
+            } => {
+                self.analyze_expr(sasaran)?;
+                for arg in argumen {
+                    self.analyze_expr(arg)?;
+                }
+                Ok(())
+            }
+            Expr::Padan(p) => {
+                self.analyze_expr(&p.sasaran)?;
+                for k in &p.kes {
+                    self.enter_scope();
+                    match &k.pola {
+                        PadanPola::Nilai(e) => {
+                            if let Expr::Pengenal(id, pos) = &**e {
+                                if id != "_" && self.find_symbol(id).is_none() && !self.is_builtin(id) {
+                                    self.declare(id, false, *pos)?;
+                                } else {
+                                    self.analyze_expr(e)?;
+                                }
+                            } else {
+                                self.analyze_expr(e)?;
+                            }
+                        }
+                        PadanPola::Julat(mula, tamat) => {
+                            self.analyze_expr(mula)?;
+                            self.analyze_expr(tamat)?;
+                        }
+                        PadanPola::Lain => {}
+                    }
+                    if let Some(s) = &k.syarat {
+                        self.analyze_expr(s)?;
+                    }
+                    self.analyze_expr(&k.hasil)?;
+                    self.exit_scope();
+                }
+                if let Some(l) = &p.lain {
+                    self.analyze_expr(l)?;
+                }
+                Ok(())
+            }
         }
     }
 }

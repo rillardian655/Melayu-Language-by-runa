@@ -17,7 +17,7 @@
 
   <p align="center">
     <a href="https://github.com/rillardian655/Melayu-Language-by-runa/releases">
-      <img src="https://img.shields.io/badge/Versi-0.3.0-00ADD8?style=for-the-badge&logo=git&logoColor=white" alt="Versi" />
+      <img src="https://img.shields.io/badge/Versi-0.4.0-00ADD8?style=for-the-badge&logo=git&logoColor=white" alt="Versi" />
     </a>
     <a href="editors/vscode">
       <img src="https://img.shields.io/badge/VS_Code-Ekstensi_Rasmi-007ACC?style=for-the-badge&logo=visual-studio-code&logoColor=white" alt="VS Code Extension" />
@@ -91,11 +91,16 @@ selesai
 
 ## Perbandingan Ciri & Seni Bina
 
-| Keupayaan | MELAYU | Python | JavaScript | Go |
+| Keupayaan | MELAYU v0.4.0 | Python | JavaScript | Go |
 |---|:---:|:---:|:---:|:---:|
 | Kata Kunci Bahasa Melayu Asli | Terbina-Dalam | Tiada | Tiada | Tiada |
 | Penutup Blok Eksplisit | `selesai` | Indentasi Sahaja | `{}` | `{}` |
 | Bebas Lambang Mengelirukan (`;`, `{}`) | Ya | Separa | Tidak | Tidak |
+| Operator Saluran Paip (`|>`) | Ya (Asli) | Tiada (Ditolak) | Tiada (Peringkat 2) | Tiada |
+| Runner Ujian Unit Terbina-Dalam | Ya (`melayu uji`) | Perlu `pytest` | Perlu `jest`/`vitest` | Ya (`go test`) |
+| Padanan Corak Ekspresif (`padan`) | Ya (Ekspresi) | Ya (Pernyataan) | Separa (`switch`) | Separa (`switch`) |
+| Null-Coalescing & Akses Selamat | `??` dan `?.` | Tiada (Ternary) | Ya | Tiada |
+| Penanda Aras Kinerja CLI | Ya (`melayu tanda-aras`) | Perlu modul asing | Perlu pakej luar | Ya (`testing.B`) |
 | Mesej Ralat Mendidik Dwibahasa | Ya | Tidak | Tidak | Tidak |
 | Enjin Asas | Rust (Memori Selamat) | C (CPython) | C++ (V8) | Go Runtime |
 | REPL Interaktif Multi-Baris | Ya | Ya | Ya | Terhad |
@@ -166,8 +171,14 @@ melayu
 melayu jalankan aturcara.ml
 melayu aturcara.ml
 
-# Memeriksa sintaks tanpa menjalankan program
+# Memeriksa sintaks dan semantik tanpa menjalankan program
 melayu semak aturcara.ml
+
+# Menjalankan suite ujian unit terbina-dalam
+melayu uji contoh/suite_ujian.ml
+
+# Menjalankan penanda aras masa pelaksanaan (benchmark)
+melayu tanda-aras contoh/kiraan_matriks.ml 10
 
 # Memaparkan maklumat bantuan dan versi
 melayu bantuan
@@ -299,6 +310,53 @@ myviEV.pemilik = "Runa"
 tunjuk "Jenis Objek:", jenis(myviEV)
 tunjuk "Status bateri:", myviEV.bateri + "%"
 tunjuk "Serialisasi JSON:", tulisJSON(myviEV, betul)
+```
+
+### 7. Keupayaan Moden Baharu (v0.4.0)
+
+#### Saluran Paip (Pipeline Operator: `|>`)
+```melayu
+kerja darabDua(n)
+    pulang n * 2
+selesai
+
+kerja tolakNilai(n, x)
+    pulang n - x
+selesai
+
+# Pemprosesan data dari kiri ke kanan yang kemas dan berurutan
+ada nilai = 10 |> darabDua |> tolakNilai(5)
+# Hasil: (10 * 2) - 5 = 15
+```
+
+#### Padanan Corak Ekspresif (`padan`)
+```melayu
+kerja tentukanGred(skor)
+    pulang padan skor
+        bila 90 hingga 100 => "A+ Cemerlang"
+        bila 80 hingga 89  => "A Kepujian"
+        bila 50 hingga 79  => "Lulus"
+        bila s jika skor < 0 => "Skor Tidak Sah (" + s + ")"
+        lain => "Gagal"
+    selesai
+selesai
+```
+
+#### Null-Coalescing & Akses Rantai Selamat (`??` dan `?.`)
+```melayu
+ada profil = kosong
+ada namaPengguna = profil?.nama ?? "Tetamu Anonim"
+ada infoSapaan = profil?.sapa() ?? "Tiada profil"
+```
+
+#### Suite Ujian Unit Terbina-Dalam (`melayu uji`)
+```melayu
+uji "Kiraan diskaun dan harga akhir"
+    ada harga = 100
+    ada diskaun = 20
+    ada hargaAkhir = harga - (harga * diskaun / 100)
+    semak hargaAkhir == 80, "Harga akhir sepatutnya RM 80"
+selesai
 ```
 
 ---
