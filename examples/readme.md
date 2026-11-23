@@ -22,6 +22,15 @@ Direktori ini mengandungi pelbagai contoh atur cara yang ditulis menggunakan bah
 | `rekursi_menara_hanoi.ml` | Penyelesaian teka-teki klasik Menara Hanoi | Rekursi tiga tiang, penjejakan langkah |
 | `sistem_perbankan.ml` | Simulasi sistem transaksi bank pelbagai akaun | Pewarisan `AkaunBank` ke `AkaunSimpanan` |
 | `matematik_vektor.ml` | Kelas matematik vektor 2D dengan magnitud & darab bintik | Vektor fizik, `puncaKuasaDua()`, dot product |
+| `carian_binari.ml` | Algoritma carian binari O(log n) lelaran | Carian pintar pada senarai berisih |
+| `penyulitan_caesar.ml` | Kriptografi klasik penyulitan dan nyahsulit Caesar | Manipulasi aksara rentetan, modulo 26 |
+| `kiraan_matriks.ml` | Operasi matriks 2D, penentu (det) & transposisi | Struktur kelas matematik berbilang dimensi |
+| `sistem_inventori.ml` | Sistem pengurusan inventori kedai & stok produk | OOP pengurusan nilai dan kiraan baki stok |
+| `generator_kata_laluan.ml` | Penjana kata laluan rawak selamat berasaskan entropi | `rawak()`, gabungan simbol dan huruf |
+| `pengesah_borang.ml` | Pengesah borang data input pendaftaran pengguna | Pengesahan format emel, panjang minimum |
+| `analisis_teks.ml` | Analisis kekerapan perkataan dalam perenggan | `kamus`, `.pecah()`, `.adaKunci()` |
+| `pola_rekabentuk_pemerhati.ml` | Pola reka bentuk pemerhati (Observer / Pub-Sub) | Pemancaran acara kepada berbilang pelanggan |
+| `pola_rekabentuk_kilang.ml` | Pola reka bentuk kilang (Factory Pattern) | Penjanaan objek notifikasi dinamik mengikut jenis |
 
 ## Cara Menjalankan
 
@@ -42,6 +51,15 @@ melayu jalankan examples/algoritma_isih.ml
 melayu jalankan examples/rekursi_menara_hanoi.ml
 melayu jalankan examples/sistem_perbankan.ml
 melayu jalankan examples/matematik_vektor.ml
+melayu jalankan examples/carian_binari.ml
+melayu jalankan examples/penyulitan_caesar.ml
+melayu jalankan examples/kiraan_matriks.ml
+melayu jalankan examples/sistem_inventori.ml
+melayu jalankan examples/generator_kata_laluan.ml
+melayu jalankan examples/pengesah_borang.ml
+melayu jalankan examples/analisis_teks.ml
+melayu jalankan examples/pola_rekabentuk_pemerhati.ml
+melayu jalankan examples/pola_rekabentuk_kilang.ml
 melayu jalankan examples/sintaks_lengkap.ml
 ```
 

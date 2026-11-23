@@ -374,7 +374,10 @@ Maklumat terperinci disediakan dalam folder [`docs/`](docs/):
 * [Jadual Kata Kunci](docs/keyword.md) — Pemetaan kosa kata Melayu dan padanan antarabangsa.
 * [Seni Bina Dalaman Enjin](docs/seni_bina.md) — Saluran paip kompilasi, AST, dan model memori.
 * [Panduan Gaya Kod](docs/panduan_gaya_kod.md) — Konvensyen penamaan rasmi dan amalan terbaik.
+* [Glosari Istilah Sains Komputer](docs/glosari_istilah.md) — Rujukan istilah pengaturcaraan serumpun.
+* [Katalog Mesej Ralat & Nyahpepijat](docs/senarai_ralat.md) — Panduan pembetulan ralat mendidik.
 * [Soalan Lazim (FAQ)](docs/faq.md) — Jawapan kepada pertanyaan lazim komuniti.
+* [Spesifikasi Pelan v1.0.0 (Bytecode VM & WASM)](docs/pelan_hala_tuju_v1.md) — Hala tuju enjin berprestasi tinggi.
 * [Koleksi Contoh Program](examples/readme.md) — Direktori atur cara contoh sedia guna.
 * [Pelan Pembangunan](docs/roadmap.md) — Sasaran versi v0.2.0 hingga v1.0.0.
 
