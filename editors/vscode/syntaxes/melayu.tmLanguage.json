@@ -13,6 +13,7 @@
     { "include": "#methods" },
     { "include": "#operators" },
     { "include": "#types" },
+    { "include": "#class_declaration" },
     { "include": "#function_declaration" }
   ],
   "repository": {
@@ -120,6 +121,21 @@
         {
           "name": "support.type.melayu",
           "match": "\\b(teks|nombor|senarai|kamus)\\b"
+        }
+      ]
+    },
+    "class_declaration": {
+      "patterns": [
+        {
+          "match": "\\bkelas\\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\\s+warisi\\s+([a-zA-Z_][a-zA-Z0-9_]*))?",
+          "captures": {
+            "1": {
+              "name": "entity.name.type.class.melayu"
+            },
+            "2": {
+              "name": "entity.other.inherited-class.melayu"
+            }
+          }
         }
       ]
     },
