@@ -41,6 +41,7 @@ impl Parser {
             TokenKind::Selagi => self.parse_selagi(),
             TokenKind::Untuk => self.parse_untuk(),
             TokenKind::Kerja => self.parse_kerja(),
+            TokenKind::Kelas => self.parse_kelas(),
             TokenKind::Pulang => self.parse_pulang(),
             TokenKind::Hentikan => {
                 self.advance();
@@ -490,6 +491,310 @@ impl Parser {
         })
     }
 
+    fn parse_kelas(&mut self) -> Result<Stmt, MelayuError> {
+        let tok = self.advance(); // 'kelas'
+        let pos = LineCol::new(tok.line, tok.column);
+        let start_line = tok.line;
+
+        let nama = match self.parse_ident_token() {
+            Some(n) => n,
+            None => {
+                let cur = self.peek();
+                return Err(MelayuError::new(
+                    "Alamak!",
+                    "Diharapkan nama kelas selepas 'kelas'.",
+                    cur.line,
+                    cur.column,
+                )
+                .with_kind(ErrorKind::Parser)
+                .with_suggestion("Contoh: kelas Kucing ... selesai"));
+            }
+        };
+
+        let mut induk = None;
+        if self.match_token(TokenKind::Warisi) {
+            match self.parse_ident_token() {
+                Some(i_nama) => {
+                    induk = Some(i_nama);
+                }
+                None => {
+                    let cur = self.peek();
+                    return Err(MelayuError::new(
+                        "Alamak!",
+                        "Diharapkan nama kelas induk selepas kata kunci 'warisi'.",
+                        cur.line,
+                        cur.column,
+                    )
+                    .with_kind(ErrorKind::Parser)
+                    .with_suggestion("Contoh: kelas Kucing warisi Haiwan"));
+                }
+            }
+        }
+
+        self.expect_stmt_delimiter()?;
+
+        let mut pembina = None;
+        let mut kaedah = Vec::new();
+
+        while !self.is_at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Selesai) {
+                break;
+            }
+
+            let member_tok = self.peek();
+            match member_tok.kind {
+                TokenKind::Bina => {
+                    if pembina.is_some() {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            &format!(
+                                "Kelas '{}' hanya boleh mempunyai satu pembina 'bina'.",
+                                nama
+                            ),
+                            member_tok.line,
+                            member_tok.column,
+                        )
+                        .with_kind(ErrorKind::Parser));
+                    }
+                    let ctor = self.parse_pembina_kelas()?;
+                    pembina = Some(ctor);
+                }
+                TokenKind::Kerja => {
+                    let method = self.parse_kaedah_kelas()?;
+                    kaedah.push(method);
+                }
+                _ => {
+                    let cur = self.peek();
+                    return Err(MelayuError::new(
+                        "Alamak!",
+                        &format!(
+                            "Hanya pembina 'bina(...) selesai' atau kaedah 'kerja nama(...) selesai' dibenarkan di dalam kelas '{}'. Ditemui '{}'.",
+                            nama, cur.lexeme
+                        ),
+                        cur.line,
+                        cur.column,
+                    )
+                    .with_kind(ErrorKind::Parser));
+                }
+            }
+            self.skip_newlines();
+        }
+
+        if !self.match_token(TokenKind::Selesai) {
+            let cur = self.peek();
+            return Err(MelayuError::blok_tak_tutup(
+                "kelas", start_line, cur.line, cur.column,
+            ));
+        }
+        self.expect_stmt_delimiter()?;
+
+        Ok(Stmt::DeklarasiKelas(Box::new(DeklarasiKelasAST {
+            nama,
+            induk,
+            pembina,
+            kaedah,
+            pos,
+        })))
+    }
+
+    fn parse_pembina_kelas(&mut self) -> Result<KaedahKelasAST, MelayuError> {
+        let tok = self.advance(); // 'bina'
+        let pos = LineCol::new(tok.line, tok.column);
+        let start_line = tok.line;
+
+        if !self.match_token(TokenKind::KurungBuka) {
+            let cur = self.peek();
+            return Err(MelayuError::new(
+                "Alamak!",
+                "Diharapkan '(' selepas kata kunci 'bina'.",
+                cur.line,
+                cur.column,
+            )
+            .with_kind(ErrorKind::Parser)
+            .with_suggestion("Contoh: bina(nama, umur) ... selesai"));
+        }
+
+        let mut parameter = Vec::new();
+        if !self.check(TokenKind::KurungTutup) {
+            loop {
+                let p_name = match self.parse_ident_token() {
+                    Some(n) => n,
+                    None => {
+                        let cur = self.peek();
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Nama parameter pembina tidak sah.",
+                            cur.line,
+                            cur.column,
+                        )
+                        .with_kind(ErrorKind::Parser));
+                    }
+                };
+
+                let mut p_type = None;
+                if self.match_token(TokenKind::TitikDua) {
+                    let type_tok = self.advance();
+                    p_type = Some(type_tok.lexeme.clone());
+                }
+
+                parameter.push((p_name, p_type));
+
+                if !self.match_token(TokenKind::Koma) {
+                    break;
+                }
+            }
+        }
+
+        if !self.match_token(TokenKind::KurungTutup) {
+            let cur = self.peek();
+            return Err(MelayuError::new(
+                "Alamak!",
+                "Diharapkan ')' untuk menutup senarai parameter pembina.",
+                cur.line,
+                cur.column,
+            )
+            .with_kind(ErrorKind::Parser));
+        }
+
+        self.expect_stmt_delimiter()?;
+
+        let mut badan = Vec::new();
+        while !self.is_at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Selesai) {
+                break;
+            }
+            badan.push(self.parse_statement()?);
+        }
+
+        if !self.match_token(TokenKind::Selesai) {
+            let cur = self.peek();
+            return Err(MelayuError::blok_tak_tutup(
+                "bina", start_line, cur.line, cur.column,
+            ));
+        }
+        self.expect_stmt_delimiter()?;
+
+        Ok(KaedahKelasAST {
+            nama: "bina".to_string(),
+            parameter,
+            jenis_pulangan: None,
+            badan,
+            pos,
+        })
+    }
+
+    fn parse_kaedah_kelas(&mut self) -> Result<KaedahKelasAST, MelayuError> {
+        let tok = self.advance(); // 'kerja'
+        let pos = LineCol::new(tok.line, tok.column);
+        let start_line = tok.line;
+
+        let nama = match self.parse_ident_token() {
+            Some(n) => n,
+            None => {
+                let cur = self.peek();
+                return Err(MelayuError::new(
+                    "Alamak!",
+                    "Diharapkan nama kaedah selepas 'kerja'.",
+                    cur.line,
+                    cur.column,
+                )
+                .with_kind(ErrorKind::Parser)
+                .with_suggestion("Contoh: kerja sapa() ... selesai"));
+            }
+        };
+
+        if !self.match_token(TokenKind::KurungBuka) {
+            let cur = self.peek();
+            return Err(MelayuError::new(
+                "Alamak!",
+                &format!("Diharapkan '(' selepas nama kaedah '{}'.", nama),
+                cur.line,
+                cur.column,
+            )
+            .with_kind(ErrorKind::Parser));
+        }
+
+        let mut parameter = Vec::new();
+        if !self.check(TokenKind::KurungTutup) {
+            loop {
+                let p_name = match self.parse_ident_token() {
+                    Some(n) => n,
+                    None => {
+                        let cur = self.peek();
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Nama parameter kaedah tidak sah.",
+                            cur.line,
+                            cur.column,
+                        )
+                        .with_kind(ErrorKind::Parser));
+                    }
+                };
+
+                let mut p_type = None;
+                if self.match_token(TokenKind::TitikDua) {
+                    let type_tok = self.advance();
+                    p_type = Some(type_tok.lexeme.clone());
+                }
+
+                parameter.push((p_name, p_type));
+
+                if !self.match_token(TokenKind::Koma) {
+                    break;
+                }
+            }
+        }
+
+        if !self.match_token(TokenKind::KurungTutup) {
+            let cur = self.peek();
+            return Err(MelayuError::new(
+                "Alamak!",
+                "Diharapkan ')' untuk menutup senarai parameter kaedah.",
+                cur.line,
+                cur.column,
+            )
+            .with_kind(ErrorKind::Parser));
+        }
+
+        let mut jenis_pulangan = None;
+        if self.match_token(TokenKind::Pulang) {
+            let ret_type_tok = self.advance();
+            jenis_pulangan = Some(ret_type_tok.lexeme.clone());
+        }
+
+        self.expect_stmt_delimiter()?;
+
+        let mut badan = Vec::new();
+        while !self.is_at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Selesai) {
+                break;
+            }
+            badan.push(self.parse_statement()?);
+        }
+
+        if !self.match_token(TokenKind::Selesai) {
+            let cur = self.peek();
+            return Err(MelayuError::blok_tak_tutup(
+                &format!("kaedah '{}'", nama),
+                start_line,
+                cur.line,
+                cur.column,
+            ));
+        }
+        self.expect_stmt_delimiter()?;
+
+        Ok(KaedahKelasAST {
+            nama,
+            parameter,
+            jenis_pulangan,
+            badan,
+            pos,
+        })
+    }
+
     fn parse_pulang(&mut self) -> Result<Stmt, MelayuError> {
         let tok = self.advance(); // 'pulang'
         let pos = LineCol::new(tok.line, tok.column);
@@ -730,9 +1035,14 @@ impl Parser {
                     nilai,
                     pos,
                 }),
+                Expr::AksesSifat { sasaran, sifat, .. } => Ok(Stmt::Umpukan {
+                    sasaran: TargetAssign::Sifat { sasaran, sifat },
+                    nilai,
+                    pos,
+                }),
                 _ => Err(MelayuError::new(
                     "Alamak!",
-                    "Sasaran umpukan tidak sah. Hanya pembolehubah atau indeks yang boleh diumpukkan.",
+                    "Sasaran umpukan tidak sah. Hanya pembolehubah, sifat, atau indeks yang boleh diumpukkan.",
                     pos.line,
                     pos.col,
                 )
@@ -968,6 +1278,12 @@ impl Parser {
                     TokenKind::Pengenal(n) => n,
                     TokenKind::Tambah => "tambah".to_string(),
                     TokenKind::Tolak => "tolak".to_string(),
+                    TokenKind::Bina => "bina".to_string(),
+                    TokenKind::Kelas => "kelas".to_string(),
+                    TokenKind::Induk => "induk".to_string(),
+                    TokenKind::Diri => "diri".to_string(),
+                    TokenKind::Kamus => "kamus".to_string(),
+                    TokenKind::Senarai => "senarai".to_string(),
                     _ => {
                         return Err(MelayuError::new(
                             "Alamak!",
@@ -1032,6 +1348,8 @@ impl Parser {
             TokenKind::Salah => Ok(Expr::Literal(LiteralValue::Salah, pos)),
             TokenKind::Kosong => Ok(Expr::Literal(LiteralValue::Kosong, pos)),
             TokenKind::Pengenal(name) => Ok(Expr::Pengenal(name, pos)),
+            TokenKind::Diri => Ok(Expr::Pengenal("diri".to_string(), pos)),
+            TokenKind::Induk => Ok(Expr::Pengenal("induk".to_string(), pos)),
             TokenKind::TipeNombor => Ok(Expr::Pengenal("nombor".to_string(), pos)),
             TokenKind::TipeTeks => Ok(Expr::Pengenal("teks".to_string(), pos)),
             TokenKind::Senarai => Ok(Expr::Pengenal("senarai".to_string(), pos)),

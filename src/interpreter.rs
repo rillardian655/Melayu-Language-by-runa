@@ -8,6 +8,48 @@ use std::fs;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
+pub struct KaedahKelas {
+    pub nama: String,
+    pub parameter: Vec<(String, Option<String>)>,
+    pub jenis_pulangan: Option<String>,
+    pub badan: Vec<Stmt>,
+    pub closure: Rc<RefCell<Environment>>,
+}
+
+impl PartialEq for KaedahKelas {
+    fn eq(&self, other: &Self) -> bool {
+        self.nama == other.nama
+            && self.parameter == other.parameter
+            && self.jenis_pulangan == other.jenis_pulangan
+            && self.badan == other.badan
+            && Rc::ptr_eq(&self.closure, &other.closure)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KelasData {
+    pub nama: String,
+    pub induk: Option<String>,
+    pub pembina: Option<KaedahKelas>,
+    pub kaedah: HashMap<String, KaedahKelas>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ObjekData {
+    pub nama_kelas: String,
+    pub sifat: Rc<RefCell<HashMap<String, Value>>>,
+    pub kaedah: HashMap<String, KaedahKelas>,
+    pub induk: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IndukData {
+    pub nama_induk: String,
+    pub instans_sifat: Rc<RefCell<HashMap<String, Value>>>,
+    pub instans_kelas: String,
+}
+
+#[derive(Debug, Clone)]
 pub enum Value {
     Kosong,
     Betul,
@@ -23,6 +65,9 @@ pub enum Value {
         closure: Rc<RefCell<Environment>>,
     },
     Bawaan(String, fn(&[Value], LineCol) -> Result<Value, MelayuError>),
+    Kelas(Rc<KelasData>),
+    Objek(Rc<ObjekData>),
+    Induk(Rc<IndukData>),
 }
 
 impl PartialEq for Value {
@@ -37,6 +82,11 @@ impl PartialEq for Value {
             (Value::Kamus(a), Value::Kamus(b)) => *a.borrow() == *b.borrow(),
             (Value::Fungsi { nama: a, .. }, Value::Fungsi { nama: b, .. }) => a == b,
             (Value::Bawaan(a, _), Value::Bawaan(b, _)) => a == b,
+            (Value::Kelas(a), Value::Kelas(b)) => a == b,
+            (Value::Objek(a), Value::Objek(b)) => {
+                a.nama_kelas == b.nama_kelas && *a.sifat.borrow() == *b.sifat.borrow()
+            }
+            (Value::Induk(a), Value::Induk(b)) => a == b,
             _ => false,
         }
     }
@@ -53,6 +103,9 @@ impl Value {
             Value::Kamus(_) => "kamus",
             Value::Fungsi { .. } => "kerja",
             Value::Bawaan(..) => "kerja terbina-dalam",
+            Value::Kelas(_) => "kelas",
+            Value::Objek(_) => "objek",
+            Value::Induk(_) => "induk",
         }
     }
 
@@ -110,6 +163,21 @@ impl fmt::Display for Value {
             }
             Value::Fungsi { nama, .. } => write!(f, "<kerja: {}>", nama),
             Value::Bawaan(nama, _) => write!(f, "<kerja terbina-dalam: {}>", nama),
+            Value::Kelas(k) => write!(f, "<kelas {}>", k.nama),
+            Value::Objek(o) => {
+                write!(f, "<objek {}: {{", o.nama_kelas)?;
+                let borrowed = o.sifat.borrow();
+                let mut first = true;
+                for (k, v) in borrowed.iter() {
+                    if !first {
+                        write!(f, ", ")?;
+                    }
+                    first = false;
+                    write!(f, "{}: {}", k, v)?;
+                }
+                write!(f, "}}>")
+            }
+            Value::Induk(i) => write!(f, "<induk: {}>", i.nama_induk),
         }
     }
 }
@@ -388,6 +456,97 @@ impl Interpreter {
                 })();
                 self.kedalaman_panggilan -= 1;
                 hasil
+            }
+            Value::Kelas(ref k) => {
+                let instans_sifat = Rc::new(RefCell::new(HashMap::new()));
+                let instans = Value::Objek(Rc::new(ObjekData {
+                    nama_kelas: k.nama.clone(),
+                    sifat: Rc::clone(&instans_sifat),
+                    kaedah: k.kaedah.clone(),
+                    induk: k.induk.clone(),
+                }));
+
+                if let Some(ref ctor) = k.pembina {
+                    if ctor.parameter.len() != evaluated_args.len() {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            &format!(
+                                "Pembina 'bina' untuk kelas '{}' memerlukan {} hujah, tetapi menerima {}.",
+                                k.nama,
+                                ctor.parameter.len(),
+                                evaluated_args.len()
+                            ),
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+
+                    if self.kedalaman_panggilan >= self.had_rekursi {
+                        return Err(MelayuError::rekursi_berlebihan(
+                            self.had_rekursi,
+                            pos.line,
+                            pos.col,
+                        ));
+                    }
+
+                    let call_env = Rc::new(RefCell::new(Environment::with_parent(Rc::clone(
+                        &ctor.closure,
+                    ))));
+                    call_env.borrow_mut().define("diri", instans.clone(), false);
+                    if let Some(ref induk_nama) = k.induk {
+                        call_env.borrow_mut().define(
+                            "induk",
+                            Value::Induk(Rc::new(IndukData {
+                                nama_induk: induk_nama.clone(),
+                                instans_sifat: Rc::clone(&instans_sifat),
+                                instans_kelas: k.nama.clone(),
+                            })),
+                            false,
+                        );
+                    }
+
+                    for (i, (p_name, _)) in ctor.parameter.iter().enumerate() {
+                        call_env
+                            .borrow_mut()
+                            .define(p_name, evaluated_args[i].clone(), false);
+                    }
+
+                    self.kedalaman_panggilan += 1;
+                    let hasil = (|| -> Result<(), MelayuError> {
+                        for s in &ctor.badan {
+                            match self.execute_stmt(s, &call_env)? {
+                                Flow::Lanjut => {}
+                                Flow::Pulang(_) => return Ok(()),
+                                Flow::Hentikan | Flow::Teruskan => {
+                                    return Err(MelayuError::new(
+                                        "Woy!",
+                                        "'hentikan' atau 'teruskan' tidak sah di luar gelung.",
+                                        pos.line,
+                                        pos.col,
+                                    )
+                                    .with_kind(ErrorKind::Runtime));
+                                }
+                            }
+                        }
+                        Ok(())
+                    })();
+                    self.kedalaman_panggilan -= 1;
+                    hasil?;
+                } else if !evaluated_args.is_empty() {
+                    return Err(MelayuError::new(
+                        "Alamak!",
+                        &format!(
+                            "Kelas '{}' tidak mempunyai pembina 'bina' dan tidak menerima hujah.",
+                            k.nama
+                        ),
+                        pos.line,
+                        pos.col,
+                    )
+                    .with_kind(ErrorKind::Runtime));
+                }
+
+                Ok(instans)
             }
             other => Err(MelayuError::new(
                 "Eh!",
@@ -977,6 +1136,188 @@ impl Interpreter {
                 .with_kind(ErrorKind::Runtime)
                 .with_suggestion("Kaedah teks yang ada: .hurufBesar(), .hurufKecil(), .hurufAwalBesar(), .panjang(), .potong(), .pecah(pemisah), .ganti(lama, baru), .ulang(n), .selitDepan(panjang, aksara?), .selitBelakang(panjang, aksara?), .mulaDengan(awalan), .tamatDengan(akhiran), .mengandungi(subteks)")),
             },
+            Value::Objek(ref o) => {
+                if let Some(method) = o.kaedah.get(kaedah) {
+                    if method.parameter.len() != evaluated_args.len() {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            &format!(
+                                "Kaedah '{}' pada kelas '{}' memerlukan {} hujah, tetapi menerima {}.",
+                                kaedah,
+                                o.nama_kelas,
+                                method.parameter.len(),
+                                evaluated_args.len()
+                            ),
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+
+                    if self.kedalaman_panggilan >= self.had_rekursi {
+                        return Err(MelayuError::rekursi_berlebihan(
+                            self.had_rekursi,
+                            pos.line,
+                            pos.col,
+                        ));
+                    }
+
+                    let call_env = Rc::new(RefCell::new(Environment::with_parent(Rc::clone(
+                        &method.closure,
+                    ))));
+                    let instans = Value::Objek(Rc::clone(o));
+                    call_env.borrow_mut().define("diri", instans, false);
+                    if let Some(ref induk_nama) = o.induk {
+                        call_env.borrow_mut().define(
+                            "induk",
+                            Value::Induk(Rc::new(IndukData {
+                                nama_induk: induk_nama.clone(),
+                                instans_sifat: Rc::clone(&o.sifat),
+                                instans_kelas: o.nama_kelas.clone(),
+                            })),
+                            false,
+                        );
+                    }
+
+                    for (i, (p_name, _)) in method.parameter.iter().enumerate() {
+                        call_env
+                            .borrow_mut()
+                            .define(p_name, evaluated_args[i].clone(), false);
+                    }
+
+                    self.kedalaman_panggilan += 1;
+                    let hasil = (|| -> Result<Value, MelayuError> {
+                        for s in &method.badan {
+                            match self.execute_stmt(s, &call_env)? {
+                                Flow::Lanjut => {}
+                                Flow::Pulang(v) => return Ok(v),
+                                Flow::Hentikan | Flow::Teruskan => {
+                                    return Err(MelayuError::new(
+                                        "Woy!",
+                                        "'hentikan' atau 'teruskan' tidak sah di luar gelung.",
+                                        pos.line,
+                                        pos.col,
+                                    )
+                                    .with_kind(ErrorKind::Runtime));
+                                }
+                            }
+                        }
+                        Ok(Value::Kosong)
+                    })();
+                    self.kedalaman_panggilan -= 1;
+                    hasil
+                } else if let Some(field_val) = o.sifat.borrow().get(kaedah).cloned() {
+                    self.panggil_nilai(&field_val, evaluated_args, pos)
+                } else {
+                    Err(MelayuError::new(
+                        "Eh!",
+                        &format!(
+                            "Kaedah '.{}()' tidak dijumpai pada objek kelas '{}'.",
+                            kaedah, o.nama_kelas
+                        ),
+                        pos.line,
+                        pos.col,
+                    )
+                    .with_kind(ErrorKind::Runtime))
+                }
+            }
+            Value::Induk(ref i) => {
+                let parent_class_val = self.env.borrow().get(&i.nama_induk, pos)?;
+                match parent_class_val {
+                    Value::Kelas(ref parent_k) => {
+                        let target_method = if kaedah == "bina" {
+                            parent_k.pembina.as_ref()
+                        } else {
+                            parent_k.kaedah.get(kaedah)
+                        };
+
+                        if let Some(method) = target_method {
+                            if method.parameter.len() != evaluated_args.len() {
+                                return Err(MelayuError::new(
+                                    "Alamak!",
+                                    &format!(
+                                        "Kaedah induk '{}' memerlukan {} hujah, tetapi menerima {}.",
+                                        kaedah,
+                                        method.parameter.len(),
+                                        evaluated_args.len()
+                                    ),
+                                    pos.line,
+                                    pos.col,
+                                )
+                                .with_kind(ErrorKind::Runtime));
+                            }
+
+                            let call_env = Rc::new(RefCell::new(Environment::with_parent(
+                                Rc::clone(&method.closure),
+                            )));
+                            let instans = Value::Objek(Rc::new(ObjekData {
+                                nama_kelas: i.instans_kelas.clone(),
+                                sifat: Rc::clone(&i.instans_sifat),
+                                kaedah: parent_k.kaedah.clone(),
+                                induk: parent_k.induk.clone(),
+                            }));
+                            call_env.borrow_mut().define("diri", instans, false);
+                            if let Some(ref grand_nama) = parent_k.induk {
+                                call_env.borrow_mut().define(
+                                    "induk",
+                                    Value::Induk(Rc::new(IndukData {
+                                        nama_induk: grand_nama.clone(),
+                                        instans_sifat: Rc::clone(&i.instans_sifat),
+                                        instans_kelas: i.instans_kelas.clone(),
+                                    })),
+                                    false,
+                                );
+                            }
+
+                            for (i, (p_name, _)) in method.parameter.iter().enumerate() {
+                                call_env
+                                    .borrow_mut()
+                                    .define(p_name, evaluated_args[i].clone(), false);
+                            }
+
+                            self.kedalaman_panggilan += 1;
+                            let hasil = (|| -> Result<Value, MelayuError> {
+                                for s in &method.badan {
+                                    match self.execute_stmt(s, &call_env)? {
+                                        Flow::Lanjut => {}
+                                        Flow::Pulang(v) => return Ok(v),
+                                        Flow::Hentikan | Flow::Teruskan => {
+                                            return Err(MelayuError::new(
+                                                "Woy!",
+                                                "'hentikan' atau 'teruskan' tidak sah di luar gelung.",
+                                                pos.line,
+                                                pos.col,
+                                            )
+                                            .with_kind(ErrorKind::Runtime));
+                                        }
+                                    }
+                                }
+                                Ok(Value::Kosong)
+                            })();
+                            self.kedalaman_panggilan -= 1;
+                            hasil
+                        } else {
+                            Err(MelayuError::new(
+                                "Eh!",
+                                &format!(
+                                    "Kaedah '.{}()' tidak dijumpai pada kelas induk '{}'.",
+                                    kaedah, i.nama_induk
+                                ),
+                                pos.line,
+                                pos.col,
+                            )
+                            .with_kind(ErrorKind::Runtime))
+                        }
+                    }
+                    other => Err(MelayuError::new(
+                        "Eh!",
+                        &format!("'{}' bukan kelas yang sah.", other.jenis()),
+                        pos.line,
+                        pos.col,
+                    )
+                    .with_kind(ErrorKind::Runtime)),
+                }
+            }
             other => Err(MelayuError::new(
                 "Eh!",
                 &format!("Jenis '{}' tidak mempunyai kaedah '.{}()'.", other.jenis(), kaedah),
@@ -1044,11 +1385,41 @@ impl Interpreter {
                                 };
                                 map.borrow_mut().insert(key_str, val);
                             }
+                            Value::Objek(ref o) => {
+                                let key_str = match idx_val {
+                                    Value::Teks(s) => s,
+                                    other => other.to_string(),
+                                };
+                                o.sifat.borrow_mut().insert(key_str, val);
+                            }
                             other => {
                                 return Err(MelayuError::new(
                                     "Eh!",
                                     &format!(
-                                        "Hanya senarai atau kamus yang boleh diindeks, bukan '{}'.",
+                                        "Hanya senarai, kamus, atau objek yang boleh diindeks, bukan '{}'.",
+                                        other.jenis()
+                                    ),
+                                    pos.line,
+                                    pos.col,
+                                )
+                                .with_kind(ErrorKind::Runtime));
+                            }
+                        }
+                    }
+                    TargetAssign::Sifat { sasaran, sifat } => {
+                        let target_val = self.evaluate_expr(sasaran, env)?;
+                        match target_val {
+                            Value::Objek(ref o) => {
+                                o.sifat.borrow_mut().insert(sifat.clone(), val);
+                            }
+                            Value::Kamus(map) => {
+                                map.borrow_mut().insert(sifat.clone(), val);
+                            }
+                            other => {
+                                return Err(MelayuError::new(
+                                    "Eh!",
+                                    &format!(
+                                        "Hanya objek atau kamus yang boleh diumpukkan sifat, bukan '{}'.",
                                         other.jenis()
                                     ),
                                     pos.line,
@@ -1447,6 +1818,71 @@ impl Interpreter {
 
                 Ok(Flow::Lanjut)
             }
+            Stmt::DeklarasiKelas(ref d) => {
+                let DeklarasiKelasAST {
+                    ref nama,
+                    ref induk,
+                    ref pembina,
+                    ref kaedah,
+                    pos,
+                } = **d;
+                let mut methods_map: HashMap<String, KaedahKelas> = HashMap::new();
+                let mut resolved_pembina: Option<KaedahKelas> = None;
+
+                if let Some(ref nama_induk) = induk {
+                    let parent_val = env.borrow().get(nama_induk, pos)?;
+                    match parent_val {
+                        Value::Kelas(ref parent_k) => {
+                            for (k, v) in &parent_k.kaedah {
+                                methods_map.insert(k.clone(), v.clone());
+                            }
+                            resolved_pembina = parent_k.pembina.clone();
+                        }
+                        _ => {
+                            return Err(MelayuError::new(
+                                "Eh!",
+                                &format!("'{}' bukan kelas yang sah untuk diwarisi.", nama_induk),
+                                pos.line,
+                                pos.col,
+                            )
+                            .with_kind(ErrorKind::Runtime));
+                        }
+                    }
+                }
+
+                if let Some(ref pembina_ast) = pembina {
+                    resolved_pembina = Some(KaedahKelas {
+                        nama: "bina".to_string(),
+                        parameter: pembina_ast.parameter.clone(),
+                        jenis_pulangan: None,
+                        badan: pembina_ast.badan.clone(),
+                        closure: Rc::clone(env),
+                    });
+                }
+
+                for k_ast in kaedah {
+                    methods_map.insert(
+                        k_ast.nama.clone(),
+                        KaedahKelas {
+                            nama: k_ast.nama.clone(),
+                            parameter: k_ast.parameter.clone(),
+                            jenis_pulangan: k_ast.jenis_pulangan.clone(),
+                            badan: k_ast.badan.clone(),
+                            closure: Rc::clone(env),
+                        },
+                    );
+                }
+
+                let class_val = Value::Kelas(Rc::new(KelasData {
+                    nama: nama.clone(),
+                    induk: induk.clone(),
+                    pembina: resolved_pembina,
+                    kaedah: methods_map,
+                }));
+
+                env.borrow_mut().define(nama, class_val, false);
+                Ok(Flow::Lanjut)
+            }
             Stmt::Horas(_) | Stmt::Mangan(_) => Ok(Flow::Lanjut),
         }
     }
@@ -1744,6 +2180,14 @@ impl Interpreter {
                         let borrowed = map.borrow();
                         Ok(borrowed.get(&key_str).cloned().unwrap_or(Value::Kosong))
                     }
+                    Value::Objek(ref o) => {
+                        let key_str = match idx_val {
+                            Value::Teks(s) => s,
+                            other => other.to_string(),
+                        };
+                        let borrowed = o.sifat.borrow();
+                        Ok(borrowed.get(&key_str).cloned().unwrap_or(Value::Kosong))
+                    }
                     Value::Teks(s) => match idx_val {
                         Value::Nombor(n) => {
                             let chars: Vec<char> = s.chars().collect();
@@ -1773,11 +2217,24 @@ impl Interpreter {
             } => {
                 let target_val = self.evaluate_expr(sasaran, env)?;
                 match (target_val, sifat.as_str()) {
+                    (Value::Objek(ref o), "kelas") => Ok(Value::Teks(o.nama_kelas.clone())),
+                    (Value::Objek(ref o), s) => {
+                        let borrowed = o.sifat.borrow();
+                        if let Some(val) = borrowed.get(s) {
+                            Ok(val.clone())
+                        } else {
+                            Ok(Value::Kosong)
+                        }
+                    }
                     (Value::Senarai(list), "panjang") => {
                         Ok(Value::Nombor(list.borrow().len() as f64))
                     }
                     (Value::Teks(s), "panjang") => Ok(Value::Nombor(s.chars().count() as f64)),
                     (Value::Kamus(map), "panjang") => Ok(Value::Nombor(map.borrow().len() as f64)),
+                    (Value::Kamus(map), s) => {
+                        let borrowed = map.borrow();
+                        Ok(borrowed.get(s).cloned().unwrap_or(Value::Kosong))
+                    }
                     (other, s) => Err(MelayuError::new(
                         "Eh!",
                         &format!(

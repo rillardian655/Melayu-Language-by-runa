@@ -75,7 +75,11 @@
         },
         {
           "name": "keyword.declaration.melayu",
-          "match": "\\b(ada|tetap|kerja)\\b"
+          "match": "\\b(ada|tetap|kerja|kelas|bina|warisi)\\b"
+        },
+        {
+          "name": "variable.language.melayu",
+          "match": "\\b(diri|induk)\\b"
         }
       ]
     },

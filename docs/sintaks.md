@@ -242,6 +242,67 @@ ada jsonKemas = tulisJSON(data, betul)
 * `masaKini()`: Mengembalikan rentetan masa jam semasa mengikut format 24 jam `"HH:MM:SS"`.
 * `tarikhKini()`: Mengembalikan rentetan tarikh kalendar Gregory semasa mengikut format piawai ISO `"YYYY-MM-DD"`.
 
+---
+
+## 11. Pengaturcaraan Berorientasikan Objek (OOP) (v0.3.0)
+
+Bahasa MELAYU menyokong paradigma pengaturcaraan berorientasikan objek secara natif dengan kata kunci leksikal Melayu yang jelas:
+
+### Pengisytiharan Kelas & Pembina (`kelas`, `bina`, `diri`):
+```melayu
+kelas Pengguna
+    # Pembina objek (constructor)
+    bina(nama, umur)
+        diri.nama = nama
+        diri.umur = umur
+        diri.skor = 0
+    selesai
+
+    # Kaedah instans (method)
+    kerja sapa()
+        pulang "Hai, nama saya " + diri.nama
+    selesai
+
+    kerja tambahSkor(mata)
+        diri.skor = diri.skor + mata
+        pulang diri.skor
+    selesai
+selesai
+
+# Pembinaan objek (instantiation)
+ada ali = Pengguna("Ali", 25)
+tunjuk ali.sapa()
+ali.tambahSkor(50)
+tunjuk "Skor terkini:", ali.skor
+```
+
+### Pewarisan Kelas & Rujukan Induk (`warisi`, `induk`):
+```melayu
+kelas Pentadbir warisi Pengguna
+    bina(nama, umur, tahap)
+        # Memanggil pembina kelas induk
+        induk.bina(nama, umur)
+        diri.tahap = tahap
+    selesai
+
+    # Menindih kaedah induk (override)
+    kerja sapa()
+        pulang induk.sapa() + " [Akaun: " + diri.tahap + "]"
+    selesai
+selesai
+
+ada admin = Pentadbir("Siti", 30, "Ketua Pentadbir")
+tunjuk admin.sapa()
+```
+
+### Ciri-Ciri Utama Sistem Objek:
+* **`diri`** (`this` / `self`): Merujuk kepada instans objek semasa bagi membaca atau menetapkan sifat (`diri.sifat = nilai`).
+* **`induk`** (`super`): Merujuk kepada kelas induk bagi memanggil pembina induk (`induk.bina(...)`) atau kaedah induk (`induk.kaedah(...)`).
+* **Sifat Dinamik**: Sifat objek boleh diakses dan diumpukkan menggunakan sintaks titik (`obj.sifat = nilai`) atau indeks rentetan (`obj["sifat"] = nilai`).
+* **Integrasi `jenis(obj)`**: Mengembalikan nama kelas instans berkenaan (contohnya `"Pengguna"`, `"Pentadbir"`).
+* **Integrasi `tulisJSON(obj)`**: Menyokong penukaran terus struktur sifat objek kepada format teks JSON piawai.
+
+
 
 
 

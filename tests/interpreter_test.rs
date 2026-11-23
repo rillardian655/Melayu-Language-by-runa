@@ -370,3 +370,107 @@ fn test_utiliti_masa_dan_tarikh() {
         panic!("tarikhKini patut memulangkan teks format YYYY-MM-DD");
     }
 }
+
+#[test]
+fn test_oop_kelas_objek_dan_pewarisan() {
+    let kod = r#"
+    kelas Pengguna
+        bina(nama, umur)
+            diri.nama = nama
+            diri.umur = umur
+            diri.skor = 10
+        selesai
+
+        kerja sapa()
+            pulang "Hai, saya " + diri.nama
+        selesai
+
+        kerja tambahSkor(mata)
+            diri.skor = diri.skor + mata
+            pulang diri.skor
+        selesai
+    selesai
+
+    kelas Pentadbir warisi Pengguna
+        bina(nama, umur, tahap)
+            induk.bina(nama, umur)
+            diri.tahap = tahap
+        selesai
+
+        kerja sapa()
+            pulang induk.sapa() + " [Pentadbir: " + diri.tahap + "]"
+        selesai
+    selesai
+
+    ada u = Pengguna("Ali", 25)
+    ada sapa_ali = u.sapa()
+    ada skor_baru = u.tambahSkor(15)
+    u.status = "Aktif"
+    u["bandar"] = "Melaka"
+
+    ada admin = Pentadbir("Siti", 30, "Ketua")
+    ada sapa_admin = admin.sapa()
+    ada nama_kelas_u = jenis(u)
+    ada nama_kelas_admin = jenis(admin)
+    ada json_u = tulisJSON(u)
+    "#;
+
+    let program = huraikan(kod).unwrap();
+    let mut interp = Interpreter::new();
+    interp.interpret(&program).unwrap();
+
+    let env = interp.env.borrow();
+    let pos = melayu_core::ast::LineCol::new(1, 1);
+
+    assert_eq!(
+        env.get("sapa_ali", pos).unwrap(),
+        Value::Teks("Hai, saya Ali".to_string())
+    );
+    assert_eq!(env.get("skor_baru", pos).unwrap(), Value::Nombor(25.0));
+
+    // Semak objek Ali dan sifat dinamiknya
+    let u_val = env.get("u", pos).unwrap();
+    if let Value::Objek(ref o) = u_val {
+        assert_eq!(o.nama_kelas, "Pengguna");
+        let props = o.sifat.borrow();
+        assert_eq!(props.get("nama").unwrap(), &Value::Teks("Ali".to_string()));
+        assert_eq!(props.get("umur").unwrap(), &Value::Nombor(25.0));
+        assert_eq!(props.get("skor").unwrap(), &Value::Nombor(25.0));
+        assert_eq!(
+            props.get("status").unwrap(),
+            &Value::Teks("Aktif".to_string())
+        );
+        assert_eq!(
+            props.get("bandar").unwrap(),
+            &Value::Teks("Melaka".to_string())
+        );
+    } else {
+        panic!("'u' sepatutnya merupakan Value::Objek");
+    }
+
+    // Semak pewarisan admin
+    assert_eq!(
+        env.get("sapa_admin", pos).unwrap(),
+        Value::Teks("Hai, saya Siti [Pentadbir: Ketua]".to_string())
+    );
+
+    // Semak jenis(obj)
+    assert_eq!(
+        env.get("nama_kelas_u", pos).unwrap(),
+        Value::Teks("Pengguna".to_string())
+    );
+    assert_eq!(
+        env.get("nama_kelas_admin", pos).unwrap(),
+        Value::Teks("Pentadbir".to_string())
+    );
+
+    // Semak JSON serialization objek
+    let json_val = env.get("json_u", pos).unwrap();
+    if let Value::Teks(json_str) = json_val {
+        assert!(json_str.contains("\"nama\":\"Ali\""));
+        assert!(json_str.contains("\"skor\":25"));
+        assert!(json_str.contains("\"status\":\"Aktif\""));
+    } else {
+        panic!("json_u sepatutnya teks JSON");
+    }
+}

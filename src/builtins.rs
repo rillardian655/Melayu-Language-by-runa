@@ -83,7 +83,10 @@ pub fn builtin_jenis(args: &[Value], pos: LineCol) -> Result<Value, MelayuError>
         )
         .with_kind(ErrorKind::Runtime));
     }
-    Ok(Value::Teks(args[0].jenis().to_string()))
+    match &args[0] {
+        Value::Objek(o) => Ok(Value::Teks(o.nama_kelas.clone())),
+        other => Ok(Value::Teks(other.jenis().to_string())),
+    }
 }
 
 pub fn builtin_huruf_besar(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
@@ -1304,6 +1307,37 @@ pub fn nilai_ke_json_string(
         }
         Value::Kamus(map) => {
             let borrowed = map.borrow();
+            if borrowed.is_empty() {
+                return Ok("{}".to_string());
+            }
+
+            let mut keys: Vec<&String> = borrowed.keys().collect();
+            keys.sort();
+
+            if cantik {
+                let indent_item = "  ".repeat(kedalaman + 1);
+                let indent_close = "  ".repeat(kedalaman);
+                let mut parts = Vec::new();
+                for k in keys {
+                    let v = borrowed.get(k).unwrap();
+                    let v_str = nilai_ke_json_string(v, true, kedalaman + 1, pos)?;
+                    let k_escaped = escape_json_string(k);
+                    parts.push(format!("{}{}: {}", indent_item, k_escaped, v_str));
+                }
+                Ok(format!("{{\n{}\n{}}}", parts.join(",\n"), indent_close))
+            } else {
+                let mut parts = Vec::new();
+                for k in keys {
+                    let v = borrowed.get(k).unwrap();
+                    let v_str = nilai_ke_json_string(v, false, kedalaman + 1, pos)?;
+                    let k_escaped = escape_json_string(k);
+                    parts.push(format!("{}:{}", k_escaped, v_str));
+                }
+                Ok(format!("{{{}}}", parts.join(",")))
+            }
+        }
+        Value::Objek(o) => {
+            let borrowed = o.sifat.borrow();
             if borrowed.is_empty() {
                 return Ok("{}".to_string());
             }

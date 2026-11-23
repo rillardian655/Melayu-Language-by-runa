@@ -2,6 +2,31 @@
 
 Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut format [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.0] - 2026-11-23
+
+### Ditambah (Added)
+- **Sistem Pengaturcaraan Berorientasikan Objek (OOP) Natif**:
+  - `kelas <Nama> ... selesai`: Pengisytiharan struktur kelas.
+  - `bina(<parameter>) ... selesai`: Pembina objek (*constructor*) dengan pemulaan sifat instans.
+  - Instansiasi objek melalui pemanggilan kelas: `ada obj = NamaKelas(<hujah>)`.
+  - Kaedah instans (*methods*): Menggunakan blok `kerja <nama>() ... selesai` di dalam kelas.
+  - Kata kunci rujukan instans `diri` (`this` / `self`): Mengakses dan mengubah sifat objek (`diri.nama = nama`).
+  - Kata kunci pewarisan `warisi` (`extends`): Mewarisi kaedah dan struktur daripada kelas induk (`kelas Anak warisi Induk`).
+  - Kata kunci rujukan induk `induk` (`super`): Memanggil pembina induk (`induk.bina(...)`) dan memanggil kaedah induk (`induk.kaedah(...)`).
+  - Sifat dinamik: Membaca dan menetapkan sifat objek luaran secara langsung dengan sintaks titik (`obj.sifat = nilai`) atau pengindeksan rentetan (`obj["sifat"] = nilai`).
+- **Integrasi Fungsi Terbina-Dalam**:
+  - `jenis(obj)`: Mengembalikan nama kelas objek (contoh: `"Pengguna"`, `"Pentadbir"`).
+  - `tulisJSON(obj)`: Menyokong serialisasi automatik sifat instans objek terus ke format JSON standard (*pretty* atau *compact*).
+- **Pengoptimuman Memori Aras Enjin (Zero Stack Overflow)**:
+  - Mengubah penyimpanan memori data kelas dan objek kepada `Rc<KelasData>`, `Rc<ObjekData>`, `Rc<IndukData>`, dan `Box<DeklarasiKelasAST>`.
+  - Mengurangkan saiz jejak stack frame sebanyak lebih 60%, memastikan pelaksanaan rekursi berantai kekal pantas dan bebas limpahan tindanan.
+- **Ekstensi VS Code v0.3.0**:
+  - Pewarnaan sintaks tatabahasa TextMate menyokong kata kunci OOP: `kelas`, `bina`, `warisi`, `diri`, dan `induk`.
+  - Snippets pintar baharu untuk VS Code: `kelas`, `kelaswarisi`, dan `bina`.
+- **Suite Ujian & Contoh Program**:
+  - Ujian integrasi OOP menyeluruh di `tests/interpreter_test.rs` (jumlah keseluruhan 29 ujian lulus 100%).
+  - Atur cara contoh baharu `examples/oop_kelas_dan_objek.ml` memperagakan kelas kenderaan, pewarisan kereta elektrik, sifat dinamik, dan eksport JSON.
+
 ## [0.2.0] - 2026-11-23
 
 ### Ditambah (Added)

@@ -141,6 +141,19 @@ pub enum TargetAssign {
         sasaran: Box<Expr>,
         indeks: Box<Expr>,
     },
+    Sifat {
+        sasaran: Box<Expr>,
+        sifat: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KaedahKelasAST {
+    pub nama: String,
+    pub parameter: Vec<(String, Option<String>)>,
+    pub jenis_pulangan: Option<String>,
+    pub badan: Vec<Stmt>,
+    pub pos: LineCol,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -211,6 +224,16 @@ pub enum Stmt {
         alias: Option<String>,
         pos: LineCol,
     },
+    DeklarasiKelas(Box<DeklarasiKelasAST>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DeklarasiKelasAST {
+    pub nama: String,
+    pub induk: Option<String>,
+    pub pembina: Option<KaedahKelasAST>,
+    pub kaedah: Vec<KaedahKelasAST>,
+    pub pos: LineCol,
 }
 
 impl Stmt {
@@ -224,6 +247,7 @@ impl Stmt {
             Stmt::UntukDalam { pos, .. } => *pos,
             Stmt::UntukJulat { pos, .. } => *pos,
             Stmt::DeklarasiFungsi { pos, .. } => *pos,
+            Stmt::DeklarasiKelas(d) => d.pos,
             Stmt::Pulang(_, pos) => *pos,
             Stmt::Hentikan(pos) => *pos,
             Stmt::Teruskan(pos) => *pos,

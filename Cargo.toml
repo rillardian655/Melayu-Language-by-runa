@@ -1,6 +1,6 @@
 [package]
 name = "melayu"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["xianly runa <rillardian655@gmail.com>", "Tim Bahasa Melayu"]
 description = "Bahasa pemrograman serumpun untuk serumpun developer (Indonesia, Malaysia, Brunei, Singapura)"

@@ -43,6 +43,11 @@ pub enum TokenKind {
     Sebagai,
     Horas,
     Mangan,
+    Kelas,
+    Bina,
+    Diri,
+    Warisi,
+    Induk,
 
     // Jenis (Types)
     TipeTeks,
@@ -145,6 +150,11 @@ impl fmt::Display for TokenKind {
             TokenKind::Sebagai => write!(f, "sebagai"),
             TokenKind::Horas => write!(f, "horas"),
             TokenKind::Mangan => write!(f, "mangan"),
+            TokenKind::Kelas => write!(f, "kelas"),
+            TokenKind::Bina => write!(f, "bina"),
+            TokenKind::Diri => write!(f, "diri"),
+            TokenKind::Warisi => write!(f, "warisi"),
+            TokenKind::Induk => write!(f, "induk"),
             TokenKind::TipeTeks => write!(f, "tipe:teks"),
             TokenKind::TipeNombor => write!(f, "tipe:nombor"),
             TokenKind::TipeBetul => write!(f, "tipe:betul"),

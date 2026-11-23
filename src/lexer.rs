@@ -655,6 +655,11 @@ impl Lexer {
             "sebagai" => TokenKind::Sebagai,
             "horas" => TokenKind::Horas,
             "mangan" => TokenKind::Mangan,
+            "kelas" => TokenKind::Kelas,
+            "bina" => TokenKind::Bina,
+            "diri" => TokenKind::Diri,
+            "warisi" => TokenKind::Warisi,
+            "induk" => TokenKind::Induk,
 
             // Jenis & Nilai Literal
             "teks" => TokenKind::TipeTeks,
@@ -763,6 +768,31 @@ impl Lexer {
             "catch" => {
                 return Err(MelayuError::typo_keyword(
                     "catch", "tangkap", start_line, start_col,
+                ));
+            }
+            "class" => {
+                return Err(MelayuError::typo_keyword(
+                    "class", "kelas", start_line, start_col,
+                ));
+            }
+            "this" | "self" => {
+                return Err(MelayuError::typo_keyword(
+                    &ident, "diri", start_line, start_col,
+                ));
+            }
+            "constructor" | "init" => {
+                return Err(MelayuError::typo_keyword(
+                    &ident, "bina", start_line, start_col,
+                ));
+            }
+            "extends" | "inherits" => {
+                return Err(MelayuError::typo_keyword(
+                    &ident, "warisi", start_line, start_col,
+                ));
+            }
+            "super" => {
+                return Err(MelayuError::typo_keyword(
+                    "super", "induk", start_line, start_col,
                 ));
             }
 

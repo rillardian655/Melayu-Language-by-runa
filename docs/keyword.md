@@ -26,6 +26,11 @@ Jadual komprehensif bagi seluruh kata kunci bahasa MELAYU v0.1.0:
 | `teruskan` | `continue` | Teruskan ke lelaran seterusnya |
 | `kerja` | `function` / `def` | Isytihar fungsi |
 | `pulang` | `return` | Memulangkan nilai dari fungsi |
+| `kelas` | `class` | Isytihar struktur kelas berorientasikan objek |
+| `bina` | `constructor` / `init` | Pembina objek dalam kelas |
+| `diri` | `this` / `self` | Rujukan kepada instans objek semasa |
+| `warisi` | `extends` / `inherits` | Pewarisan kelas daripada kelas induk |
+| `induk` | `super` | Rujukan kepada kaedah dan pembina kelas induk |
 | `selesai` | `end` | Menutup mana-mana blok kod |
 | `tunjuk` | `print` | Mencetak output ke terminal |
 | `baca` | `input` | Membaca rentetan dari terminal |

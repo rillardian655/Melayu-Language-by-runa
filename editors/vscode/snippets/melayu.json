@@ -158,6 +158,46 @@
       "ada ${2:masa} = masaKini()"
     ],
     "description": "Mendapatkan tarikh dan masa kalendar semasa"
+  },
+  "Deklarasi Kelas (kelas)": {
+    "prefix": "kelas",
+    "body": [
+      "kelas ${1:NamaKelas}",
+      "\tbina(${2:parameter})",
+      "\t\tdiri.${3:sifat} = ${2:parameter}",
+      "\tselesai",
+      "",
+      "\tkerja ${4:namaKaedah}()",
+      "\t\tpulang diri.${3:sifat}",
+      "\tselesai",
+      "selesai"
+    ],
+    "description": "Blok deklarasi kelas Pengaturcaraan Berorientasikan Objek (OOP)"
+  },
+  "Deklarasi Kelas Warisi (kelas ... warisi)": {
+    "prefix": "kelaswarisi",
+    "body": [
+      "kelas ${1:NamaSubKelas} warisi ${2:NamaInduk}",
+      "\tbina(${3:parameter}, ${4:sifatTambahan})",
+      "\t\tinduk.bina(${3:parameter})",
+      "\t\tdiri.${4:sifatTambahan} = ${4:sifatTambahan}",
+      "\tselesai",
+      "",
+      "\tkerja ${5:namaKaedah}()",
+      "\t\tpulang induk.${5:namaKaedah}()",
+      "\tselesai",
+      "selesai"
+    ],
+    "description": "Blok deklarasi kelas anak mewarisi kelas induk"
+  },
+  "Pembina Kelas (bina)": {
+    "prefix": "bina",
+    "body": [
+      "bina(${1:parameter})",
+      "\tdiri.${2:sifat} = ${1:parameter}",
+      "selesai"
+    ],
+    "description": "Pembina objek dalam kelas (constructor)"
   }
 }
 

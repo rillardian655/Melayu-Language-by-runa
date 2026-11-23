@@ -128,6 +128,9 @@ impl Analyzer {
                         self.analyze_expr(sasaran)?;
                         self.analyze_expr(indeks)?;
                     }
+                    TargetAssign::Sifat { sasaran, .. } => {
+                        self.analyze_expr(sasaran)?;
+                    }
                 }
             }
             Stmt::Tunjuk(args, _) => {
@@ -239,6 +242,61 @@ impl Analyzer {
                 self.exit_scope();
                 self.in_function = prev_in_func;
             }
+            Stmt::DeklarasiKelas(ref d) => {
+                let DeklarasiKelasAST {
+                    nama,
+                    induk,
+                    pembina,
+                    kaedah,
+                    pos,
+                } = d.as_ref();
+                // Daftarkan nama kelas dalam skop semasa
+                self.declare(nama, true, *pos)?;
+
+                if let Some(ref induk_nama) = induk {
+                    if self.find_symbol(induk_nama).is_none() && !self.is_builtin(induk_nama) {
+                        return Err(MelayuError::pembolehubah_tak_wujud(
+                            induk_nama, pos.line, pos.col,
+                        ));
+                    }
+                }
+
+                if let Some(p) = pembina {
+                    let prev_in_func = self.in_function;
+                    self.in_function = true;
+                    self.enter_scope();
+                    self.declare("diri", false, p.pos)?;
+                    if induk.is_some() {
+                        self.declare("induk", false, p.pos)?;
+                    }
+                    for (p_name, _) in &p.parameter {
+                        self.declare(p_name, false, p.pos)?;
+                    }
+                    for s in &p.badan {
+                        self.analyze_stmt(s)?;
+                    }
+                    self.exit_scope();
+                    self.in_function = prev_in_func;
+                }
+
+                for m in kaedah {
+                    let prev_in_func = self.in_function;
+                    self.in_function = true;
+                    self.enter_scope();
+                    self.declare("diri", false, m.pos)?;
+                    if induk.is_some() {
+                        self.declare("induk", false, m.pos)?;
+                    }
+                    for (p_name, _) in &m.parameter {
+                        self.declare(p_name, false, m.pos)?;
+                    }
+                    for s in &m.badan {
+                        self.analyze_stmt(s)?;
+                    }
+                    self.exit_scope();
+                    self.in_function = prev_in_func;
+                }
+            }
             Stmt::Pulang(expr_opt, pos) => {
                 if !self.in_function {
                     return Err(MelayuError::new(
@@ -331,6 +389,9 @@ impl Analyzer {
                                 match s {
                                     Stmt::DeklarasiFungsi { nama, .. } => {
                                         let _ = self.declare(nama, true, *pos);
+                                    }
+                                    Stmt::DeklarasiKelas(ref d) => {
+                                        let _ = self.declare(&d.nama, true, *pos);
                                     }
                                     Stmt::IsytiharPembolehubah { nama, tetap, .. } => {
                                         let _ = self.declare(nama, *tetap, *pos);

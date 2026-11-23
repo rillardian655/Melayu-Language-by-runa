@@ -17,7 +17,7 @@
 
   <p align="center">
     <a href="https://github.com/rillardian655/Melayu-Language-by-runa/releases">
-      <img src="https://img.shields.io/badge/Versi-0.2.0-00ADD8?style=for-the-badge&logo=git&logoColor=white" alt="Versi" />
+      <img src="https://img.shields.io/badge/Versi-0.3.0-00ADD8?style=for-the-badge&logo=git&logoColor=white" alt="Versi" />
     </a>
     <a href="editors/vscode">
       <img src="https://img.shields.io/badge/VS_Code-Ekstensi_Rasmi-007ACC?style=for-the-badge&logo=visual-studio-code&logoColor=white" alt="VS Code Extension" />
@@ -262,6 +262,45 @@ tunjuk "Harga premium: " + hargaPremium.cantum(", ")
 tunjuk "Invois dikeluarkan pada: " + tarikhKini() + " " + masaKini()
 ```
 
+### 6. Pengaturcaraan Berorientasikan Objek (OOP) (v0.3.0)
+
+```melayu
+# Pengisytiharan kelas asas
+kelas Kenderaan
+    bina(jenama, kelajuan_maks)
+        diri.jenama = jenama
+        diri.kelajuan_maks = kelajuan_maks
+        diri.kelajuan_semasa = 0
+    selesai
+
+    kerja pandu(tambah_laju)
+        diri.kelajuan_semasa = diri.kelajuan_semasa + tambah_laju
+        pulang diri.kelajuan_semasa
+    selesai
+selesai
+
+# Pewarisan kelas anak dengan kata kunci 'warisi' dan 'induk'
+kelas KeretaElektrik warisi Kenderaan
+    bina(jenama, kelajuan_maks, bateri)
+        induk.bina(jenama, kelajuan_maks)
+        diri.bateri = bateri
+    selesai
+
+    kerja cas(jumlah)
+        diri.bateri = diri.bateri + jumlah
+        pulang diri.bateri
+    selesai
+selesai
+
+ada myviEV = KeretaElektrik("Perodua EV", 160, 90)
+myviEV.pandu(80)
+myviEV.pemilik = "Runa"
+
+tunjuk "Jenis Objek:", jenis(myviEV)
+tunjuk "Status bateri:", myviEV.bateri + "%"
+tunjuk "Serialisasi JSON:", tulisJSON(myviEV, betul)
+```
+
 ---
 
 ## Ekstensi Rasmi Visual Studio Code
@@ -366,16 +405,23 @@ Maklumat terperinci disediakan dalam folder [`docs/`](docs/):
 * Fungsi utiliti matematik: `bundar()`, `lantai()`, `siling()`, `mutlak()`, `maksimum()`, `minimum()`.
 * Ekstensi rasmi Visual Studio Code (`editors/vscode/`) dengan pewarnaan sintaks dan snippets.
 
-### [x] v0.2.0 — Pemprosesan Data Fungsian, Enjin JSON & Masa (Rilis Semasa)
+### [x] v0.2.0 — Pemprosesan Data Fungsian, Enjin JSON & Masa
 * Operasi fungsian senarai: `.petakan()`, `.tapis()`, `.kiraSemua()`, `.cari()`, `.indeks()`, `.setiapSatu()`.
 * Enjin JSON selamat tanpa kebergantungan luar: `bacaJSON()` dan `tulisJSON()`.
 * Utiliti kalendar & masa berketepatan tinggi: `capMasa()`, `masaKini()`, `tarikhKini()`.
 * Kaedah manipulasi rentetan & kamus baharu: `.ulang()`, `.selitDepan()`, `.selitBelakang()`, `.hurufAwalBesar()`, `.adaKunci()`, `.buang()`.
 * Pengukuhan ujian dengan 28 suite ujian komprehensif.
 
-### [ ] v0.3.0 — Pengaturcaraan Berorientasikan Objek
-* Definisi kelas: `kelas <Nama> ... selesai`.
-* Pembina dan pewarisan: `bina`, `warisi`, `diri`.
+### [x] v0.3.0 — Pengaturcaraan Berorientasikan Objek (Rilis Semasa)
+* Definisi kelas berstruktur: `kelas <Nama> ... selesai`.
+* Pembina objek dan pemulaan sifat: `bina(<parameter>) ... selesai`.
+* Rujukan instans objek: `diri` (`this`/`self`) bagi pengumpukan dan pembacaan sifat.
+* Pewarisan kelas: `kelas Anak warisi Induk`.
+* Rujukan kaedah dan pembina induk: `induk.bina(...)` dan `induk.kaedah(...)`.
+* Pengumpukan sifat dinamik: `obj.sifat = nilai` dan `obj["sifat"] = nilai`.
+* Integrasi fungsi terbina-dalam: `jenis(obj)` mengembalikan nama kelas, `tulisJSON(obj)` serialisasi data instans.
+* Pengoptimuman memori aras enjin mengurangkan saiz stack frame sebanyak > 60% bebas *stack overflow*.
+* Sokongan ekstensi VS Code: tatabahasa TextMate dan koleksi snippets pintar OOP.
 
 ### [ ] v1.0.0 — Kestabilan Penuh & Web WASM
 * Enjin Virtual Machine (VM) bytecode berprestasi tinggi.
