@@ -55,8 +55,16 @@ fn main() {
             tanda_aras_fail(&args[2], lelaran);
         }
         "mula" | "init" => {
-            let nama = args.get(2).map(|s| s.as_str());
-            mula_projek(nama);
+            let mut nama = None;
+            let mut is_mvc = false;
+            for arg in args.iter().skip(2) {
+                if arg == "--mvc" || arg == "--web" {
+                    is_mvc = true;
+                } else if nama.is_none() && !arg.starts_with('-') {
+                    nama = Some(arg.as_str());
+                }
+            }
+            mula_projek(nama, is_mvc);
         }
         "pasang" | "install" => {
             let sasaran = args.get(2).map(|s| s.as_str());
@@ -326,7 +334,7 @@ fn cetak_bantuan() {
     println!("  melayu semak <fail.ml>             Semak sintaks dan semantik fail");
     println!("  melayu uji <fail.ml>               Jalankan suite ujian unit");
     println!("  melayu tanda-aras <fail.ml> [n]    Jalankan penanda aras masa (benchmark)");
-    println!("  melayu mula [nama_projek]          Cipta struktur projek Melayu baharu");
+    println!("  melayu mula [nama_projek] [--mvc]  Cipta struktur projek Melayu (asas atau MVC)");
     println!("  melayu pasang [nama_atau_fail]     Pasang modul ke modul_melayu/");
     println!("  melayu pakej                       Senarai pakej dan framework tersedia");
     println!("  melayu bantuan                     Papar bantuan ini");
@@ -334,12 +342,13 @@ fn cetak_bantuan() {
     println!();
     println!("CONTOH:");
     println!("  melayu mula aplikasi_saya");
+    println!("  melayu mula web_kredit --mvc");
     println!("  melayu pasang alat_kira.ml");
     println!("  melayu jalankan utama.ml");
 }
 
-fn mula_projek(nama_opt: Option<&str>) {
-    let nama_projek = nama_opt.unwrap_or("projek_melayu");
+fn mula_projek(nama_opt: Option<&str>, is_mvc: bool) {
+    let nama_projek = nama_opt.unwrap_or(if is_mvc { "aplikasi_web_melayu" } else { "projek_melayu" });
     let sasaran_dir = std::path::Path::new(nama_projek);
 
     if nama_opt.is_some() && !sasaran_dir.exists() {
@@ -355,8 +364,226 @@ fn mula_projek(nama_opt: Option<&str>) {
     let gitignore_path = sasaran_dir.join(".gitignore");
     let readme_path = sasaran_dir.join("README.md");
 
-    let pakej_json_content = format!(
-        r#"{{
+    let _ = fs::create_dir_all(&modul_dir);
+    let _ = fs::write(modul_dir.join(".gitkeep"), "");
+    let _ = fs::write(&gitignore_path, "target/\n*.tmp\n*.log\n");
+
+    if is_mvc {
+        let app_dir = sasaran_dir.join("app");
+        let kawalan_dir = app_dir.join("kawalan");
+        let model_dir = app_dir.join("model");
+        let servis_dir = app_dir.join("perkhidmatan");
+        let laluan_dir = sasaran_dir.join("laluan");
+        let data_dir = sasaran_dir.join("data");
+
+        let _ = fs::create_dir_all(&kawalan_dir);
+        let _ = fs::create_dir_all(&model_dir);
+        let _ = fs::create_dir_all(&servis_dir);
+        let _ = fs::create_dir_all(&laluan_dir);
+        let _ = fs::create_dir_all(&data_dir);
+
+        let config_path = sasaran_dir.join("konfigurasi.json");
+        let _ = fs::write(
+            &config_path,
+            format!(
+                r#"{{
+  "nama_aplikasi": "{}",
+  "versi": "1.0.0",
+  "port": 8080,
+  "persekitaran": "pembangunan"
+}}
+"#,
+                nama_projek
+            ),
+        );
+
+        let data_csv_path = data_dir.join("sampel.csv");
+        let _ = fs::write(
+            &data_csv_path,
+            "id,nama,kategori,nilai\n1,Projek Alfa,Teknologi,95.5\n2,Projek Beta,Kewangan,88.0\n3,Projek Gamma,Pendidikan,91.2\n",
+        );
+
+        let model_path = model_dir.join("model_item.ml");
+        let _ = fs::write(
+            &model_path,
+            r#"# ==========================================================
+# MODEL ITEM (DATA ENTITY)
+# ==========================================================
+
+kelas ModelItem
+    bina(id, nama, status)
+        diri.id = id
+        diri.nama = nama
+        diri.status = status
+    selesai
+
+    kerja keKamus()
+        pulang {
+            "id": diri.id,
+            "nama": diri.nama,
+            "status": diri.status
+        }
+    selesai
+selesai
+"#,
+        );
+
+        let servis_path = servis_dir.join("servis_item.ml");
+        let _ = fs::write(
+            &servis_path,
+            r#"# ==========================================================
+# SERVIS LOGIK PERNIAGAAN
+# ==========================================================
+
+kerja dapatkanSenaraiItem()
+    pulang [
+        {"id": 1, "nama": "Sistem Utama", "status": "aktif"},
+        {"id": 2, "nama": "Enjin AI", "status": "sedia"},
+        {"id": 3, "nama": "Pengkalan Data", "status": "beroperasi"}
+    ]
+selesai
+
+kerja kiraStatistik()
+    pulang {
+        "jumlah_item": 3,
+        "kecekapan": "99.8%",
+        "status_sistem": "sihat"
+    }
+selesai
+"#,
+        );
+
+        let kawalan_path = kawalan_dir.join("kawalan_utama.ml");
+        let _ = fs::write(
+            &kawalan_path,
+            format!(
+                r#"# ==========================================================
+# PENGENDALI KAWALAN (CONTROLLER)
+# ==========================================================
+ambil "selasih"
+ambil "app/perkhidmatan/servis_item.ml" sebagai Servis
+
+kerja kendaliLamanUtama(permintaan)
+    ada html = "<html><head><title>{}</title></head><body>" +
+               "<h1>Selamat Datang ke {} (MVC Framework)</h1>" +
+               "<p>Pelayan Web Selasih sedia berkhidmat!</p>" +
+               "<ul><li>GET /api/items - Senarai data</li>" +
+               "<li>GET /api/statistik - Status sistem</li></ul>" +
+               "</body></html>"
+    pulang balasHTML(html, 200)
+selesai
+
+kerja kendaliSenaraiItem(permintaan)
+    ada senarai = Servis.dapatkanSenaraiItem()
+    pulang balasJSON({{"kejayaan": betul, "data": senarai}}, 200)
+selesai
+
+kerja kendaliStatistik(permintaan)
+    ada stat = Servis.kiraStatistik()
+    pulang balasJSON({{"kejayaan": betul, "statistik": stat}}, 200)
+selesai
+"#,
+                nama_projek, nama_projek
+            ),
+        );
+
+        let laluan_path = laluan_dir.join("api.ml");
+        let _ = fs::write(
+            &laluan_path,
+            r#"# ==========================================================
+# PENDAFTARAN LALUAN (ROUTES)
+# ==========================================================
+ambil "app/kawalan/kawalan_utama.ml" sebagai Kawalan
+
+kerja daftarLaluan(app)
+    app.dapatkan("/", Kawalan.kendaliLamanUtama)
+    app.dapatkan("/api/items", Kawalan.kendaliSenaraiItem)
+    app.dapatkan("/api/statistik", Kawalan.kendaliStatistik)
+selesai
+"#,
+        );
+
+        let _ = fs::write(
+            &utama_path,
+            format!(
+                r#"# ==========================================================
+# TITIK MASUK UTAMA APLIKASI MVC ({})
+# ==========================================================
+ambil "selasih"
+ambil "laluan/api.ml" sebagai Laluan
+
+ada aplikasi = PelayanWeb(8080)
+Laluan.daftarLaluan(aplikasi)
+
+tunjuk "=========================================================="
+tunjuk "  Aplikasi Web MVC '{}' sedia beroperasi!"
+tunjuk "  Laman: http://localhost:8080"
+tunjuk "  API  : http://localhost:8080/api/items"
+tunjuk "=========================================================="
+tunjuk "Tekan Ctrl+C untuk menghentikan pelayan."
+aplikasi.dengar()
+"#,
+                nama_projek, nama_projek
+            ),
+        );
+
+        let pakej_json_content = format!(
+            r#"{{
+  "nama": "{}",
+  "versi": "1.0.0",
+  "penerangan": "Aplikasi Web & API Berstruktur MVC Bahasa Melayu",
+  "utama": "utama.ml",
+  "corak": "MVC",
+  "kebergantungan": {{
+    "selasih": "terbina"
+  }}
+}}
+"#,
+            nama_projek
+        );
+        let _ = fs::write(&pakej_path, pakej_json_content);
+
+        let _ = fs::write(
+            &readme_path,
+            format!(
+                r#"# {} (Aplikasi MVC Bahasa Melayu)
+
+Aplikasi web berstruktur MVC (Model-View-Controller) menggunakan kerangka kerja Selasih.
+
+## Struktur Direktori
+* `app/kawalan/` - Pengendali rute dan logik HTTP (Controllers)
+* `app/model/` - Struktur data dan entiti aplikasi (Models)
+* `app/perkhidmatan/` - Logik perniagaan dan pemprosesan data (Services)
+* `laluan/` - Pendaftaran URL penghalaan (Routes)
+* `data/` - Dataset dan fail storan tempatan
+* `modul_melayu/` - Pakej luaran
+
+## Cara Menjalankan
+```bash
+melayu utama.ml
+```
+"#,
+                nama_projek
+            ),
+        );
+
+        println!("\x1b[1;32mProjek Melayu MVC '{}' berjaya dicipta!\x1b[0m", nama_projek);
+        println!("Struktur fail:");
+        println!("  {}/", nama_projek);
+        println!("  ├── pakej.json                  (Manifest metadata)");
+        println!("  ├── konfigurasi.json            (Tetapan port & app)");
+        println!("  ├── utama.ml                    (Titik masuk web server)");
+        println!("  ├── app/");
+        println!("  │   ├── kawalan/kawalan_utama.ml (Controller)");
+        println!("  │   ├── model/model_item.ml     (Model)");
+        println!("  │   └── perkhidmatan/servis_item.ml (Service)");
+        println!("  ├── laluan/api.ml               (Router)");
+        println!("  ├── data/sampel.csv             (Dataset)");
+        println!("  ├── modul_melayu/               (Folder pakej)");
+        println!("  └── README.md");
+    } else {
+        let pakej_json_content = format!(
+            r#"{{
   "nama": "{}",
   "versi": "0.1.0",
   "penerangan": "Projek dibina menggunakan Bahasa Melayu",
@@ -364,11 +591,11 @@ fn mula_projek(nama_opt: Option<&str>) {
   "kebergantungan": {{}}
 }}
 "#,
-        nama_projek
-    );
+            nama_projek
+        );
 
-    let utama_ml_content = format!(
-        r#"# Titik masuk utama untuk projek {}
+        let utama_ml_content = format!(
+            r#"# Titik masuk utama untuk projek {}
 tunjuk "========================================"
 tunjuk "  Selamat Datang ke Projek: {}"
 tunjuk "========================================"
@@ -376,23 +603,25 @@ tunjuk ""
 
 tunjuk "Alhamdulillah, atur cara Bahasa Melayu berjaya dijalankan!"
 "#,
-        nama_projek, nama_projek
-    );
+            nama_projek, nama_projek
+        );
 
-    let _ = fs::write(&pakej_path, pakej_json_content);
-    let _ = fs::write(&utama_path, utama_ml_content);
-    let _ = fs::create_dir_all(&modul_dir);
-    let _ = fs::write(modul_dir.join(".gitkeep"), "");
-    let _ = fs::write(&gitignore_path, "target/\n*.tmp\n");
-    let _ = fs::write(&readme_path, format!("# {}\n\nProjek Bahasa Melayu.\n\n## Cara Menjalankan\n```bash\nmelayu utama.ml\n```\n", nama_projek));
+        let _ = fs::write(&pakej_path, pakej_json_content);
+        let _ = fs::write(&utama_path, utama_ml_content);
+        let _ = fs::write(
+            &readme_path,
+            format!("# {}\n\nProjek Bahasa Melayu.\n\n## Cara Menjalankan\n```bash\nmelayu utama.ml\n```\n", nama_projek),
+        );
 
-    println!("\x1b[1;32mProjek Melayu '{}' berjaya dicipta!\x1b[0m", nama_projek);
-    println!("Struktur fail:");
-    println!("  {}/", nama_projek);
-    println!("  ├── pakej.json      (Manifest metadata & pakej)");
-    println!("  ├── utama.ml        (Fail kod permulaan)");
-    println!("  ├── modul_melayu/   (Folder pakej & kebergantungan)");
-    println!("  └── README.md");
+        println!("\x1b[1;32mProjek Melayu '{}' berjaya dicipta!\x1b[0m", nama_projek);
+        println!("Struktur fail:");
+        println!("  {}/", nama_projek);
+        println!("  ├── pakej.json      (Manifest metadata & pakej)");
+        println!("  ├── utama.ml        (Fail kod permulaan)");
+        println!("  ├── modul_melayu/   (Folder pakej & kebergantungan)");
+        println!("  └── README.md");
+    }
+
     println!();
     println!("Langkah seterusnya:");
     if nama_opt.is_some() {
