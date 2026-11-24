@@ -380,23 +380,35 @@ impl Analyzer {
                     for sym in syms {
                         self.declare(sym, false, *pos)?;
                     }
-                } else if let Ok(source) = std::fs::read_to_string(sasaran) {
-                    let mut lexer = crate::lexer::Lexer::new(&source);
-                    if let Ok(tokens) = lexer.tokenize() {
-                        let mut parser = crate::parser::Parser::new(tokens);
-                        if let Ok(prog) = parser.parse() {
-                            for s in &prog.pernyataan {
-                                match s {
-                                    Stmt::DeklarasiFungsi { nama, .. } => {
-                                        let _ = self.declare(nama, true, *pos);
+                } else {
+                    let source_opt = if sasaran == "akal" || sasaran == "akal_ml" || sasaran == "akalml" || sasaran == "std/akal" || sasaran == "std/akal_ml" {
+                        Some(crate::builtins::AKAL_ML_STDLIB.to_string())
+                    } else if let Ok(src) = std::fs::read_to_string(sasaran) {
+                        Some(src)
+                    } else if let Ok(src) = std::fs::read_to_string(format!("{}.ml", sasaran)) {
+                        Some(src)
+                    } else {
+                        None
+                    };
+
+                    if let Some(source) = source_opt {
+                        let mut lexer = crate::lexer::Lexer::new(&source);
+                        if let Ok(tokens) = lexer.tokenize() {
+                            let mut parser = crate::parser::Parser::new(tokens);
+                            if let Ok(prog) = parser.parse() {
+                                for s in &prog.pernyataan {
+                                    match s {
+                                        Stmt::DeklarasiFungsi { nama, .. } => {
+                                            let _ = self.declare(nama, true, *pos);
+                                        }
+                                        Stmt::DeklarasiKelas(ref d) => {
+                                            let _ = self.declare(&d.nama, true, *pos);
+                                        }
+                                        Stmt::IsytiharPembolehubah { nama, tetap, .. } => {
+                                            let _ = self.declare(nama, *tetap, *pos);
+                                        }
+                                        _ => {}
                                     }
-                                    Stmt::DeklarasiKelas(ref d) => {
-                                        let _ = self.declare(&d.nama, true, *pos);
-                                    }
-                                    Stmt::IsytiharPembolehubah { nama, tetap, .. } => {
-                                        let _ = self.declare(nama, *tetap, *pos);
-                                    }
-                                    _ => {}
                                 }
                             }
                         }

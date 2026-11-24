@@ -359,6 +359,32 @@ uji "Kiraan diskaun dan harga akhir"
 selesai
 ```
 
+#### AkalML: Kerangka Kerja Pembelajaran Mesin Native (`ambil "akal"`)
+
+Bahasa Melayu menyertakan kerangka kerja Machine Learning native serumpun bernama **AkalML**. Dikuasakan oleh enjin matriks dan aljabar linear berprestasi tinggi dalam Rust, AkalML membolehkan analisis data, ramalan numerik, dan pengelasan pintar tanpa kebergantungan luar.
+
+* **Aljabar Linear Native**: Operasi `darabMatriks`, `transposisiMatriks`, `songsangMatriks` (Gauss-Jordan), `jarakEuclidean`, dan `titikDarab`.
+* **Model Sedia Guna**: `RegresiLinear` (Ordinary Least Squares), `PengelasKNN` (K-Nearest Neighbors), dan `PengelompokanKMeans` (Unsupervised Clustering).
+* **Prapemprosesan & Dataset**: Pembaca CSV pantas (`bacaCSV`), pembahagi data latihan dan ujian (`bahagiLatihUji`), serta metrik penilaian (`skorR2`, `skorMSE`, `skorAkurasi`).
+
+Contoh Regresi Linear:
+```melayu
+ambil "akal"
+
+# Data ciri: [Keluasan (m2), Bilangan Bilik]
+ada X = [[50.0, 1.0], [70.0, 2.0], [120.0, 3.0], [180.0, 4.0]]
+# Sasaran: Harga (ribu)
+ada y = [150.0, 205.0, 340.0, 500.0]
+
+ada model = RegresiLinear(betul)
+model.latih(X, y)
+
+# Ramalkan harga rumah baharu 100m2, 2 bilik
+ada ramalan = model.ramal([[100.0, 2.0]])
+tunjuk "Ramalan Harga:", bundar(ramalan[0]), "k"
+tunjuk "Ketepatan R2  :", model.skor(X, y)
+```
+
 ---
 
 ## Ekstensi Rasmi Visual Studio Code

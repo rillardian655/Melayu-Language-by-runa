@@ -1,0 +1,160 @@
+use melayu_core::interpreter::Interpreter;
+use melayu_core::lexer::Lexer;
+use melayu_core::parser::Parser;
+use std::fs;
+
+fn laksana_kod(source: &str) -> Result<String, String> {
+    let mut lexer = Lexer::new(source);
+    let tokens = lexer.tokenize().map_err(|e| format!("{:?}", e))?;
+    let mut parser = Parser::new(tokens);
+    let program = parser.parse().map_err(|e| format!("{:?}", e))?;
+    let mut interpreter = Interpreter::new();
+    interpreter
+        .interpret(&program)
+        .map_err(|e| format!("{:?}", e))?;
+    Ok("OK".to_string())
+}
+
+#[test]
+fn test_akal_ml_operasi_matriks_native() {
+    let code = r#"
+ada A = [[1, 2], [3, 4]]
+ada B = [[2, 0], [1, 2]]
+ada C = darabMatriks(A, B)
+# Hasil darab C = [[4, 4], [10, 8]]
+semak C[0][0] == 4, "C[0][0] salah"
+semak C[0][1] == 4, "C[0][1] salah"
+semak C[1][0] == 10, "C[1][0] salah"
+semak C[1][1] == 8, "C[1][1] salah"
+
+ada At = transposisiMatriks(A)
+semak At[0][1] == 3, "Transposisi At[0][1] salah"
+semak At[1][0] == 2, "Transposisi At[1][0] salah"
+
+ada M = [[4, 7], [2, 6]]
+ada Minv = songsangMatriks(M)
+ada I = darabMatriks(M, Minv)
+# Nilai diagonal I mestilah hampir 1.0
+semak bundar(I[0][0]) == 1, "Diagonal I[0][0] mestilah 1"
+semak bundar(I[1][1]) == 1, "Diagonal I[1][1] mestilah 1"
+semak bundar(I[0][1]) == 0, "Bukan diagonal I[0][1] mestilah 0"
+"#;
+    assert!(laksana_kod(code).is_ok());
+}
+
+#[test]
+fn test_akal_ml_vektor_dan_metrik() {
+    let code = r#"
+ada v1 = [1, 2, 3]
+ada v2 = [4, 5, 6]
+ada dot = titikDarab(v1, v2)
+semak dot == 32, "Titik darab mestilah 32"
+
+ada p1 = [0, 0]
+ada p2 = [3, 4]
+ada dist = jarakEuclidean(p1, p2)
+semak dist == 5, "Jarak Euclidean mestilah 5"
+
+ada y_benar = [10, 20, 30]
+ada y_ramal = [10, 20, 30]
+semak skorMSE(y_benar, y_ramal) == 0, "MSE ramalan sempurna mestilah 0"
+semak skorR2(y_benar, y_ramal) == 1, "R2 ramalan sempurna mestilah 1"
+
+ada y_kat_benar = ["kucing", "anjing", "kucing"]
+ada y_kat_ramal = ["kucing", "anjing", "anjing"]
+# 2 daripada 3 betul = 0.6666...
+semak bundar(skorAkurasi(y_kat_benar, y_kat_ramal) * 100) == 67, "Akurasi salah"
+
+ada data = [2, 4, 4, 4, 5, 5, 7, 9]
+semak purata(data) == 5, "Purata mestilah 5"
+"#;
+    assert!(laksana_kod(code).is_ok());
+}
+
+#[test]
+fn test_akal_ml_regresi_linear_terbina_dalam() {
+    let code = r#"
+ambil "akal"
+
+# Pola y = 2x + 3
+ada X = [[1], [2], [3], [4]]
+ada y = [5, 7, 9, 11]
+
+ada model = RegresiLinear(betul)
+model.latih(X, y)
+
+# Ramal x = 5 dan x = 6 -> jangka y = 13 dan 15
+ada X_baru = [[5], [6]]
+ada ramalan = model.ramal(X_baru)
+
+semak bundar(ramalan[0]) == 13, "Ramalan x=5 mestilah 13"
+semak bundar(ramalan[1]) == 15, "Ramalan x=6 mestilah 15"
+semak bundar(model.skor(X, y)) == 1, "Skor R2 mestilah 1.0"
+"#;
+    assert!(laksana_kod(code).is_ok());
+}
+
+#[test]
+fn test_akal_ml_pengelas_knn_terbina_dalam() {
+    let code = r#"
+ambil "akal"
+
+# Dua kelompok:
+# Kelas A di sekitar [1, 1], Kelas B di sekitar [8, 8]
+ada X = [
+    [1.0, 1.0],
+    [1.2, 0.8],
+    [0.9, 1.1],
+    [8.0, 8.0],
+    [8.2, 7.9],
+    [7.8, 8.1]
+]
+ada y = ["A", "A", "A", "B", "B", "B"]
+
+ada knn = PengelasKNN(3)
+knn.latih(X, y)
+
+ada titik_ujian = [
+    [1.1, 1.0], # hampir A
+    [8.1, 8.0]  # hampir B
+]
+
+ada ramalan = knn.ramal(titik_ujian)
+semak ramalan[0] == "A", "Titik pertama mestilah kelas A"
+semak ramalan[1] == "B", "Titik kedua mestilah kelas B"
+"#;
+    assert!(laksana_kod(code).is_ok());
+}
+
+#[test]
+fn test_akal_ml_csv_dan_bahagi_latih_uji() {
+    let csv_path = "target/test_dataset_akal.csv";
+    let csv_data = "keluasan,bilik,harga\n100,2,200\n150,3,300\n200,3,400\n250,4,500\n300,4,600\n";
+    fs::write(csv_path, csv_data).unwrap();
+
+    let code = r#"
+ada dataset = bacaCSV("target/test_dataset_akal.csv", betul)
+semak dataset["baris"] == 5, "Baris CSV mestilah 5"
+semak dataset["bil_lajur"] == 3, "Lajur CSV mestilah 3"
+semak dataset["lajur"][0] == "keluasan", "Nama lajur pertama salah"
+
+# Bahagi data
+ada X = []
+ada y = []
+untuk baris dalam dataset["data"]
+    X.tambah([baris[0], baris[1]])
+    y.tambah(baris[2])
+selesai
+
+ada bahagian = bahagiLatihUji(X, y, 0.4)
+ada X_latih = bahagian[0]
+ada X_uji = bahagian[1]
+ada y_latih = bahagian[2]
+ada y_uji = bahagian[3]
+semak panjang(X_latih) == 3, "Panjang X_latih mestilah 3 (60%)"
+semak panjang(X_uji) == 2, "Panjang X_uji mestilah 2 (40%)"
+"#;
+    let res = laksana_kod(code);
+    let _ = fs::remove_file(csv_path);
+    assert!(res.is_ok(), "Ralat: {:?}", res);
+}

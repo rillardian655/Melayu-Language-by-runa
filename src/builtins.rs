@@ -39,6 +39,19 @@ pub fn daftar_fungsi_bawaan() -> Vec<(&'static str, BuiltinFn)> {
         ("capMasa", builtin_cap_masa),
         ("masaKini", builtin_masa_kini),
         ("tarikhKini", builtin_tarikh_kini),
+        // AkalML: Asas Matematik & Pembelajaran Mesin Native
+        ("darabMatriks", builtin_darab_matriks),
+        ("transposisiMatriks", builtin_transposisi_matriks),
+        ("songsangMatriks", builtin_songsang_matriks),
+        ("titikDarab", builtin_titik_darab),
+        ("jarakEuclidean", builtin_jarak_euclidean),
+        ("bacaCSV", builtin_baca_csv),
+        ("bahagiLatihUji", builtin_bahagi_latih_uji),
+        ("purata", builtin_purata),
+        ("sisihanPiawai", builtin_sisihan_piawai),
+        ("skorMSE", builtin_skor_mse),
+        ("skorR2", builtin_skor_r2),
+        ("skorAkurasi", builtin_skor_akurasi),
     ]
 }
 
@@ -1525,3 +1538,847 @@ pub fn builtin_tarikh_kini(args: &[Value], pos: LineCol) -> Result<Value, Melayu
         tahun, bulan, hari_hb
     )))
 }
+
+
+// ==============================================================================
+// AKALML - PRIMITIF PEMBELAJARAN MESIN & ALJABAR LINEAR NATIVE
+// ==============================================================================
+
+fn ekstrak_matriks(val: &Value, pos: LineCol) -> Result<Vec<Vec<f64>>, MelayuError> {
+    match val {
+        Value::Senarai(list_rc) => {
+            let list = list_rc.borrow();
+            if list.is_empty() {
+                return Ok(Vec::new());
+            }
+            let mut matrix = Vec::with_capacity(list.len());
+            let mut expected_cols: Option<usize> = None;
+            for row_val in list.iter() {
+                match row_val {
+                    Value::Senarai(row_rc) => {
+                        let row = row_rc.borrow();
+                        if let Some(exp) = expected_cols {
+                            if row.len() != exp {
+                                return Err(MelayuError::new(
+                                    "Alamak!",
+                                    &format!("Semua baris matriks mestilah mempunyai panjang yang sama (dijangka {}, dapat {}).", exp, row.len()),
+                                    pos.line,
+                                    pos.col,
+                                ).with_kind(ErrorKind::Runtime));
+                            }
+                        } else {
+                            expected_cols = Some(row.len());
+                        }
+                        let mut num_row = Vec::with_capacity(row.len());
+                        for el in row.iter() {
+                            match el {
+                                Value::Nombor(n) => num_row.push(*n),
+                                _ => return Err(MelayuError::new(
+                                    "Alamak!",
+                                    "Semua elemen matriks mestilah bernilai nombor.",
+                                    pos.line,
+                                    pos.col,
+                                ).with_kind(ErrorKind::Runtime)),
+                            }
+                        }
+                        matrix.push(num_row);
+                    }
+                    _ => return Err(MelayuError::new(
+                        "Alamak!",
+                        "Matriks mestilah senarai 2-dimensi (senarai di dalam senarai).",
+                        pos.line,
+                        pos.col,
+                    ).with_kind(ErrorKind::Runtime)),
+                }
+            }
+            Ok(matrix)
+        }
+        _ => Err(MelayuError::new(
+            "Alamak!",
+            "Argumen matriks mestilah bernilai senarai 2-dimensi.",
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime)),
+    }
+}
+
+fn matriks_ke_nilai(mat: &[Vec<f64>]) -> Value {
+    let rows: Vec<Value> = mat.iter().map(|row| {
+        let cols: Vec<Value> = row.iter().map(|&n| Value::Nombor(n)).collect();
+        Value::Senarai(Rc::new(RefCell::new(cols)))
+    }).collect();
+    Value::Senarai(Rc::new(RefCell::new(rows)))
+}
+
+fn ekstrak_vektor(val: &Value, pos: LineCol) -> Result<Vec<f64>, MelayuError> {
+    match val {
+        Value::Senarai(list_rc) => {
+            let list = list_rc.borrow();
+            let mut vec = Vec::with_capacity(list.len());
+            for el in list.iter() {
+                match el {
+                    Value::Nombor(n) => vec.push(*n),
+                    _ => return Err(MelayuError::new(
+                        "Alamak!",
+                        "Elemen vektor mestilah nombor.",
+                        pos.line,
+                        pos.col,
+                    ).with_kind(ErrorKind::Runtime)),
+                }
+            }
+            Ok(vec)
+        }
+        _ => Err(MelayuError::new(
+            "Alamak!",
+            "Vektor mestilah bernilai senarai nombor.",
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime)),
+    }
+}
+
+pub fn builtin_darab_matriks(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 2 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Fungsi 'darabMatriks' memerlukan 2 hujah (A, B), tetapi dapat {}.", args.len()),
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+    let a = ekstrak_matriks(&args[0], pos)?;
+    let b = ekstrak_matriks(&args[1], pos)?;
+    if a.is_empty() || b.is_empty() {
+        return Ok(Value::Senarai(Rc::new(RefCell::new(Vec::new()))));
+    }
+    let m = a.len();
+    let k = a[0].len();
+    let k2 = b.len();
+    let n = b[0].len();
+    if k != k2 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Dimensi matriks tidak serasi untuk didarab: A ({}x{}) dan B ({}x{}). Lajur A mestilah sama dengan baris B.", m, k, k2, n),
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+    let mut c = vec![vec![0.0; n]; m];
+    for i in 0..m {
+        for p in 0..k {
+            let a_ip = a[i][p];
+            for j in 0..n {
+                c[i][j] += a_ip * b[p][j];
+            }
+        }
+    }
+    Ok(matriks_ke_nilai(&c))
+}
+
+pub fn builtin_transposisi_matriks(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Fungsi 'transposisiMatriks' memerlukan 1 hujah, tetapi dapat {}.", args.len()),
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+    let a = ekstrak_matriks(&args[0], pos)?;
+    if a.is_empty() {
+        return Ok(Value::Senarai(Rc::new(RefCell::new(Vec::new()))));
+    }
+    let m = a.len();
+    let n = a[0].len();
+    let mut t = vec![vec![0.0; m]; n];
+    for i in 0..m {
+        for j in 0..n {
+            t[j][i] = a[i][j];
+        }
+    }
+    Ok(matriks_ke_nilai(&t))
+}
+
+pub fn builtin_songsang_matriks(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Fungsi 'songsangMatriks' memerlukan 1 hujah, tetapi dapat {}.", args.len()),
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+    let a = ekstrak_matriks(&args[0], pos)?;
+    let n = a.len();
+    if n == 0 || a[0].len() != n {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Matriks mestilah segi empat sama (N x N) dan tidak kosong untuk disongsangkan.",
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+
+    let mut aug = vec![vec![0.0; 2 * n]; n];
+    for i in 0..n {
+        for j in 0..n {
+            aug[i][j] = a[i][j];
+        }
+        aug[i][n + i] = 1.0;
+    }
+
+    for col in 0..n {
+        let mut max_row = col;
+        let mut max_val = aug[col][col].abs();
+        for row in (col + 1)..n {
+            let val = aug[row][col].abs();
+            if val > max_val {
+                max_val = val;
+                max_row = row;
+            }
+        }
+
+        if max_val < 1e-12 {
+            return Err(MelayuError::new(
+                "Alamak!",
+                "Matriks ini bersifat singular (penentu sifar) dan tidak mempunyai songsangan.",
+                pos.line,
+                pos.col,
+            ).with_kind(ErrorKind::Runtime));
+        }
+
+        if max_row != col {
+            aug.swap(col, max_row);
+        }
+
+        let pivot = aug[col][col];
+        for j in 0..(2 * n) {
+            aug[col][j] /= pivot;
+        }
+
+        for row in 0..n {
+            if row != col {
+                let factor = aug[row][col];
+                if factor.abs() > 1e-15 {
+                    for j in 0..(2 * n) {
+                        aug[row][j] -= factor * aug[col][j];
+                    }
+                }
+            }
+        }
+    }
+
+    let mut inv = vec![vec![0.0; n]; n];
+    for i in 0..n {
+        for j in 0..n {
+            inv[i][j] = aug[i][n + j];
+        }
+    }
+    Ok(matriks_ke_nilai(&inv))
+}
+
+pub fn builtin_titik_darab(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 2 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Fungsi 'titikDarab' memerlukan 2 hujah (vektor1, vektor2), tetapi dapat {}.", args.len()),
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+    let v1 = ekstrak_vektor(&args[0], pos)?;
+    let v2 = ekstrak_vektor(&args[1], pos)?;
+    if v1.len() != v2.len() {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Panjang vektor tidak sama: {} vs {}.", v1.len(), v2.len()),
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+    let mut sum = 0.0;
+    for i in 0..v1.len() {
+        sum += v1[i] * v2[i];
+    }
+    Ok(Value::Nombor(sum))
+}
+
+pub fn builtin_jarak_euclidean(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 2 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Fungsi 'jarakEuclidean' memerlukan 2 hujah (titik1, titik2), tetapi dapat {}.", args.len()),
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+    let v1 = ekstrak_vektor(&args[0], pos)?;
+    let v2 = ekstrak_vektor(&args[1], pos)?;
+    if v1.len() != v2.len() {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Dimensi titik tidak sama: {} vs {}.", v1.len(), v2.len()),
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+    let mut sum_sq = 0.0;
+    for i in 0..v1.len() {
+        let diff = v1[i] - v2[i];
+        sum_sq += diff * diff;
+    }
+    Ok(Value::Nombor(sum_sq.sqrt()))
+}
+
+fn parse_baris_csv(line: &str) -> Vec<String> {
+    let mut fields = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    for ch in line.chars() {
+        match ch {
+            '"' => in_quotes = !in_quotes,
+            ',' if !in_quotes => {
+                fields.push(current.trim().to_string());
+                current.clear();
+            }
+            _ => current.push(ch),
+        }
+    }
+    fields.push(current.trim().to_string());
+    fields
+}
+
+pub fn builtin_baca_csv(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.is_empty() || args.len() > 2 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Fungsi 'bacaCSV' memerlukan 1 atau 2 hujah (laluanFail, adaTajuk?), tetapi dapat {}.", args.len()),
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+    let path_str = match &args[0] {
+        Value::Teks(s) => s.clone(),
+        _ => return Err(MelayuError::new("Alamak!", "Laluan fail CSV mestilah bernilai teks.", pos.line, pos.col).with_kind(ErrorKind::Runtime)),
+    };
+    let ada_tajuk = if args.len() == 2 {
+        match &args[1] {
+            Value::Betul => true,
+            Value::Salah => false,
+            _ => true,
+        }
+    } else {
+        true
+    };
+
+    let safe_path = semak_laluan_selamat(&path_str, false, pos)?;
+    let content = fs::read_to_string(&safe_path).map_err(|e| {
+        MelayuError::akses_fail_disekat(&path_str, &format!("Gagal membaca fail CSV: {}", e), pos.line, pos.col)
+    })?;
+
+    let mut lines = content.lines().filter(|l| !l.trim().is_empty());
+    let mut columns = Vec::new();
+
+    if ada_tajuk {
+        if let Some(header_line) = lines.next() {
+            for col in parse_baris_csv(header_line) {
+                columns.push(Value::Teks(col));
+            }
+        }
+    }
+
+    let mut data_rows = Vec::new();
+    for line in lines {
+        let cells = parse_baris_csv(line);
+        let row_vals: Vec<Value> = cells.into_iter().map(|c| {
+            if let Ok(n) = c.trim().parse::<f64>() {
+                Value::Nombor(n)
+            } else {
+                Value::Teks(c)
+            }
+        }).collect();
+        data_rows.push(Value::Senarai(Rc::new(RefCell::new(row_vals))));
+    }
+
+    if !ada_tajuk && !data_rows.is_empty() {
+        let col_count = if let Value::Senarai(ref r) = data_rows[0] {
+            r.borrow().len()
+        } else {
+            0
+        };
+        for i in 0..col_count {
+            columns.push(Value::Teks(format!("lajur_{}", i)));
+        }
+    }
+
+    let mut map = HashMap::new();
+    let row_count = data_rows.len() as f64;
+    let col_count = columns.len() as f64;
+    map.insert("lajur".to_string(), Value::Senarai(Rc::new(RefCell::new(columns))));
+    map.insert("data".to_string(), Value::Senarai(Rc::new(RefCell::new(data_rows))));
+    map.insert("baris".to_string(), Value::Nombor(row_count));
+    map.insert("bil_lajur".to_string(), Value::Nombor(col_count));
+
+    Ok(Value::Kamus(Rc::new(RefCell::new(map))))
+}
+
+pub fn builtin_bahagi_latih_uji(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() < 2 || args.len() > 3 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Fungsi 'bahagiLatihUji' memerlukan 2 atau 3 hujah (X, y, nisbahUji?), tetapi dapat {}.", args.len()),
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+    let x_list = match &args[0] {
+        Value::Senarai(rc) => rc.borrow().clone(),
+        _ => return Err(MelayuError::new("Alamak!", "Argumen X mestilah senarai.", pos.line, pos.col).with_kind(ErrorKind::Runtime)),
+    };
+    let y_list = match &args[1] {
+        Value::Senarai(rc) => rc.borrow().clone(),
+        _ => return Err(MelayuError::new("Alamak!", "Argumen y mestilah senarai.", pos.line, pos.col).with_kind(ErrorKind::Runtime)),
+    };
+    if x_list.len() != y_list.len() {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Panjang X ({}) dan y ({}) mestilah sama.", x_list.len(), y_list.len()),
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+    let nisbah = if args.len() == 3 {
+        match &args[2] {
+            Value::Nombor(n) if *n > 0.0 && *n < 1.0 => *n,
+            _ => 0.2,
+        }
+    } else {
+        0.2
+    };
+
+    let total = x_list.len();
+    let test_size = ((total as f64) * nisbah).round() as usize;
+    let train_size = total.saturating_sub(test_size);
+
+    let mut x_train = Vec::with_capacity(train_size);
+    let mut x_test = Vec::with_capacity(test_size);
+    let mut y_train = Vec::with_capacity(train_size);
+    let mut y_test = Vec::with_capacity(test_size);
+
+    for (i, (x_val, y_val)) in x_list.into_iter().zip(y_list.into_iter()).enumerate() {
+        if i < train_size {
+            x_train.push(x_val);
+            y_train.push(y_val);
+        } else {
+            x_test.push(x_val);
+            y_test.push(y_val);
+        }
+    }
+
+    Ok(Value::Senarai(Rc::new(RefCell::new(vec![
+        Value::Senarai(Rc::new(RefCell::new(x_train))),
+        Value::Senarai(Rc::new(RefCell::new(x_test))),
+        Value::Senarai(Rc::new(RefCell::new(y_train))),
+        Value::Senarai(Rc::new(RefCell::new(y_test))),
+    ]))))
+}
+
+pub fn builtin_purata(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new("Alamak!", "Fungsi 'purata' memerlukan 1 hujah (senarai).", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let v = ekstrak_vektor(&args[0], pos)?;
+    if v.is_empty() {
+        return Err(MelayuError::new("Alamak!", "Senarai tidak boleh kosong untuk menghitung purata.", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let sum: f64 = v.iter().sum();
+    Ok(Value::Nombor(sum / (v.len() as f64)))
+}
+
+pub fn builtin_sisihan_piawai(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new("Alamak!", "Fungsi 'sisihanPiawai' memerlukan 1 hujah (senarai).", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let v = ekstrak_vektor(&args[0], pos)?;
+    if v.len() < 2 {
+        return Err(MelayuError::new("Alamak!", "Senarai memerlukan sekurang-kurangnya 2 elemen untuk sisihan piawai.", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let mean = v.iter().sum::<f64>() / (v.len() as f64);
+    let var = v.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / ((v.len() - 1) as f64);
+    Ok(Value::Nombor(var.sqrt()))
+}
+
+pub fn builtin_skor_mse(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 2 {
+        return Err(MelayuError::new("Alamak!", "Fungsi 'skorMSE' memerlukan 2 hujah (ySebenar, yRamalan).", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let y_true = ekstrak_vektor(&args[0], pos)?;
+    let y_pred = ekstrak_vektor(&args[1], pos)?;
+    if y_true.len() != y_pred.len() || y_true.is_empty() {
+        return Err(MelayuError::new("Alamak!", "Panjang senarai ySebenar dan yRamalan mestilah sama dan tidak kosong.", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let n = y_true.len() as f64;
+    let mut sum_sq = 0.0;
+    for i in 0..y_true.len() {
+        let diff = y_true[i] - y_pred[i];
+        sum_sq += diff * diff;
+    }
+    Ok(Value::Nombor(sum_sq / n))
+}
+
+pub fn builtin_skor_r2(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 2 {
+        return Err(MelayuError::new("Alamak!", "Fungsi 'skorR2' memerlukan 2 hujah (ySebenar, yRamalan).", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let y_true = ekstrak_vektor(&args[0], pos)?;
+    let y_pred = ekstrak_vektor(&args[1], pos)?;
+    if y_true.len() != y_pred.len() || y_true.is_empty() {
+        return Err(MelayuError::new("Alamak!", "Panjang senarai ySebenar dan yRamalan mestilah sama dan tidak kosong.", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let mean_true = y_true.iter().sum::<f64>() / (y_true.len() as f64);
+    let ss_tot: f64 = y_true.iter().map(|&y| (y - mean_true).powi(2)).sum();
+    let ss_res: f64 = y_true.iter().zip(y_pred.iter()).map(|(&y, &y_hat)| (y - y_hat).powi(2)).sum();
+    if ss_tot.abs() < 1e-12 {
+        return Ok(Value::Nombor(1.0));
+    }
+    let r2 = 1.0 - (ss_res / ss_tot);
+    Ok(Value::Nombor(r2))
+}
+
+pub fn builtin_skor_akurasi(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 2 {
+        return Err(MelayuError::new("Alamak!", "Fungsi 'skorAkurasi' memerlukan 2 hujah (ySebenar, yRamalan).", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let y_true = match &args[0] {
+        Value::Senarai(rc) => rc.borrow().clone(),
+        _ => return Err(MelayuError::new("Alamak!", "ySebenar mestilah senarai.", pos.line, pos.col).with_kind(ErrorKind::Runtime)),
+    };
+    let y_pred = match &args[1] {
+        Value::Senarai(rc) => rc.borrow().clone(),
+        _ => return Err(MelayuError::new("Alamak!", "yRamalan mestilah senarai.", pos.line, pos.col).with_kind(ErrorKind::Runtime)),
+    };
+    if y_true.len() != y_pred.len() || y_true.is_empty() {
+        return Err(MelayuError::new("Alamak!", "Panjang senarai ySebenar dan yRamalan mestilah sama dan tidak kosong.", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let mut matches = 0;
+    for (t, p) in y_true.iter().zip(y_pred.iter()) {
+        if t == p {
+            matches += 1;
+        }
+    }
+    let acc = (matches as f64) / (y_true.len() as f64);
+    Ok(Value::Nombor(acc))
+}
+
+pub const AKAL_ML_STDLIB: &str = r#"
+# ==============================================================================
+# KERANGKA KERJA AKALML (MACHINE LEARNING BAWAAN BAHASA MELAYU)
+# ==============================================================================
+
+kelas Matriks
+    bina(data)
+        diri.data = data
+        diri.baris = panjang(data)
+        jika diri.baris > 0
+            diri.lajur = panjang(data[0])
+        jika tidak
+            diri.lajur = 0
+        selesai
+    selesai
+
+    kerja darab(mLain)
+        ada hasil = darabMatriks(diri.data, mLain.data)
+        pulang Matriks(hasil)
+    selesai
+
+    kerja transposisi()
+        ada hasil = transposisiMatriks(diri.data)
+        pulang Matriks(hasil)
+    selesai
+
+    kerja songsang()
+        ada hasil = songsangMatriks(diri.data)
+        pulang Matriks(hasil)
+    selesai
+
+    kerja nilai()
+        pulang diri.data
+    selesai
+
+    kerja paparkan()
+        tunjuk "Matriks (" + teks(diri.baris) + " x " + teks(diri.lajur) + "):"
+        untuk baris dalam diri.data
+            ada barisTeks = "["
+            ada pertama = betul
+            untuk el dalam baris
+                jika bukan pertama
+                    barisTeks = barisTeks + ", "
+                selesai
+                barisTeks = barisTeks + teks(el)
+                pertama = salah
+            selesai
+            barisTeks = barisTeks + "]"
+            tunjuk barisTeks
+        selesai
+    selesai
+selesai
+
+kelas RegresiLinear
+    bina(denganPintas)
+        diri.denganPintas = denganPintas
+        diri.pekali = kosong
+        diri.pintas = 0
+    selesai
+
+    kerja latih(X, y)
+        ada n_sampel = panjang(X)
+        jika n_sampel == 0
+            baling "Dataset latih kosong!"
+        selesai
+
+        ada X_mat = []
+        jika diri.denganPintas
+            untuk baris dalam X
+                ada barisBaru = [1.0]
+                untuk c dalam baris
+                    barisBaru.tambah(c)
+                selesai
+                X_mat.tambah(barisBaru)
+            selesai
+        jika tidak
+            X_mat = X
+        selesai
+
+        ada y_mat = []
+        untuk val dalam y
+            y_mat.tambah([val])
+        selesai
+
+        ada Xt = transposisiMatriks(X_mat)
+        ada XtX = darabMatriks(Xt, X_mat)
+        ada invXtX = songsangMatriks(XtX)
+        ada Xty = darabMatriks(Xt, y_mat)
+        ada beta = darabMatriks(invXtX, Xty)
+
+        ada hasil_beta = []
+        untuk b dalam beta
+            hasil_beta.tambah(b[0])
+        selesai
+
+        jika diri.denganPintas
+            diri.pintas = hasil_beta[0]
+            ada pekali_tanpa_pintas = []
+            ada idx = 1
+            selagi idx < panjang(hasil_beta)
+                pekali_tanpa_pintas.tambah(hasil_beta[idx])
+                idx = idx + 1
+            selesai
+            diri.pekali = pekali_tanpa_pintas
+        jika tidak
+            diri.pintas = 0
+            diri.pekali = hasil_beta
+        selesai
+    selesai
+
+    kerja ramal(X_baru)
+        jika diri.pekali == kosong
+            baling "Model belum dilatih! Sila panggil .latih(X, y) dahulu."
+        selesai
+
+        ada ramalan = []
+        untuk baris dalam X_baru
+            ada y_topi = diri.pintas
+            ada i = 0
+            selagi i < panjang(diri.pekali)
+                y_topi = y_topi + (baris[i] * diri.pekali[i])
+                i = i + 1
+            selesai
+            ramalan.tambah(y_topi)
+        selesai
+        pulang ramalan
+    selesai
+
+    kerja skor(X_uji, y_uji)
+        ada y_ramal = diri.ramal(X_uji)
+        pulang skorR2(y_uji, y_ramal)
+    selesai
+selesai
+
+kelas PengelasKNN
+    bina(k)
+        diri.k = k
+        diri.X_latih = []
+        diri.y_latih = []
+    selesai
+
+    kerja latih(X, y)
+        diri.X_latih = X
+        diri.y_latih = y
+    selesai
+
+    kerja ramal(X_baru)
+        jika panjang(diri.X_latih) == 0
+            baling "Model KNN belum dilatih! Sila panggil .latih(X, y) dahulu."
+        selesai
+
+        ada ramalan = []
+        untuk titik dalam X_baru
+            ada jarak_senarai = []
+            ada i = 0
+            selagi i < panjang(diri.X_latih)
+                ada d = jarakEuclidean(titik, diri.X_latih[i])
+                jarak_senarai.tambah([d, diri.y_latih[i]])
+                i = i + 1
+            selesai
+
+            ada n = panjang(jarak_senarai)
+            ada a = 0
+            selagi a < n
+                ada min_idx = a
+                ada b = a + 1
+                selagi b < n
+                    jika jarak_senarai[b][0] < jarak_senarai[min_idx][0]
+                        min_idx = b
+                    selesai
+                    b = b + 1
+                selesai
+                ada temp = jarak_senarai[a]
+                jarak_senarai[a] = jarak_senarai[min_idx]
+                jarak_senarai[min_idx] = temp
+                a = a + 1
+            selesai
+
+            ada undian = {}
+            ada c = 0
+            ada had_k = diri.k
+            jika had_k > n
+                had_k = n
+            selesai
+
+            selagi c < had_k
+                ada label = teks(jarak_senarai[c][1])
+                jika undian.adaKunci(label)
+                    undian[label] = undian[label] + 1
+                jika tidak
+                    undian[label] = 1
+                selesai
+                c = c + 1
+            selesai
+
+            ada label_terbaik = kosong
+            ada undian_maks = -1
+            untuk kunci dalam undian.kunci()
+                jika undian[kunci] > undian_maks
+                    undian_maks = undian[kunci]
+                    label_terbaik = kunci
+                selesai
+            selesai
+
+            ramalan.tambah(label_terbaik)
+        selesai
+        pulang ramalan
+    selesai
+
+    kerja skor(X_uji, y_uji)
+        ada y_ramal = diri.ramal(X_uji)
+        ada y_uji_teks = []
+        untuk val dalam y_uji
+            y_uji_teks.tambah(teks(val))
+        selesai
+        pulang skorAkurasi(y_uji_teks, y_ramal)
+    selesai
+selesai
+
+kelas PengelompokanKMeans
+    bina(k, lelaranMaksimum)
+        diri.k = k
+        diri.lelaranMaksimum = lelaranMaksimum
+        diri.pusat = []
+    selesai
+
+    kerja latih(X)
+        ada n_sampel = panjang(X)
+        jika n_sampel < diri.k
+            baling "Bilangan sampel mestilah lebih besar atau sama dengan k!"
+        selesai
+
+        diri.pusat = []
+        ada i = 0
+        selagi i < diri.k
+            diri.pusat.tambah(X[i])
+            i = i + 1
+        selesai
+
+        ada n_dim = panjang(X[0])
+        ada pusingan = 0
+
+        selagi pusingan < diri.lelaranMaksimum
+            ada kelompok = []
+            ada idx = 0
+            selagi idx < diri.k
+                kelompok.tambah([])
+                idx = idx + 1
+            selesai
+
+            untuk titik dalam X
+                ada jarak_min = 1000000000.0
+                ada pusat_terpilih = 0
+                ada c = 0
+                selagi c < diri.k
+                    ada dist = jarakEuclidean(titik, diri.pusat[c])
+                    jika dist < jarak_min
+                        jarak_min = dist
+                        pusat_terpilih = c
+                    selesai
+                    c = c + 1
+                selesai
+                kelompok[pusat_terpilih].tambah(titik)
+            selesai
+
+            ada pusat_baharu = []
+            ada c = 0
+            selagi c < diri.k
+                ada anggota = kelompok[c]
+                jika panjang(anggota) == 0
+                    pusat_baharu.tambah(diri.pusat[c])
+                jika tidak
+                    ada pusat_c = []
+                    ada d = 0
+                    selagi d < n_dim
+                        ada jumlah = 0.0
+                        untuk pt dalam anggota
+                            jumlah = jumlah + pt[d]
+                        selesai
+                        pusat_c.tambah(jumlah / panjang(anggota))
+                        d = d + 1
+                    selesai
+                    pusat_baharu.tambah(pusat_c)
+                selesai
+                c = c + 1
+            selesai
+
+            diri.pusat = pusat_baharu
+            pusingan = pusingan + 1
+        selesai
+    selesai
+
+    kerja ramal(X_baru)
+        ada ramalan = []
+        untuk titik dalam X_baru
+            ada jarak_min = 1000000000.0
+            ada pusat_terpilih = 0
+            ada c = 0
+            selagi c < diri.k
+                ada dist = jarakEuclidean(titik, diri.pusat[c])
+                jika dist < jarak_min
+                    jarak_min = dist
+                    pusat_terpilih = c
+                selesai
+                c = c + 1
+            selesai
+            ramalan.tambah(pusat_terpilih)
+        selesai
+        pulang ramalan
+    selesai
+selesai
+"#;

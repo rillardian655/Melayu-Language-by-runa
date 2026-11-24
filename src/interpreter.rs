@@ -1777,23 +1777,27 @@ impl Interpreter {
                     safe_path
                 };
 
-                if !final_path.exists() {
-                    return Err(MelayuError::akses_fail_disekat(
-                        sasaran,
-                        "Fail modul tidak dijumpai.",
-                        pos.line,
-                        pos.col,
-                    ));
-                }
-
-                let content = fs::read_to_string(&final_path).map_err(|e| {
-                    MelayuError::akses_fail_disekat(
-                        sasaran,
-                        &format!("Gagal membaca fail modul: {}", e),
-                        pos.line,
-                        pos.col,
-                    )
-                })?;
+                let content = if !final_path.exists() {
+                    if sasaran == "akal" || sasaran == "akal_ml" || sasaran == "akalml" || sasaran == "std/akal" || sasaran == "std/akal_ml" {
+                        crate::builtins::AKAL_ML_STDLIB.to_string()
+                    } else {
+                        return Err(MelayuError::akses_fail_disekat(
+                            sasaran,
+                            "Fail modul tidak dijumpai.",
+                            pos.line,
+                            pos.col,
+                        ));
+                    }
+                } else {
+                    fs::read_to_string(&final_path).map_err(|e| {
+                        MelayuError::akses_fail_disekat(
+                            sasaran,
+                            &format!("Gagal membaca fail modul: {}", e),
+                            pos.line,
+                            pos.col,
+                        )
+                    })?
+                };
 
                 let mut lexer = crate::lexer::Lexer::new(&content);
                 let tokens = lexer.tokenize()?;
