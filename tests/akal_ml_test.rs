@@ -278,3 +278,42 @@ semak bundar(ramal[0]) == 8, "Model dimuatkan mesti ramal 8"
     let _ = fs::remove_file("target/test_model_regresi.json");
     assert!(res.is_ok(), "Ralat: {:?}", res);
 }
+
+#[test]
+fn test_akal_ml_pokok_keputusan_dan_dataset_toy() {
+    let code = r#"
+ambil "akal"
+
+# 1. Uji dataset bawaan muatIris
+ada iris = muatIris()
+semak iris["nama"] == "Iris", "Nama dataset mestilah Iris"
+semak panjang(iris["ciri"]) == 30, "Bilangan sampel Iris mestilah 30"
+semak panjang(iris["sasaran"]) == 30, "Bilangan sasaran Iris mestilah 30"
+
+# 2. Uji dataset bawaan muatKredit
+ada kredit = muatKredit()
+semak kredit["nama"] == "KelayakanKredit", "Nama dataset mestilah KelayakanKredit"
+semak panjang(kredit["ciri"]) == 16, "Bilangan sampel Kredit mestilah 16"
+
+# 3. Uji janaDataSintetik
+ada sintetik = janaDataSintetik(10, 3)
+semak panjang(sintetik["ciri"]) == 10, "Sampel sintetik mestilah 10"
+semak panjang(sintetik["ciri"][0]) == 3, "Ciri sintetik mestilah 3"
+
+# 4. Uji Pengelas PokokKeputusan
+ada dt = PokokKeputusan(4)
+dt.latih(kredit["ciri"], kredit["sasaran"])
+
+ada ramalan = dt.ramal([[20.0, 800.0, 15.0, 80.0]])
+semak ramalan[0] == 1, "Profil kredit baik sepatutnya diramal Layak (1)"
+
+dt.simpan("target/test_model_dt.json")
+ada dt_muat = PokokKeputusan(4)
+dt_muat.muat("target/test_model_dt.json")
+ada ramalan_muat = dt_muat.ramal([[20.0, 800.0, 15.0, 80.0]])
+semak ramalan_muat[0] == 1, "Model dimuatkan mesti ramal 1"
+"#;
+    let res = laksana_kod(code);
+    let _ = fs::remove_file("target/test_model_dt.json");
+    assert!(res.is_ok(), "Ralat: {:?}", res);
+}
