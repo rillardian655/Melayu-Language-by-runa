@@ -868,3 +868,96 @@ kelas PenyelarasanPiawai
         pulang hasil
     selesai
 selesai
+
+# ==============================================================================
+# DATASET CONTOH TERBINA-DALAM (TOY DATASETS & DATA GENERATOR)
+# ==============================================================================
+
+fungsi muatIris()
+    # Dataset Bunga Iris Fisher (Sampel Terpilih 30 Rekod: Setosa, Versicolor, Virginica)
+    # Ciri: [Panjang Sepal, Lebar Sepal, Panjang Petal, Lebar Petal] (cm)
+    ada X = [
+        [5.1, 3.5, 1.4, 0.2], [4.9, 3.0, 1.4, 0.2], [4.7, 3.2, 1.3, 0.2], [4.6, 3.1, 1.5, 0.2],
+        [5.0, 3.6, 1.4, 0.2], [5.4, 3.9, 1.7, 0.4], [4.6, 3.4, 1.4, 0.3], [5.0, 3.4, 1.5, 0.2],
+        [4.4, 2.9, 1.4, 0.2], [4.9, 3.1, 1.5, 0.1],
+        [7.0, 3.2, 4.7, 1.4], [6.4, 3.2, 4.5, 1.5], [6.9, 3.1, 4.9, 1.5], [5.5, 2.3, 4.0, 1.3],
+        [6.5, 2.8, 4.6, 1.5], [5.7, 2.8, 4.5, 1.3], [6.3, 3.3, 4.7, 1.6], [4.9, 2.4, 3.3, 1.0],
+        [6.6, 2.9, 4.6, 1.3], [5.2, 2.7, 3.9, 1.4],
+        [6.3, 3.3, 6.0, 2.5], [5.8, 2.7, 5.1, 1.9], [7.1, 3.0, 5.9, 2.1], [6.3, 2.9, 5.6, 1.8],
+        [6.5, 3.0, 5.8, 2.2], [7.6, 3.0, 6.6, 2.1], [4.9, 2.5, 4.5, 1.7], [7.3, 2.9, 6.3, 1.8],
+        [6.7, 2.5, 5.8, 1.8], [7.2, 3.6, 6.1, 2.5]
+    ]
+    # Sasaran: 0 = Setosa, 1 = Versicolor, 2 = Virginica
+    ada y = [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2
+    ]
+    pulang {
+        "nama": "Iris",
+        "ciri": X,
+        "sasaran": y,
+        "nama_ciri": ["panjang_sepal", "lebar_sepal", "panjang_petal", "lebar_petal"],
+        "nama_kelas": ["Setosa", "Versicolor", "Virginica"]
+    }
+selesai
+
+fungsi muatKredit()
+    # Dataset Penilaian Kelayakan Kredit Bank
+    # Ciri: [Pendapatan (Juta), Skor Kredit (300-850), Nisbah Hutang (%), Simpanan (Juta)]
+    ada X = [
+        [15.0, 780.0, 15.0, 50.0],
+        [4.5,  520.0, 65.0,  5.0],
+        [22.0, 810.0, 10.0, 90.0],
+        [5.0,  580.0, 45.0,  8.0],
+        [12.5, 720.0, 25.0, 35.0],
+        [3.8,  490.0, 70.0,  2.0],
+        [18.0, 790.0, 18.0, 65.0],
+        [6.2,  560.0, 55.0, 10.0],
+        [14.0, 740.0, 22.0, 42.0],
+        [4.0,  510.0, 60.0,  4.0],
+        [25.0, 830.0, 12.0, 120.0],
+        [5.5,  540.0, 50.0,  9.0],
+        [11.0, 710.0, 28.0, 30.0],
+        [3.5,  480.0, 75.0,  1.5],
+        [16.5, 760.0, 19.0, 55.0],
+        [4.8,  530.0, 58.0,  6.0]
+    ]
+    # Sasaran: 1 = Layak / Lulus, 0 = Ditolak
+    ada y = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
+    pulang {
+        "nama": "KelayakanKredit",
+        "ciri": X,
+        "sasaran": y,
+        "nama_ciri": ["pendapatan", "skor_kredit", "nisbah_hutang", "simpanan"],
+        "nama_kelas": ["Ditolak", "Layak"]
+    }
+selesai
+
+fungsi janaDataSintetik(bilangan_sampel, bilangan_ciri)
+    ada X = []
+    ada y = []
+    ada i = 0
+    selagi i < bilangan_sampel
+        ada baris = []
+        ada j = 0
+        ada jumlah = 0.0
+        selagi j < bilangan_ciri
+            ada v = rawak(1, 100) / 10.0
+            baris.tambah(v)
+            jumlah = jumlah + v
+            j = j + 1
+        selesai
+        X.tambah(baris)
+        jika (jumlah / bilangan_ciri) >= 5.0
+            y.tambah(1)
+        jika tidak
+            y.tambah(0)
+        selesai
+        i = i + 1
+    selesai
+    pulang {
+        "ciri": X,
+        "sasaran": y
+    }
+selesai
