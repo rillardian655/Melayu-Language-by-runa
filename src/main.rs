@@ -77,7 +77,7 @@ fn main() {
             cetak_bantuan();
         }
         "versi" | "--version" | "-v" => {
-            println!("MELAYU v0.4.0");
+            println!("MELAYU v0.4.1");
             println!("Bahasa programming serumpun, untuk serumpun developer.");
         }
         fail if fail.ends_with(".ml") => {
@@ -324,7 +324,7 @@ fn tanda_aras_fail(path: &str, lelaran: usize) {
 
 fn cetak_bantuan() {
     println!("\x1b[1;32m");
-    println!("MELAYU v0.4.0 — CLI");
+    println!("MELAYU v0.4.1 — CLI");
     println!("\"Bahasa programming serumpun, untuk serumpun developer.\"");
     println!("\x1b[0m");
     println!("PENGGUNAAN:");

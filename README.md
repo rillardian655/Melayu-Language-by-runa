@@ -364,17 +364,18 @@ selesai
 Bahasa Melayu menyertakan kerangka kerja Machine Learning native serumpun bernama **AkalML**. Dikuasakan oleh enjin matriks dan aljabar linear berprestasi tinggi dalam Rust, AkalML membolehkan analisis data, ramalan numerik, dan pengelasan pintar tanpa kebergantungan luar.
 
 * **Aljabar Linear & Kalkulus Native**: Operasi `darabMatriks`, `transposisiMatriks`, `songsangMatriks` (Gauss-Jordan), `jarakEuclidean`, `titikDarab`, `matriksTambah`, `matriksTolak`, `matriksSkala`, `darabHadamard`, `matriksJumlahLajur`, `matriksSigmoid`, `matriksDerivatifSigmoid`, `eksponen`, dan `logaritmaAsli`.
-* **Model Sedia Guna Asas & Pertengahan**: `RegresiLinear` (Ordinary Least Squares), `PengelasKNN` (K-Nearest Neighbors), dan `PengelompokanKMeans` (Unsupervised Clustering).
+* **Model Sedia Guna Asas & Pertengahan**: `RegresiLinear` (Ordinary Least Squares), `PengelasKNN` (K-Nearest Neighbors), `PengelompokanKMeans` (Unsupervised Clustering), dan `PokokKeputusan` (Decision Tree Classifier berasaskan Ketulenan Gini).
 * **Model Tingkat Menengah-Tinggi (Mid-High)**:
   * **`JaringanSaraf` (Multi-Layer Perceptron / Deep Neural Network)**: Rangkaian saraf tiruan berlapis dengan perambatan ke belakang (*backpropagation*), penurunan kecerunan (*gradient descent*), dan sokongan pengelasan tak-linear (seperti XOR) hingga 100% akurasi.
   * **`PengelasBayesNaif` (Gaussian Naive Bayes)**: Pengelas kebarangkalian berbilang ciri berasaskan taburan normal Gaussian.
 * **Prapemprosesan, Dataset & Metrik Penilaian Lengkap**:
   * Penyekalaan Ciri: `SkalaMinMaks` (MinMaxScaler) dan `PenyelarasanPiawai` (StandardScaler) dengan kaedah `latih()`, `transformasi()`, `latihTransformasi()`, dan `songsang()`.
+  * Dataset Terbina-Dalam: `muatIris()` (Dataset Bunga Fisher Iris), `muatKredit()` (Dataset Penilaian Kelayakan Kredit), dan `janaDataSintetik(sampel, ciri)` (Penjana data rawak terkawal).
   * Pembaca CSV pantas (`bacaCSV`), pembahagi data latihan dan ujian (`bahagiLatihUji`).
   * Metrik penilaian model: `matriksKekeliruan` (Confusion Matrix TP/FP/TN/FN), `kejituan` (Precision), `kepekaan` (Recall), `skorF1` (F1-Score), `skorR2`, `skorMSE`, dan `skorAkurasi`.
 * **Penstoran Model ke Cakera (Model Persistence)**:
   * Simpan struktur dan parameter model terus ke format JSON: `model.simpan("laluan/model.json")`.
-  * Muat semula model bila-bila masa untuk inferens masa nyata tanpa latihan semula: `model.muat("laluan/model.json")`. Tersedia untuk `JaringanSaraf`, `RegresiLinear`, dan `PengelasBayesNaif`.
+  * Muat semula model bila-bila masa untuk inferens masa nyata tanpa latihan semula: `model.muat("laluan/model.json")`. Tersedia untuk `JaringanSaraf`, `RegresiLinear`, `PengelasBayesNaif`, dan `PokokKeputusan`.
 
 Contoh Jaringan Saraf Tiruan (Deep Learning):
 ```melayu
@@ -424,6 +425,8 @@ tunjuk "Ketepatan R2  :", model.skor(X, y)
 Bahasa Melayu kini dilengkapi kerangka kerja pelayan HTTP native bernama **Selasih**. Dibina di atas enjin rangkaian standard tanpa sebarang pustaka pihak ketiga, Selasih membolehkan pembangunan mikroservis web dan REST API berprestasi tinggi secara terus dalam Bahasa Melayu.
 
 * **Penghalaan (Routing) Lengkap**: `aplikasi.dapatkan(laluan, handler)`, `aplikasi.hantar(laluan, handler)`, `aplikasi.kemaskini(laluan, handler)`, `aplikasi.padam(laluan, handler)`.
+* **Sistem Pengantara (Middlewares)**: `aplikasi.guna(pengantaraFn)` untuk pintasan logik global seperti pengesahan token (auth), pembalakan konsol (`pengantaraLogger`), atau sekatan kadar.
+* **Sokongan CORS Automatik**: Pengendalian permintaan pra-penerbangan `OPTIONS` secara native dengan fungsi pembantu `balasCORS(status)`.
 * **Fungsi Pembantu Respons Terbina**: `balasJSON(data, status)`, `balasHTML(kandungan, status)`, dan `balasTeks(mesej, status)`.
 * **Objek Permintaan Pintar**: Penguraian kaedah HTTP (`req.kaedah`), laluan URL (`req.laluan`), kepala permintaan (`req.kepala`), teks badan (`req.badan`), dan penukar JSON segera (`req.json()`).
 * **Klien HTTP Standard**: Fungsi `hantarPermintaanHTTP(kaedah, url, kepala, badan)` untuk komunikasi antara servis mikro.
@@ -457,8 +460,9 @@ app.dengar()
 
 Bahasa Melayu menyertakan pengurus projek dan pakej rasmi untuk mempermudah organisasi kod modular:
 
-* **Inisialisasi Projek Baharu (`melayu mula <nama_projek>`)**:
-  Menjana struktur direktori piawai lengkap dengan `pakej.json`, `utama.ml`, folder modul `modul_melayu/`, dan fail `.gitignore`.
+* **Inisialisasi Projek Baharu (`melayu mula <nama_projek> [--mvc]`)**:
+  * Mod Asas: Menjana struktur ringkas dengan `pakej.json`, `utama.ml`, folder modul `modul_melayu/`, dan `.gitignore`.
+  * Mod MVC (`--mvc`): Menjana seni bina perusahaan lengkap (ala Laravel/Clean Architecture) dengan `app/kawalan/` (Controller), `app/model/` (Model), `app/perkhidmatan/` (Service), `laluan/` (Router), `data/`, dan `konfigurasi.json`.
 * **Pemasangan & Pengurusan Pakej (`melayu pasang <modul>`)**:
   Memasang fail pakej `.ml` terus ke dalam direktori `modul_melayu/` dan mendaftarkannya ke dalam `pakej.json`.
 * **Senarai Pakej (`melayu pakej`)**:
@@ -583,7 +587,7 @@ Maklumat terperinci disediakan dalam folder [`docs/`](docs/):
 * Kaedah manipulasi rentetan & kamus baharu: `.ulang()`, `.selitDepan()`, `.selitBelakang()`, `.hurufAwalBesar()`, `.adaKunci()`, `.buang()`.
 * Pengukuhan ujian dengan 28 suite ujian komprehensif.
 
-### [x] v0.3.0 — Pengaturcaraan Berorientasikan Objek (Rilis Semasa)
+### [x] v0.3.0 — Pengaturcaraan Berorientasikan Objek
 * Definisi kelas berstruktur: `kelas <Nama> ... selesai`.
 * Pembina objek dan pemulaan sifat: `bina(<parameter>) ... selesai`.
 * Rujukan instans objek: `diri` (`this`/`self`) bagi pengumpukan dan pembacaan sifat.
@@ -593,6 +597,13 @@ Maklumat terperinci disediakan dalam folder [`docs/`](docs/):
 * Integrasi fungsi terbina-dalam: `jenis(obj)` mengembalikan nama kelas, `tulisJSON(obj)` serialisasi data instans.
 * Pengoptimuman memori aras enjin mengurangkan saiz stack frame sebanyak > 60% bebas *stack overflow*.
 * Sokongan ekstensi VS Code: tatabahasa TextMate dan koleksi snippets pintar OOP.
+
+### [x] v0.4.1 — Ekosistem Lanjutan AkalML, Selasih & MVC (Rilis Semasa)
+* **AkalML v1.0**: Enjin Machine Learning native (Regresi Linear, KNN, K-Means, Jaringan Saraf Deep Learning MLP, Gaussian Naive Bayes, dan Pokok Keputusan Gini).
+* **Dataset Terbina & Prapemprosesan**: `muatIris()`, `muatKredit()`, `janaDataSintetik()`, `SkalaMinMaks`, dan `PenyelarasanPiawai`.
+* **Penstoran Model ke Cakera**: Kaedah `.simpan()` dan `.muat()` berformat JSON bagi semua model.
+* **Kerangka Kerja Web Selasih**: Pelayan HTTP TCP native, penghalaan REST API, middleware (`.guna()`), dan sokongan CORS.
+* **Pengurus Pakej CLI**: Perintah `melayu mula`, `melayu mula --mvc` (penjana struktur MVC penuh ala Laravel), `melayu pasang`, dan `melayu pakej`.
 
 ### [ ] v1.0.0 — Kestabilan Penuh & Web WASM
 * Enjin Virtual Machine (VM) bytecode berprestasi tinggi.
