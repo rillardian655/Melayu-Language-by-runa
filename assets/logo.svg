@@ -14,11 +14,6 @@
       <stop offset="100%" stop-color="#0072FF" />
     </linearGradient>
 
-    <linearGradient id="cyanAccent" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#00E5FF" />
-      <stop offset="100%" stop-color="#5B86E5" />
-    </linearGradient>
-
     <!-- Border Glow -->
     <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#27F2FF" stop-opacity="0.5" />
@@ -51,31 +46,13 @@
   </g>
 
   <!-- EMBLEM ICON ON THE LEFT (Center cx=120, cy=120) -->
-  <g transform="translate(15, 15) scale(0.41)" filter="url(#neonGlow)">
+  <g filter="url(#neonGlow)">
     <!-- Squircle badge for icon -->
-    <rect x="16" y="16" width="480" height="480" rx="112" fill="#0D1524" stroke="url(#borderGrad)" stroke-width="4" />
+    <rect x="45" y="45" width="150" height="150" rx="36" fill="#0D1524" stroke="url(#borderGrad)" stroke-width="2.5" />
 
-    <!-- Left Wing: Rising Bracket '<' -->
-    <path d="M 120,335 L 120,205 Q 120,185 138,172 L 202,126 Q 220,113 234,128 L 256,154" 
-          fill="none" stroke="url(#cyanNeon)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" />
-
-    <!-- Right Wing: Rising Bracket '>' -->
-    <path d="M 392,335 L 392,205 Q 392,185 374,172 L 310,126 Q 292,113 278,128 L 256,154" 
-          fill="none" stroke="url(#cyanNeon)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" />
-
-    <!-- Center Chevron Drop (Connecting into 'M') -->
-    <path d="M 188,200 L 256,275 L 324,200" 
-          fill="none" stroke="url(#cyanAccent)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" />
-
-    <!-- Nusantara Maritime Wave Foundation (Bottom Base of 'M') -->
-    <path d="M 105,340 C 145,310 190,345 256,325 C 322,305 367,340 407,340" 
-          fill="none" stroke="url(#cyanNeon)" stroke-width="16" stroke-linecap="round" />
-
-    <!-- Core Terminal Code Dots (Digital Sparks) -->
-    <circle cx="256" cy="154" r="9" fill="#FFFFFF" />
-    <circle cx="256" cy="275" r="8" fill="#27F2FF" />
-    <circle cx="120" cy="335" r="8" fill="#27F2FF" />
-    <circle cx="392" cy="335" r="8" fill="#27F2FF" />
+    <!-- ML Monogram in Emblem -->
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M 65.0 77.3 L 76.25 77.3 L 81.52 79.76 L 92.06 93.12 L 92.76 94.87 L 96.98 99.79 L 102.6 108.23 L 104.01 109.28 L 104.71 111.04 L 106.12 112.09 L 106.82 113.85 L 108.23 113.15 L 127.91 85.73 L 133.18 80.46 L 140.56 77.3 L 158.48 77.3 L 158.13 145.83 L 151.1 145.83 L 150.05 144.78 L 150.05 85.73 L 141.61 85.73 L 138.1 87.49 L 135.64 89.6 L 132.83 94.17 L 131.42 95.22 L 130.72 96.98 L 107.17 128.26 L 93.47 109.98 L 92.76 108.23 L 84.33 97.68 L 83.63 95.93 L 80.46 92.41 L 79.76 90.65 L 78.35 89.6 L 77.65 87.84 L 75.89 86.09 L 73.79 85.73 L 73.79 162.7 L 65.0 162.7 Z" fill="url(#cyanNeon)" />
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M 140.91 96.63 L 141.26 145.48 L 142.67 149.7 L 144.78 152.16 L 149.35 154.27 L 175.0 154.27 L 175.0 154.97 L 174.3 155.32 L 170.43 162.7 L 147.94 162.7 L 142.67 160.94 L 139.5 158.83 L 135.29 153.91 L 133.18 148.64 L 132.83 122.64 L 116.31 144.42 L 112.44 149.7 L 108.93 151.1 L 105.42 151.1 L 103.31 150.4 L 100.14 147.59 L 99.44 145.83 L 93.12 138.1 L 92.41 136.34 L 84.33 126.15 L 83.63 124.39 L 82.22 123.34 L 82.22 108.93 L 106.82 142.32 L 107.52 142.32 Z" fill="url(#cyanNeon)" />
   </g>
 
   <!-- TYPOGRAPHY SECTION ON THE RIGHT -->
@@ -100,4 +77,3 @@
     </text>
   </g>
 </svg>
-
