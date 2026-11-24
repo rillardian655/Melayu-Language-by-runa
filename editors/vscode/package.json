@@ -46,8 +46,8 @@
         ],
         "configuration": "./language-configuration.json",
         "icon": {
-          "light": "./icons/melayu-light.svg",
-          "dark": "./icons/melayu.svg"
+          "light": "./icons/melayu-v2-light.svg",
+          "dark": "./icons/melayu-v2.svg"
         }
       }
     ],
@@ -66,4 +66,3 @@
     ]
   }
 }
-
