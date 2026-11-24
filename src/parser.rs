@@ -692,19 +692,34 @@ impl Parser {
         let pos = LineCol::new(tok.line, tok.column);
         let start_line = tok.line;
 
-        let nama = match self.parse_ident_token() {
-            Some(n) => n,
-            None => {
-                let cur = self.peek();
-                return Err(MelayuError::new(
-                    "Alamak!",
-                    "Diharapkan nama kaedah selepas 'kerja'.",
-                    cur.line,
-                    cur.column,
-                )
-                .with_kind(ErrorKind::Parser)
-                .with_suggestion("Contoh: kerja sapa() ... selesai"));
+        let nama = match self.peek().kind {
+            TokenKind::Pengenal(ref n) => {
+                let name = n.clone();
+                self.advance();
+                name
             }
+            TokenKind::Tambah => {
+                self.advance();
+                "tambah".to_string()
+            }
+            TokenKind::Tolak => {
+                self.advance();
+                "tolak".to_string()
+            }
+            _ => match self.parse_ident_token() {
+                Some(n) => n,
+                None => {
+                    let cur = self.peek();
+                    return Err(MelayuError::new(
+                        "Alamak!",
+                        "Diharapkan nama kaedah selepas 'kerja'.",
+                        cur.line,
+                        cur.column,
+                    )
+                    .with_kind(ErrorKind::Parser)
+                    .with_suggestion("Contoh: kerja sapa() ... selesai"));
+                }
+            },
         };
 
         if !self.match_token(TokenKind::KurungBuka) {

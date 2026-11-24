@@ -158,3 +158,84 @@ semak panjang(X_uji) == 2, "Panjang X_uji mestilah 2 (40%)"
     let _ = fs::remove_file(csv_path);
     assert!(res.is_ok(), "Ralat: {:?}", res);
 }
+
+#[test]
+fn test_akal_ml_jaringan_saraf_xor() {
+    let code = r#"
+ambil "akal"
+
+# Masalah Tak-Linear Klasik XOR
+ada X = [
+    [0.0, 0.0],
+    [0.0, 1.0],
+    [1.0, 0.0],
+    [1.0, 1.0]
+]
+ada y = [
+    [0.0],
+    [1.0],
+    [1.0],
+    [0.0]
+]
+
+ada nn = JaringanSaraf([2, 4, 1], 0.8)
+nn.latih(X, y, 2000, salah)
+
+ada ramalan = nn.ramal(X)
+semak ramalan[0] == 0, "XOR 0,0 mestilah 0"
+semak ramalan[1] == 1, "XOR 0,1 mestilah 1"
+semak ramalan[2] == 1, "XOR 1,0 mestilah 1"
+semak ramalan[3] == 0, "XOR 1,1 mestilah 0"
+"#;
+    let res = laksana_kod(code);
+    assert!(res.is_ok(), "Ralat: {:?}", res);
+}
+
+#[test]
+fn test_akal_ml_bayes_naif_dan_metrik() {
+    let code = r#"
+ambil "akal"
+
+# Data diagnosis perubatan mudah
+# [Suhu Badan, Kadar Nadi] -> "Sihat" atau "Demam"
+ada X = [
+    [36.5, 72.0],
+    [36.6, 75.0],
+    [36.8, 70.0],
+    [38.5, 95.0],
+    [39.0, 102.0],
+    [38.8, 98.0]
+]
+ada y = ["Sihat", "Sihat", "Sihat", "Demam", "Demam", "Demam"]
+
+ada gnb = PengelasBayesNaif()
+gnb.latih(X, y)
+
+ada pesakit_baru = [
+    [36.7, 73.0], # Sihat
+    [38.9, 100.0] # Demam
+]
+ada hasil = gnb.ramal(pesakit_baru)
+semak hasil[0] == "Sihat", "Pesakit 1 mestilah Sihat"
+semak hasil[1] == "Demam", "Pesakit 2 mestilah Demam"
+
+# Uji Matriks Kekeliruan, Kejituan, Kepekaan, Skor F1
+ada y_sebenar = ["Demam", "Demam", "Sihat", "Demam", "Sihat"]
+ada y_ramal   = ["Demam", "Demam", "Demam", "Demam", "Sihat"] # 1 False Positive
+ada cm = matriksKekeliruan(y_sebenar, y_ramal, "Demam")
+semak cm["TP"] == 3.0, "TP mestilah 3"
+semak cm["FP"] == 1.0, "FP mestilah 1"
+semak cm["TN"] == 1.0, "TN mestilah 1"
+semak cm["FN"] == 0.0, "FN mestilah 0"
+
+ada p = kejituan(y_sebenar, y_ramal, "Demam")
+ada r = kepekaan(y_sebenar, y_ramal, "Demam")
+ada f1 = skorF1(y_sebenar, y_ramal, "Demam")
+
+semak p == 0.75, "Kejituan (Precision) mestilah 0.75"
+semak r == 1.0, "Kepekaan (Recall) mestilah 1.0"
+semak bundar(f1 * 100) == 86, "Skor F1 mestilah ~0.857 (86%)"
+"#;
+    let res = laksana_kod(code);
+    assert!(res.is_ok(), "Ralat: {:?}", res);
+}

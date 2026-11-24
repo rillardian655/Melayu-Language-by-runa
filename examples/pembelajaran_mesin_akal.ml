@@ -134,3 +134,4 @@ tunjuk "Titik [8.8, 8.2] dimasukkan ke kelompok :", ramalan_kelompok[1]
 tunjuk ""
 
 tunjuk "Semua ujian modul AkalML berjaya disempurnakan dengan pantas!"
+

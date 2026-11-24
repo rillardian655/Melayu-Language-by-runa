@@ -363,9 +363,28 @@ selesai
 
 Bahasa Melayu menyertakan kerangka kerja Machine Learning native serumpun bernama **AkalML**. Dikuasakan oleh enjin matriks dan aljabar linear berprestasi tinggi dalam Rust, AkalML membolehkan analisis data, ramalan numerik, dan pengelasan pintar tanpa kebergantungan luar.
 
-* **Aljabar Linear Native**: Operasi `darabMatriks`, `transposisiMatriks`, `songsangMatriks` (Gauss-Jordan), `jarakEuclidean`, dan `titikDarab`.
-* **Model Sedia Guna**: `RegresiLinear` (Ordinary Least Squares), `PengelasKNN` (K-Nearest Neighbors), dan `PengelompokanKMeans` (Unsupervised Clustering).
-* **Prapemprosesan & Dataset**: Pembaca CSV pantas (`bacaCSV`), pembahagi data latihan dan ujian (`bahagiLatihUji`), serta metrik penilaian (`skorR2`, `skorMSE`, `skorAkurasi`).
+* **Aljabar Linear & Kalkulus Native**: Operasi `darabMatriks`, `transposisiMatriks`, `songsangMatriks` (Gauss-Jordan), `jarakEuclidean`, `titikDarab`, `matriksTambah`, `matriksTolak`, `matriksSkala`, `darabHadamard`, `matriksJumlahLajur`, `matriksSigmoid`, `matriksDerivatifSigmoid`, `eksponen`, dan `logaritmaAsli`.
+* **Model Sedia Guna Asas & Pertengahan**: `RegresiLinear` (Ordinary Least Squares), `PengelasKNN` (K-Nearest Neighbors), dan `PengelompokanKMeans` (Unsupervised Clustering).
+* **Model Tingkat Menengah-Tinggi (Mid-High)**:
+  * **`JaringanSaraf` (Multi-Layer Perceptron / Deep Neural Network)**: Rangkaian saraf tiruan berlapis dengan perambatan ke belakang (*backpropagation*), penurunan kecerunan (*gradient descent*), dan sokongan pengelasan tak-linear (seperti XOR) hingga 100% akurasi.
+  * **`PengelasBayesNaif` (Gaussian Naive Bayes)**: Pengelas kebarangkalian berbilang ciri berasaskan taburan normal Gaussian.
+* **Prapemprosesan, Dataset & Metrik Penilaian Lengkap**: Pembaca CSV pantas (`bacaCSV`), pembahagi data latihan dan ujian (`bahagiLatihUji`), serta metrik penilaian model: `matriksKekeliruan` (Confusion Matrix TP/FP/TN/FN), `kejituan` (Precision), `kepekaan` (Recall), `skorF1` (F1-Score), `skorR2`, `skorMSE`, dan `skorAkurasi`.
+
+Contoh Jaringan Saraf Tiruan (Deep Learning):
+```melayu
+ambil "akal"
+
+# Masalah XOR (Tak-linear)
+ada X = [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]]
+ada y = [[0.0], [1.0], [1.0], [0.0]]
+
+# Bina model [2 masukan -> 4 neuron tersembunyi -> 1 keluaran]
+ada nn = JaringanSaraf([2, 4, 1], 0.85)
+nn.latih(X, y, 2000, betul)
+
+ada ramalan = nn.ramal(X)
+tunjuk "Akurasi XOR:", nn.skor(X, [0, 1, 1, 0]) * 100, "%"
+```
 
 Contoh Regresi Linear:
 ```melayu

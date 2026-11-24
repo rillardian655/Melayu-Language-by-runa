@@ -20,6 +20,31 @@ kelas Matriks
         pulang Matriks(hasil)
     selesai
 
+    kerja tambah(mLain)
+        ada hasil = matriksTambah(diri.data, mLain.data)
+        pulang Matriks(hasil)
+    selesai
+
+    kerja tolak(mLain)
+        ada hasil = matriksTolak(diri.data, mLain.data)
+        pulang Matriks(hasil)
+    selesai
+
+    kerja skala(faktor)
+        ada hasil = matriksSkala(diri.data, faktor)
+        pulang Matriks(hasil)
+    selesai
+
+    kerja hadamard(mLain)
+        ada hasil = darabHadamard(diri.data, mLain.data)
+        pulang Matriks(hasil)
+    selesai
+
+    kerja sigmoid()
+        ada hasil = matriksSigmoid(diri.data)
+        pulang Matriks(hasil)
+    selesai
+
     kerja transposisi()
         ada hasil = transposisiMatriks(diri.data)
         pulang Matriks(hasil)
@@ -311,5 +336,312 @@ kelas PengelompokanKMeans
             ramalan.tambah(pusat_terpilih)
         selesai
         pulang ramalan
+    selesai
+selesai
+
+# --- KELAS JARINGAN SARAF TIRUAN (Multi-Layer Perceptron / Deep Neural Network) ---
+kelas JaringanSaraf
+    bina(lapisan, kadarBelajar)
+        diri.lapisan = lapisan
+        diri.kadarBelajar = kadarBelajar
+        diri.wajaran = []
+        diri.pincang = []
+
+        ada l = 0
+        ada n_lapisan = panjang(lapisan)
+        selagi l < n_lapisan - 1
+            ada n_masukan = lapisan[l]
+            ada n_keluaran = lapisan[l + 1]
+
+            ada w = []
+            ada i = 0
+            selagi i < n_masukan
+                ada baris_w = []
+                ada j = 0
+                selagi j < n_keluaran
+                    ada r = (rawak() - 0.5) * 1.5
+                    baris_w.tambah(r)
+                    j = j + 1
+                selesai
+                w.tambah(baris_w)
+                i = i + 1
+            selesai
+            diri.wajaran.tambah(w)
+
+            ada b = [[]]
+            ada j2 = 0
+            selagi j2 < n_keluaran
+                b[0].tambah(0.0)
+                j2 = j2 + 1
+            selesai
+            diri.pincang.tambah(b)
+
+            l = l + 1
+        selesai
+    selesai
+
+    kerja ramalKebarangkalian(X)
+        ada a = X
+        ada l = 0
+        ada n_tahap = panjang(diri.wajaran)
+        selagi l < n_tahap
+            ada z = darabMatriks(a, diri.wajaran[l])
+            z = matriksTambah(z, diri.pincang[l])
+            a = matriksSigmoid(z)
+            l = l + 1
+        selesai
+        pulang a
+    selesai
+
+    kerja latih(X, Y, zaman, tunjukProgres)
+        ada Y_mat = Y
+        jika panjang(Y) > 0 dan bukan (jenis(Y[0]) == "senarai")
+            Y_mat = []
+            untuk y_item dalam Y
+                Y_mat.tambah([y_item])
+            selesai
+        selesai
+
+        ada n_tahap = panjang(diri.wajaran)
+        ada p = 1
+        selagi p <= zaman
+            # 1. Suapan ke hadapan (Forward pass)
+            ada pengaktifan = [X]
+            ada a_kini = X
+            ada l = 0
+            selagi l < n_tahap
+                ada z = darabMatriks(a_kini, diri.wajaran[l])
+                z = matriksTambah(z, diri.pincang[l])
+                a_kini = matriksSigmoid(z)
+                pengaktifan.tambah(a_kini)
+                l = l + 1
+            selesai
+
+            # 2. Perambatan ke belakang (Backpropagation)
+            ada a_keluar = pengaktifan[n_tahap]
+            ada ralat = matriksTolak(a_keluar, Y_mat)
+            ada d_keluar = matriksDerivatifSigmoid(a_keluar)
+            ada delta = darabHadamard(ralat, d_keluar)
+
+            ada senarai_delta = [delta]
+            ada l_rev = n_tahap - 1
+            selagi l_rev > 0
+                ada w_trans = transposisiMatriks(diri.wajaran[l_rev])
+                ada ralat_tersembunyi = darabMatriks(senarai_delta[0], w_trans)
+                ada d_act = matriksDerivatifSigmoid(pengaktifan[l_rev])
+                ada delta_prev = darabHadamard(ralat_tersembunyi, d_act)
+
+                ada delta_baru = [delta_prev]
+                untuk d_item dalam senarai_delta
+                    delta_baru.tambah(d_item)
+                selesai
+                senarai_delta = delta_baru
+
+                l_rev = l_rev - 1
+            selesai
+
+            # 3. Kemas kini wajaran dan pincang (Gradient descent)
+            ada u = 0
+            selagi u < n_tahap
+                ada a_prev_t = transposisiMatriks(pengaktifan[u])
+                ada grad_w = darabMatriks(a_prev_t, senarai_delta[u])
+                ada grad_b = matriksJumlahLajur(senarai_delta[u])
+
+                ada delta_w = matriksSkala(grad_w, diri.kadarBelajar)
+                ada delta_b = matriksSkala(grad_b, diri.kadarBelajar)
+
+                diri.wajaran[u] = matriksTolak(diri.wajaran[u], delta_w)
+                diri.pincang[u] = matriksTolak(diri.pincang[u], delta_b)
+                u = u + 1
+            selesai
+
+            # 4. Paparan perkembangan latihan
+            jika tunjukProgres
+                ada saiz_selang = zaman / 5
+                jika saiz_selang < 1
+                    saiz_selang = 1
+                selesai
+                jika p == 1 atau p % saiz_selang == 0 atau p == zaman
+                    ada jumlah_ralat = 0.0
+                    ada n_baris = panjang(ralat)
+                    ada n_lajur = panjang(ralat[0])
+                    ada ri = 0
+                    selagi ri < n_baris
+                        ada rj = 0
+                        selagi rj < n_lajur
+                            ada err_val = ralat[ri][rj]
+                            jumlah_ralat = jumlah_ralat + (err_val * err_val)
+                            rj = rj + 1
+                        selesai
+                        ri = ri + 1
+                    selesai
+                    ada mse = jumlah_ralat / (n_baris * n_lajur)
+                    tunjuk "Zaman " + teks(p) + "/" + teks(zaman) + " -> Ralat MSE: " + teks(mse)
+                selesai
+            selesai
+
+            p = p + 1
+        selesai
+    selesai
+
+    kerja ramal(X_baru)
+        ada probs = diri.ramalKebarangkalian(X_baru)
+        ada n_keluaran = diri.lapisan[panjang(diri.lapisan) - 1]
+        ada hasil = []
+        untuk baris dalam probs
+            jika n_keluaran == 1
+                jika baris[0] >= 0.5
+                    hasil.tambah(1)
+                jika tidak
+                    hasil.tambah(0)
+                selesai
+            jika tidak
+                ada idx_maks = 0
+                ada val_maks = baris[0]
+                ada c = 1
+                selagi c < panjang(baris)
+                    jika baris[c] > val_maks
+                        val_maks = baris[c]
+                        idx_maks = c
+                    selesai
+                    c = c + 1
+                selesai
+                hasil.tambah(idx_maks)
+            selesai
+        selesai
+        pulang hasil
+    selesai
+
+    kerja skor(X_uji, y_uji)
+        ada y_ramal = diri.ramal(X_uji)
+        ada y_ramal_num = []
+        untuk val dalam y_ramal
+            y_ramal_num.tambah(nombor(val))
+        selesai
+        ada y_uji_num = []
+        untuk val dalam y_uji
+            y_uji_num.tambah(nombor(val))
+        selesai
+        pulang skorAkurasi(y_uji_num, y_ramal_num)
+    selesai
+selesai
+
+# --- KELAS PENGELAS BAYES NAIF (Gaussian Naive Bayes) ---
+kelas PengelasBayesNaif
+    bina()
+        diri.kelas_unik = []
+        diri.priors = {}
+        diri.min_fitur = {}
+        diri.sisihan_fitur = {}
+    selesai
+
+    kerja latih(X, y)
+        ada n_sampel = panjang(X)
+        jika n_sampel == 0
+            baling "Dataset latihan kosong!"
+        selesai
+        ada n_fitur = panjang(X[0])
+
+        diri.kelas_unik = []
+        diri.priors = {}
+        diri.min_fitur = {}
+        diri.sisihan_fitur = {}
+
+        # Kumpulkan sampel mengikut label kelas
+        ada data_kelas = {}
+        ada i = 0
+        selagi i < n_sampel
+            ada label = teks(y[i])
+            jika bukan data_kelas.adaKunci(label)
+                data_kelas[label] = []
+                diri.kelas_unik.tambah(label)
+            selesai
+            data_kelas[label].tambah(X[i])
+            i = i + 1
+        selesai
+
+        # Hitung kebarangkalian prior, purata (mean) dan sisihan piawai setiap ciri
+        untuk label dalam diri.kelas_unik
+            ada sampel_c = data_kelas[label]
+            ada n_c = panjang(sampel_c)
+            diri.priors[label] = n_c / n_sampel
+
+            ada senarai_purata = []
+            ada senarai_sisihan = []
+
+            ada d = 0
+            selagi d < n_fitur
+                ada nilai_fitur = []
+                untuk baris dalam sampel_c
+                    nilai_fitur.tambah(baris[d])
+                selesai
+
+                ada m = purata(nilai_fitur)
+                ada s = sisihanPiawai(nilai_fitur)
+                jika s < 0.000001
+                    s = 0.000001
+                selesai
+
+                senarai_purata.tambah(m)
+                senarai_sisihan.tambah(s)
+                d = d + 1
+            selesai
+
+            diri.min_fitur[label] = senarai_purata
+            diri.sisihan_fitur[label] = senarai_sisihan
+        selesai
+    selesai
+
+    kerja kebarangkalianGaussian(x, m, s)
+        ada varians = s * s
+        ada pemalar = 2.5066282746310002 * s
+        ada beza = x - m
+        ada eks = eksponen(0.0 - ((beza * beza) / (2.0 * varians)))
+        pulang eks / pemalar
+    selesai
+
+    kerja ramal(X_baru)
+        ada ramalan = []
+        ada n_fitur = panjang(diri.min_fitur[diri.kelas_unik[0]])
+
+        untuk baris dalam X_baru
+            ada posterior_terbaik = -1000000000.0
+            ada kelas_terbaik = kosong
+
+            untuk label dalam diri.kelas_unik
+                ada prior = diri.priors[label]
+                ada log_posterior = logaritmaAsli(prior)
+
+                ada d = 0
+                selagi d < n_fitur
+                    ada m = diri.min_fitur[label][d]
+                    ada s = diri.sisihan_fitur[label][d]
+                    ada prob = diri.kebarangkalianGaussian(baris[d], m, s)
+                    jika prob < 0.000000000001
+                        prob = 0.000000000001
+                    selesai
+                    log_posterior = log_posterior + logaritmaAsli(prob)
+                    d = d + 1
+                selesai
+
+                jika log_posterior > posterior_terbaik
+                    posterior_terbaik = log_posterior
+                    kelas_terbaik = label
+                selesai
+            selesai
+
+            ramalan.tambah(kelas_terbaik)
+        selesai
+
+        pulang ramalan
+    selesai
+
+    kerja skor(X_uji, y_uji)
+        ada y_ramal = diri.ramal(X_uji)
+        ada y_uji_teks = []
+        untuk val dalam y_uji
+            y_uji_teks.tambah(teks(val))
+        selesai
+        pulang skorAkurasi(y_uji_teks, y_ramal)
     selesai
 selesai
