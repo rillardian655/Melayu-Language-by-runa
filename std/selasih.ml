@@ -39,13 +39,35 @@ fungsi balasHTML(htmlMsg, status)
     }
 selesai
 
+fungsi balasCORS(status)
+    ada st = status
+    jika st == kosong
+        st = 204
+    selesai
+    pulang {
+        "status": st,
+        "jenisKandungan": "text/plain",
+        "badan": ""
+    }
+selesai
+
+fungsi pengantaraLogger(permintaan)
+    tunjuk "[Selasih Log] " + permintaan["kaedah"] + " " + permintaan["laluan"]
+    pulang kosong
+selesai
+
 kelas PelayanWeb
     bina(port)
         diri.port = port
+        diri.pengantara = []
         diri.laluan_get = {}
         diri.laluan_post = {}
         diri.laluan_put = {}
         diri.laluan_delete = {}
+    selesai
+
+    kerja guna(pengantaraFn)
+        diri.pengantara.tambah(pengantaraFn)
     selesai
 
     kerja dapatkan(laluan, handler)
@@ -67,6 +89,24 @@ kelas PelayanWeb
     kerja kendaliPermintaan(req)
         ada kaedah = req["kaedah"]
         ada laluan = req["laluan"]
+
+        # 1. Sokongan pra-penerbangan CORS (Preflight OPTIONS)
+        jika kaedah == "OPTIONS"
+            pulang balasCORS(204)
+        selesai
+
+        # 2. Jalankan rantaian pengantara (Middlewares)
+        ada m_idx = 0
+        selagi m_idx < panjang(diri.pengantara)
+            ada mw = diri.pengantara[m_idx]
+            ada tindak_balas = mw(req)
+            jika bukan (tindak_balas == kosong)
+                pulang tindak_balas
+            selesai
+            m_idx = m_idx + 1
+        selesai
+
+        # 3. Penghalaan permintaan mengikut kaedah
         ada handler = kosong
 
         jika kaedah == "GET" dan diri.laluan_get.adaKunci(laluan)

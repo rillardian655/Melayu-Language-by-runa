@@ -2499,7 +2499,7 @@ pub fn builtin_mulakan_pelayan_http(args: &[Value], pos: LineCol) -> Result<Valu
         };
 
         let response = format!(
-            "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, Authorization\r\nConnection: close\r\n\r\n{}",
             status_code, status_msg, content_type, res_body.len(), res_body
         );
 
