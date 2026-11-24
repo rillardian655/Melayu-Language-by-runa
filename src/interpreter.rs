@@ -1780,13 +1780,33 @@ impl Interpreter {
                 let content = if !final_path.exists() {
                     if sasaran == "akal" || sasaran == "akal_ml" || sasaran == "akalml" || sasaran == "std/akal" || sasaran == "std/akal_ml" {
                         crate::builtins::AKAL_ML_STDLIB.to_string()
+                    } else if sasaran == "selasih" || sasaran == "wau" || sasaran == "web" || sasaran == "std/selasih" || sasaran == "std/wau" {
+                        crate::builtins::SELASIH_STDLIB.to_string()
                     } else {
-                        return Err(MelayuError::akses_fail_disekat(
-                            sasaran,
-                            "Fail modul tidak dijumpai.",
-                            pos.line,
-                            pos.col,
-                        ));
+                        let modul_path = std::path::Path::new("modul_melayu").join(format!("{}.ml", sasaran));
+                        let modul_dir_mod = std::path::Path::new("modul_melayu").join(sasaran).join("mod.ml");
+                        let modul_dir_utama = std::path::Path::new("modul_melayu").join(sasaran).join("utama.ml");
+
+                        if modul_path.exists() {
+                            fs::read_to_string(&modul_path).map_err(|e| {
+                                MelayuError::akses_fail_disekat(sasaran, &format!("Gagal membaca fail modul: {}", e), pos.line, pos.col)
+                            })?
+                        } else if modul_dir_mod.exists() {
+                            fs::read_to_string(&modul_dir_mod).map_err(|e| {
+                                MelayuError::akses_fail_disekat(sasaran, &format!("Gagal membaca fail modul: {}", e), pos.line, pos.col)
+                            })?
+                        } else if modul_dir_utama.exists() {
+                            fs::read_to_string(&modul_dir_utama).map_err(|e| {
+                                MelayuError::akses_fail_disekat(sasaran, &format!("Gagal membaca fail modul: {}", e), pos.line, pos.col)
+                            })?
+                        } else {
+                            return Err(MelayuError::akses_fail_disekat(
+                                sasaran,
+                                "Fail modul tidak dijumpai (termasuk dalam modul_melayu/).",
+                                pos.line,
+                                pos.col,
+                            ));
+                        }
                     }
                 } else {
                     fs::read_to_string(&final_path).map_err(|e| {

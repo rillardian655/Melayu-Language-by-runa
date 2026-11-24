@@ -368,7 +368,13 @@ Bahasa Melayu menyertakan kerangka kerja Machine Learning native serumpun bernam
 * **Model Tingkat Menengah-Tinggi (Mid-High)**:
   * **`JaringanSaraf` (Multi-Layer Perceptron / Deep Neural Network)**: Rangkaian saraf tiruan berlapis dengan perambatan ke belakang (*backpropagation*), penurunan kecerunan (*gradient descent*), dan sokongan pengelasan tak-linear (seperti XOR) hingga 100% akurasi.
   * **`PengelasBayesNaif` (Gaussian Naive Bayes)**: Pengelas kebarangkalian berbilang ciri berasaskan taburan normal Gaussian.
-* **Prapemprosesan, Dataset & Metrik Penilaian Lengkap**: Pembaca CSV pantas (`bacaCSV`), pembahagi data latihan dan ujian (`bahagiLatihUji`), serta metrik penilaian model: `matriksKekeliruan` (Confusion Matrix TP/FP/TN/FN), `kejituan` (Precision), `kepekaan` (Recall), `skorF1` (F1-Score), `skorR2`, `skorMSE`, dan `skorAkurasi`.
+* **Prapemprosesan, Dataset & Metrik Penilaian Lengkap**:
+  * Penyekalaan Ciri: `SkalaMinMaks` (MinMaxScaler) dan `PenyelarasanPiawai` (StandardScaler) dengan kaedah `latih()`, `transformasi()`, `latihTransformasi()`, dan `songsang()`.
+  * Pembaca CSV pantas (`bacaCSV`), pembahagi data latihan dan ujian (`bahagiLatihUji`).
+  * Metrik penilaian model: `matriksKekeliruan` (Confusion Matrix TP/FP/TN/FN), `kejituan` (Precision), `kepekaan` (Recall), `skorF1` (F1-Score), `skorR2`, `skorMSE`, dan `skorAkurasi`.
+* **Penstoran Model ke Cakera (Model Persistence)**:
+  * Simpan struktur dan parameter model terus ke format JSON: `model.simpan("laluan/model.json")`.
+  * Muat semula model bila-bila masa untuk inferens masa nyata tanpa latihan semula: `model.muat("laluan/model.json")`. Tersedia untuk `JaringanSaraf`, `RegresiLinear`, dan `PengelasBayesNaif`.
 
 Contoh Jaringan Saraf Tiruan (Deep Learning):
 ```melayu
@@ -378,12 +384,21 @@ ambil "akal"
 ada X = [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]]
 ada y = [[0.0], [1.0], [1.0], [0.0]]
 
+# Penyekalaan Ciri Min-Max
+ada penyekala = SkalaMinMaks()
+ada X_skala = penyekala.latihTransformasi(X)
+
 # Bina model [2 masukan -> 4 neuron tersembunyi -> 1 keluaran]
 ada nn = JaringanSaraf([2, 4, 1], 0.85)
-nn.latih(X, y, 2000, betul)
+nn.latih(X_skala, y, 2000, betul)
 
-ada ramalan = nn.ramal(X)
-tunjuk "Akurasi XOR:", nn.skor(X, [0, 1, 1, 0]) * 100, "%"
+# Simpan dan muat semula model
+nn.simpan("model_xor.json")
+ada model_muat = JaringanSaraf([2, 4, 1], 0.85)
+model_muat.muat("model_xor.json")
+
+ada ramalan = model_muat.ramal(X_skala)
+tunjuk "Akurasi XOR:", model_muat.skor(X_skala, [0, 1, 1, 0]) * 100, "%"
 ```
 
 Contoh Regresi Linear:
@@ -403,6 +418,53 @@ ada ramalan = model.ramal([[100.0, 2.0]])
 tunjuk "Ramalan Harga:", bundar(ramalan[0]), "k"
 tunjuk "Ketepatan R2  :", model.skor(X, y)
 ```
+
+#### Selasih: Kerangka Kerja Web Server & REST API (`ambil "selasih"`)
+
+Bahasa Melayu kini dilengkapi kerangka kerja pelayan HTTP native bernama **Selasih**. Dibina di atas enjin rangkaian standard tanpa sebarang pustaka pihak ketiga, Selasih membolehkan pembangunan mikroservis web dan REST API berprestasi tinggi secara terus dalam Bahasa Melayu.
+
+* **Penghalaan (Routing) Lengkap**: `aplikasi.dapatkan(laluan, handler)`, `aplikasi.hantar(laluan, handler)`, `aplikasi.kemaskini(laluan, handler)`, `aplikasi.padam(laluan, handler)`.
+* **Fungsi Pembantu Respons Terbina**: `balasJSON(data, status)`, `balasHTML(kandungan, status)`, dan `balasTeks(mesej, status)`.
+* **Objek Permintaan Pintar**: Penguraian kaedah HTTP (`req.kaedah`), laluan URL (`req.laluan`), kepala permintaan (`req.kepala`), teks badan (`req.badan`), dan penukar JSON segera (`req.json()`).
+* **Klien HTTP Standard**: Fungsi `hantarPermintaanHTTP(kaedah, url, kepala, badan)` untuk komunikasi antara servis mikro.
+
+Contoh Pelayan Web Selasih:
+```melayu
+ambil "selasih"
+
+kerja kendaliLamanUtama(permintaan)
+    pulang balasHTML("<h1>Selamat Datang ke Selasih Web Server</h1>", 200)
+selesai
+
+kerja kendaliAPIStatus(permintaan)
+    ada info = {
+        "status": "aktif",
+        "pelayan": "Selasih v1.0",
+        "bahasa": "Melayu"
+    }
+    pulang balasJSON(info, 200)
+selesai
+
+ada app = PelayanWeb(8080)
+app.dapatkan("/", kendaliLamanUtama)
+app.dapatkan("/api/status", kendaliAPIStatus)
+
+tunjuk "Pelayan Selasih beroperasi pada http://localhost:8080"
+app.dengar()
+```
+
+#### Pengurus Pakej CLI Melayu (`melayu mula`, `pasang`, `pakej`)
+
+Bahasa Melayu menyertakan pengurus projek dan pakej rasmi untuk mempermudah organisasi kod modular:
+
+* **Inisialisasi Projek Baharu (`melayu mula <nama_projek>`)**:
+  Menjana struktur direktori piawai lengkap dengan `pakej.json`, `utama.ml`, folder modul `modul_melayu/`, dan fail `.gitignore`.
+* **Pemasangan & Pengurusan Pakej (`melayu pasang <modul>`)**:
+  Memasang fail pakej `.ml` terus ke dalam direktori `modul_melayu/` dan mendaftarkannya ke dalam `pakej.json`.
+* **Senarai Pakej (`melayu pakej`)**:
+  Memaparkan senarai kerangka kerja standard yang disertakan (`akal`, `selasih`) serta pakej luaran yang terpasang.
+* **Resolusi Modul Automatik**:
+  Pernyataan `ambil "nama_modul"` secara pintar mencari modul pada direktori semasa atau di dalam folder `modul_melayu/nama_modul.ml`.
 
 ---
 

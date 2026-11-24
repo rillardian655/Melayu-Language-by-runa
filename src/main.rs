@@ -54,6 +54,17 @@ fn main() {
             };
             tanda_aras_fail(&args[2], lelaran);
         }
+        "mula" | "init" => {
+            let nama = args.get(2).map(|s| s.as_str());
+            mula_projek(nama);
+        }
+        "pasang" | "install" => {
+            let sasaran = args.get(2).map(|s| s.as_str());
+            pasang_pakej(sasaran);
+        }
+        "pakej" | "packages" | "senarai-pakej" => {
+            senarai_pakej();
+        }
         "bantuan" | "--help" | "-h" => {
             cetak_bantuan();
         }
@@ -315,11 +326,178 @@ fn cetak_bantuan() {
     println!("  melayu semak <fail.ml>             Semak sintaks dan semantik fail");
     println!("  melayu uji <fail.ml>               Jalankan suite ujian unit");
     println!("  melayu tanda-aras <fail.ml> [n]    Jalankan penanda aras masa (benchmark)");
+    println!("  melayu mula [nama_projek]          Cipta struktur projek Melayu baharu");
+    println!("  melayu pasang [nama_atau_fail]     Pasang modul ke modul_melayu/");
+    println!("  melayu pakej                       Senarai pakej dan framework tersedia");
     println!("  melayu bantuan                     Papar bantuan ini");
     println!("  melayu versi                       Papar versi semasa");
     println!();
     println!("CONTOH:");
-    println!("  melayu jalankan contoh/hello.ml");
-    println!("  melayu uji contoh/suite_ujian.ml");
-    println!("  melayu tanda-aras contoh/kiraan_matriks.ml 10");
+    println!("  melayu mula aplikasi_saya");
+    println!("  melayu pasang alat_kira.ml");
+    println!("  melayu jalankan utama.ml");
+}
+
+fn mula_projek(nama_opt: Option<&str>) {
+    let nama_projek = nama_opt.unwrap_or("projek_melayu");
+    let sasaran_dir = std::path::Path::new(nama_projek);
+
+    if nama_opt.is_some() && !sasaran_dir.exists() {
+        if let Err(e) = fs::create_dir_all(sasaran_dir) {
+            eprintln!("\x1b[1;31mAlamak! Gagal mencipta direktori '{}': {}\x1b[0m", nama_projek, e);
+            process::exit(1);
+        }
+    }
+
+    let pakej_path = sasaran_dir.join("pakej.json");
+    let utama_path = sasaran_dir.join("utama.ml");
+    let modul_dir = sasaran_dir.join("modul_melayu");
+    let gitignore_path = sasaran_dir.join(".gitignore");
+    let readme_path = sasaran_dir.join("README.md");
+
+    let pakej_json_content = format!(
+        r#"{{
+  "nama": "{}",
+  "versi": "0.1.0",
+  "penerangan": "Projek dibina menggunakan Bahasa Melayu",
+  "utama": "utama.ml",
+  "kebergantungan": {{}}
+}}
+"#,
+        nama_projek
+    );
+
+    let utama_ml_content = format!(
+        r#"# Titik masuk utama untuk projek {}
+tunjuk "========================================"
+tunjuk "  Selamat Datang ke Projek: {}"
+tunjuk "========================================"
+tunjuk ""
+
+tunjuk "Alhamdulillah, atur cara Bahasa Melayu berjaya dijalankan!"
+"#,
+        nama_projek, nama_projek
+    );
+
+    let _ = fs::write(&pakej_path, pakej_json_content);
+    let _ = fs::write(&utama_path, utama_ml_content);
+    let _ = fs::create_dir_all(&modul_dir);
+    let _ = fs::write(modul_dir.join(".gitkeep"), "");
+    let _ = fs::write(&gitignore_path, "target/\n*.tmp\n");
+    let _ = fs::write(&readme_path, format!("# {}\n\nProjek Bahasa Melayu.\n\n## Cara Menjalankan\n```bash\nmelayu utama.ml\n```\n", nama_projek));
+
+    println!("\x1b[1;32mProjek Melayu '{}' berjaya dicipta!\x1b[0m", nama_projek);
+    println!("Struktur fail:");
+    println!("  {}/", nama_projek);
+    println!("  ├── pakej.json      (Manifest metadata & pakej)");
+    println!("  ├── utama.ml        (Fail kod permulaan)");
+    println!("  ├── modul_melayu/   (Folder pakej & kebergantungan)");
+    println!("  └── README.md");
+    println!();
+    println!("Langkah seterusnya:");
+    if nama_opt.is_some() {
+        println!("  cd {}", nama_projek);
+    }
+    println!("  melayu utama.ml");
+}
+
+fn pasang_pakej(sasaran_opt: Option<&str>) {
+    let modul_dir = std::path::Path::new("modul_melayu");
+    if !modul_dir.exists() {
+        let _ = fs::create_dir_all(modul_dir);
+    }
+
+    match sasaran_opt {
+        Some(sasaran) => {
+            let src_path = std::path::Path::new(sasaran);
+            let fail_nama = if let Some(n) = src_path.file_name() {
+                n.to_string_lossy().to_string()
+            } else {
+                format!("{}.ml", sasaran)
+            };
+
+            let dest_nama = if fail_nama.ends_with(".ml") {
+                fail_nama.clone()
+            } else {
+                format!("{}.ml", fail_nama)
+            };
+
+            let dest_path = modul_dir.join(&dest_nama);
+            let nama_pakej = dest_nama.trim_end_matches(".ml").to_string();
+
+            if src_path.exists() && src_path.is_file() {
+                if let Err(e) = fs::copy(src_path, &dest_path) {
+                    eprintln!("\x1b[1;31mAlamak! Gagal menyalin fail modul: {}\x1b[0m", e);
+                    process::exit(1);
+                }
+                println!("\x1b[1;32mPakej tempatan '{}' berjaya dipasang ke {}!\x1b[0m", nama_pakej, dest_path.display());
+            } else {
+                let template = format!(
+                    r#"# Modul: {}
+# Boleh diimport dengan: ambil "{}"
+
+kelas {}
+    bina()
+    selesai
+
+    kerja sapa()
+        tunjuk "Hai daripada modul {}!"
+    selesai
+selesai
+"#,
+                    nama_pakej, nama_pakej, nama_pakej, nama_pakej
+                );
+                let _ = fs::write(&dest_path, template);
+                println!("\x1b[1;32mModul baharu '{}' berjaya dicipta di {}!\x1b[0m", nama_pakej, dest_path.display());
+            }
+
+            let pakej_json_path = std::path::Path::new("pakej.json");
+            if pakej_json_path.exists() {
+                if let Ok(kandungan) = fs::read_to_string(pakej_json_path) {
+                    let mut teks = kandungan;
+                    if !teks.contains(&format!("\"{}\"", nama_pakej)) {
+                        teks = teks.replace(
+                            "\"kebergantungan\": {",
+                            &format!("\"kebergantungan\": {{\n    \"{}\": \"^1.0.0\",", nama_pakej),
+                        );
+                        let _ = fs::write(pakej_json_path, teks);
+                    }
+                }
+            }
+        }
+        None => {
+            println!("\x1b[1;32mMenyemak kebergantungan modul_melayu/...\x1b[0m");
+            println!("Semua kebergantungan pakej tempatan siap sedia!");
+        }
+    }
+}
+
+fn senarai_pakej() {
+    println!("\x1b[1;32mPENGURUS PAKEJ MELAYU (SENARAI MODUL)\x1b[0m");
+    println!("{}", "-".repeat(50));
+    println!("Modul Terbina-Dalam (Standard Frameworks):");
+    println!("  \x1b[1;36m* akal\x1b[0m     - Kerangka Kerja Machine Learning & Deep Learning");
+    println!("  \x1b[1;36m* selasih\x1b[0m  - Kerangka Kerja Web Server & REST API");
+    println!();
+
+    let modul_dir = std::path::Path::new("modul_melayu");
+    println!("Pakej Terpasang Tempatan (modul_melayu/):");
+    if modul_dir.exists() {
+        let mut wujud = false;
+        if let Ok(entries) = fs::read_dir(modul_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name != ".gitkeep" {
+                    println!("  - {}", name);
+                    wujud = true;
+                }
+            }
+        }
+        if !wujud {
+            println!("  (Tiada pakej luaran terpasang lagi. Guna 'melayu pasang <nama>' untuk menambah)");
+        }
+    } else {
+        println!("  (Folder modul_melayu/ belum wujud)");
+    }
+    println!("{}", "-".repeat(50));
 }

@@ -1,14 +1,15 @@
 use crate::ast::LineCol;
 use crate::errors::{ErrorKind, MelayuError};
-use crate::interpreter::Value;
+use crate::interpreter::{Interpreter, Value};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Read, Write};
+use std::net::{TcpListener, TcpStream};
 use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub type BuiltinFn = fn(&[Value], LineCol) -> Result<Value, MelayuError>;
 
@@ -68,6 +69,9 @@ pub fn daftar_fungsi_bawaan() -> Vec<(&'static str, BuiltinFn)> {
         ("skorF1", builtin_skor_f1),
         ("kejituan", builtin_kejituan),
         ("kepekaan", builtin_kepekaan),
+        // Kerangka Kerja Web & Rangkaian (Selasih)
+        ("mulakanPelayanHTTP", builtin_mulakan_pelayan_http),
+        ("hantarPermintaanHTTP", builtin_hantar_permintaan_http),
     ]
 }
 
@@ -2351,647 +2355,268 @@ pub fn builtin_skor_f1(args: &[Value], pos: LineCol) -> Result<Value, MelayuErro
     Ok(Value::Nombor(2.0 * p * r / (p + r)))
 }
 
-pub const AKAL_ML_STDLIB: &str = r#"
-# ==============================================================================
-# KERANGKA KERJA AKALML (MACHINE LEARNING BAWAAN BAHASA MELAYU)
-# ==============================================================================
-
-kelas Matriks
-    bina(data)
-        diri.data = data
-        diri.baris = panjang(data)
-        jika diri.baris > 0
-            diri.lajur = panjang(data[0])
-        jika tidak
-            diri.lajur = 0
-        selesai
-    selesai
-
-    kerja darab(mLain)
-        ada hasil = darabMatriks(diri.data, mLain.data)
-        pulang Matriks(hasil)
-    selesai
-
-    kerja tambah(mLain)
-        ada hasil = matriksTambah(diri.data, mLain.data)
-        pulang Matriks(hasil)
-    selesai
-
-    kerja tolak(mLain)
-        ada hasil = matriksTolak(diri.data, mLain.data)
-        pulang Matriks(hasil)
-    selesai
-
-    kerja skala(faktor)
-        ada hasil = matriksSkala(diri.data, faktor)
-        pulang Matriks(hasil)
-    selesai
-
-    kerja hadamard(mLain)
-        ada hasil = darabHadamard(diri.data, mLain.data)
-        pulang Matriks(hasil)
-    selesai
-
-    kerja sigmoid()
-        ada hasil = matriksSigmoid(diri.data)
-        pulang Matriks(hasil)
-    selesai
-
-    kerja transposisi()
-        ada hasil = transposisiMatriks(diri.data)
-        pulang Matriks(hasil)
-    selesai
-
-    kerja songsang()
-        ada hasil = songsangMatriks(diri.data)
-        pulang Matriks(hasil)
-    selesai
-
-    kerja nilai()
-        pulang diri.data
-    selesai
-
-    kerja paparkan()
-        tunjuk "Matriks (" + teks(diri.baris) + " x " + teks(diri.lajur) + "):"
-        untuk baris dalam diri.data
-            ada barisTeks = "["
-            ada pertama = betul
-            untuk el dalam baris
-                jika bukan pertama
-                    barisTeks = barisTeks + ", "
-                selesai
-                barisTeks = barisTeks + teks(el)
-                pertama = salah
-            selesai
-            barisTeks = barisTeks + "]"
-            tunjuk barisTeks
-        selesai
-    selesai
-selesai
-
-kelas RegresiLinear
-    bina(denganPintas)
-        diri.denganPintas = denganPintas
-        diri.pekali = kosong
-        diri.pintas = 0
-    selesai
-
-    kerja latih(X, y)
-        ada n_sampel = panjang(X)
-        jika n_sampel == 0
-            baling "Dataset latih kosong!"
-        selesai
-
-        ada X_mat = []
-        jika diri.denganPintas
-            untuk baris dalam X
-                ada barisBaru = [1.0]
-                untuk c dalam baris
-                    barisBaru.tambah(c)
-                selesai
-                X_mat.tambah(barisBaru)
-            selesai
-        jika tidak
-            X_mat = X
-        selesai
-
-        ada y_mat = []
-        untuk val dalam y
-            y_mat.tambah([val])
-        selesai
-
-        ada Xt = transposisiMatriks(X_mat)
-        ada XtX = darabMatriks(Xt, X_mat)
-        ada invXtX = songsangMatriks(XtX)
-        ada Xty = darabMatriks(Xt, y_mat)
-        ada beta = darabMatriks(invXtX, Xty)
-
-        ada hasil_beta = []
-        untuk b dalam beta
-            hasil_beta.tambah(b[0])
-        selesai
-
-        jika diri.denganPintas
-            diri.pintas = hasil_beta[0]
-            ada pekali_tanpa_pintas = []
-            ada idx = 1
-            selagi idx < panjang(hasil_beta)
-                pekali_tanpa_pintas.tambah(hasil_beta[idx])
-                idx = idx + 1
-            selesai
-            diri.pekali = pekali_tanpa_pintas
-        jika tidak
-            diri.pintas = 0
-            diri.pekali = hasil_beta
-        selesai
-    selesai
-
-    kerja ramal(X_baru)
-        jika diri.pekali == kosong
-            baling "Model belum dilatih! Sila panggil .latih(X, y) dahulu."
-        selesai
-
-        ada ramalan = []
-        untuk baris dalam X_baru
-            ada y_topi = diri.pintas
-            ada i = 0
-            selagi i < panjang(diri.pekali)
-                y_topi = y_topi + (baris[i] * diri.pekali[i])
-                i = i + 1
-            selesai
-            ramalan.tambah(y_topi)
-        selesai
-        pulang ramalan
-    selesai
-
-    kerja skor(X_uji, y_uji)
-        ada y_ramal = diri.ramal(X_uji)
-        pulang skorR2(y_uji, y_ramal)
-    selesai
-selesai
-
-kelas PengelasKNN
-    bina(k)
-        diri.k = k
-        diri.X_latih = []
-        diri.y_latih = []
-    selesai
-
-    kerja latih(X, y)
-        diri.X_latih = X
-        diri.y_latih = y
-    selesai
-
-    kerja ramal(X_baru)
-        jika panjang(diri.X_latih) == 0
-            baling "Model KNN belum dilatih! Sila panggil .latih(X, y) dahulu."
-        selesai
-
-        ada ramalan = []
-        untuk titik dalam X_baru
-            ada jarak_senarai = []
-            ada i = 0
-            selagi i < panjang(diri.X_latih)
-                ada d = jarakEuclidean(titik, diri.X_latih[i])
-                jarak_senarai.tambah([d, diri.y_latih[i]])
-                i = i + 1
-            selesai
-
-            ada n = panjang(jarak_senarai)
-            ada a = 0
-            selagi a < n
-                ada min_idx = a
-                ada b = a + 1
-                selagi b < n
-                    jika jarak_senarai[b][0] < jarak_senarai[min_idx][0]
-                        min_idx = b
-                    selesai
-                    b = b + 1
-                selesai
-                ada temp = jarak_senarai[a]
-                jarak_senarai[a] = jarak_senarai[min_idx]
-                jarak_senarai[min_idx] = temp
-                a = a + 1
-            selesai
-
-            ada undian = {}
-            ada c = 0
-            ada had_k = diri.k
-            jika had_k > n
-                had_k = n
-            selesai
-
-            selagi c < had_k
-                ada label = teks(jarak_senarai[c][1])
-                jika undian.adaKunci(label)
-                    undian[label] = undian[label] + 1
-                jika tidak
-                    undian[label] = 1
-                selesai
-                c = c + 1
-            selesai
-
-            ada label_terbaik = kosong
-            ada undian_maks = -1
-            untuk kunci dalam undian.kunci()
-                jika undian[kunci] > undian_maks
-                    undian_maks = undian[kunci]
-                    label_terbaik = kunci
-                selesai
-            selesai
-
-            ramalan.tambah(label_terbaik)
-        selesai
-        pulang ramalan
-    selesai
-
-    kerja skor(X_uji, y_uji)
-        ada y_ramal = diri.ramal(X_uji)
-        ada y_uji_teks = []
-        untuk val dalam y_uji
-            y_uji_teks.tambah(teks(val))
-        selesai
-        pulang skorAkurasi(y_uji_teks, y_ramal)
-    selesai
-selesai
-
-kelas PengelompokanKMeans
-    bina(k, lelaranMaksimum)
-        diri.k = k
-        diri.lelaranMaksimum = lelaranMaksimum
-        diri.pusat = []
-    selesai
-
-    kerja latih(X)
-        ada n_sampel = panjang(X)
-        jika n_sampel < diri.k
-            baling "Bilangan sampel mestilah lebih besar atau sama dengan k!"
-        selesai
-
-        diri.pusat = []
-        ada i = 0
-        selagi i < diri.k
-            diri.pusat.tambah(X[i])
-            i = i + 1
-        selesai
-
-        ada n_dim = panjang(X[0])
-        ada pusingan = 0
-
-        selagi pusingan < diri.lelaranMaksimum
-            ada kelompok = []
-            ada idx = 0
-            selagi idx < diri.k
-                kelompok.tambah([])
-                idx = idx + 1
-            selesai
-
-            untuk titik dalam X
-                ada jarak_min = 1000000000.0
-                ada pusat_terpilih = 0
-                ada c = 0
-                selagi c < diri.k
-                    ada dist = jarakEuclidean(titik, diri.pusat[c])
-                    jika dist < jarak_min
-                        jarak_min = dist
-                        pusat_terpilih = c
-                    selesai
-                    c = c + 1
-                selesai
-                kelompok[pusat_terpilih].tambah(titik)
-            selesai
-
-            ada pusat_baharu = []
-            ada c = 0
-            selagi c < diri.k
-                ada anggota = kelompok[c]
-                jika panjang(anggota) == 0
-                    pusat_baharu.tambah(diri.pusat[c])
-                jika tidak
-                    ada pusat_c = []
-                    ada d = 0
-                    selagi d < n_dim
-                        ada jumlah = 0.0
-                        untuk pt dalam anggota
-                            jumlah = jumlah + pt[d]
-                        selesai
-                        pusat_c.tambah(jumlah / panjang(anggota))
-                        d = d + 1
-                    selesai
-                    pusat_baharu.tambah(pusat_c)
-                selesai
-                c = c + 1
-            selesai
-
-            diri.pusat = pusat_baharu
-            pusingan = pusingan + 1
-        selesai
-    selesai
-
-    kerja ramal(X_baru)
-        ada ramalan = []
-        untuk titik dalam X_baru
-            ada jarak_min = 1000000000.0
-            ada pusat_terpilih = 0
-            ada c = 0
-            selagi c < diri.k
-                ada dist = jarakEuclidean(titik, diri.pusat[c])
-                jika dist < jarak_min
-                    jarak_min = dist
-                    pusat_terpilih = c
-                selesai
-                c = c + 1
-            selesai
-            ramalan.tambah(pusat_terpilih)
-        selesai
-        pulang ramalan
-    selesai
-selesai
-
-# --- KELAS JARINGAN SARAF TIRUAN (Multi-Layer Perceptron / Deep Neural Network) ---
-kelas JaringanSaraf
-    bina(lapisan, kadarBelajar)
-        diri.lapisan = lapisan
-        diri.kadarBelajar = kadarBelajar
-        diri.wajaran = []
-        diri.pincang = []
-
-        ada l = 0
-        ada n_lapisan = panjang(lapisan)
-        selagi l < n_lapisan - 1
-            ada n_masukan = lapisan[l]
-            ada n_keluaran = lapisan[l + 1]
-
-            ada w = []
-            ada i = 0
-            selagi i < n_masukan
-                ada baris_w = []
-                ada j = 0
-                selagi j < n_keluaran
-                    ada r = (rawak() - 0.5) * 1.5
-                    baris_w.tambah(r)
-                    j = j + 1
-                selesai
-                w.tambah(baris_w)
-                i = i + 1
-            selesai
-            diri.wajaran.tambah(w)
-
-            ada b = [[]]
-            ada j2 = 0
-            selagi j2 < n_keluaran
-                b[0].tambah(0.0)
-                j2 = j2 + 1
-            selesai
-            diri.pincang.tambah(b)
-
-            l = l + 1
-        selesai
-    selesai
-
-    kerja ramalKebarangkalian(X)
-        ada a = X
-        ada l = 0
-        ada n_tahap = panjang(diri.wajaran)
-        selagi l < n_tahap
-            ada z = darabMatriks(a, diri.wajaran[l])
-            z = matriksTambah(z, diri.pincang[l])
-            a = matriksSigmoid(z)
-            l = l + 1
-        selesai
-        pulang a
-    selesai
-
-    kerja latih(X, Y, zaman, tunjukProgres)
-        ada Y_mat = Y
-        jika panjang(Y) > 0 dan bukan (jenis(Y[0]) == "senarai")
-            Y_mat = []
-            untuk y_item dalam Y
-                Y_mat.tambah([y_item])
-            selesai
-        selesai
-
-        ada n_tahap = panjang(diri.wajaran)
-        ada p = 1
-        selagi p <= zaman
-            # 1. Suapan ke hadapan (Forward pass)
-            ada pengaktifan = [X]
-            ada a_kini = X
-            ada l = 0
-            selagi l < n_tahap
-                ada z = darabMatriks(a_kini, diri.wajaran[l])
-                z = matriksTambah(z, diri.pincang[l])
-                a_kini = matriksSigmoid(z)
-                pengaktifan.tambah(a_kini)
-                l = l + 1
-            selesai
-
-            # 2. Perambatan ke belakang (Backpropagation)
-            ada a_keluar = pengaktifan[n_tahap]
-            ada ralat = matriksTolak(a_keluar, Y_mat)
-            ada d_keluar = matriksDerivatifSigmoid(a_keluar)
-            ada delta = darabHadamard(ralat, d_keluar)
-
-            ada senarai_delta = [delta]
-            ada l_rev = n_tahap - 1
-            selagi l_rev > 0
-                ada w_trans = transposisiMatriks(diri.wajaran[l_rev])
-                ada ralat_tersembunyi = darabMatriks(senarai_delta[0], w_trans)
-                ada d_act = matriksDerivatifSigmoid(pengaktifan[l_rev])
-                ada delta_prev = darabHadamard(ralat_tersembunyi, d_act)
-
-                ada delta_baru = [delta_prev]
-                untuk d_item dalam senarai_delta
-                    delta_baru.tambah(d_item)
-                selesai
-                senarai_delta = delta_baru
-
-                l_rev = l_rev - 1
-            selesai
-
-            # 3. Kemas kini wajaran dan pincang (Gradient descent)
-            ada u = 0
-            selagi u < n_tahap
-                ada a_prev_t = transposisiMatriks(pengaktifan[u])
-                ada grad_w = darabMatriks(a_prev_t, senarai_delta[u])
-                ada grad_b = matriksJumlahLajur(senarai_delta[u])
-
-                ada delta_w = matriksSkala(grad_w, diri.kadarBelajar)
-                ada delta_b = matriksSkala(grad_b, diri.kadarBelajar)
-
-                diri.wajaran[u] = matriksTolak(diri.wajaran[u], delta_w)
-                diri.pincang[u] = matriksTolak(diri.pincang[u], delta_b)
-                u = u + 1
-            selesai
-
-            # 4. Paparan perkembangan latihan
-            jika tunjukProgres
-                ada saiz_selang = zaman / 5
-                jika saiz_selang < 1
-                    saiz_selang = 1
-                selesai
-                jika p == 1 atau p % saiz_selang == 0 atau p == zaman
-                    ada jumlah_ralat = 0.0
-                    ada n_baris = panjang(ralat)
-                    ada n_lajur = panjang(ralat[0])
-                    ada ri = 0
-                    selagi ri < n_baris
-                        ada rj = 0
-                        selagi rj < n_lajur
-                            ada err_val = ralat[ri][rj]
-                            jumlah_ralat = jumlah_ralat + (err_val * err_val)
-                            rj = rj + 1
-                        selesai
-                        ri = ri + 1
-                    selesai
-                    ada mse = jumlah_ralat / (n_baris * n_lajur)
-                    tunjuk "Zaman " + teks(p) + "/" + teks(zaman) + " -> Ralat MSE: " + teks(mse)
-                selesai
-            selesai
-
-            p = p + 1
-        selesai
-    selesai
-
-    kerja ramal(X_baru)
-        ada probs = diri.ramalKebarangkalian(X_baru)
-        ada n_keluaran = diri.lapisan[panjang(diri.lapisan) - 1]
-        ada hasil = []
-        untuk baris dalam probs
-            jika n_keluaran == 1
-                jika baris[0] >= 0.5
-                    hasil.tambah(1)
-                jika tidak
-                    hasil.tambah(0)
-                selesai
-            jika tidak
-                ada idx_maks = 0
-                ada val_maks = baris[0]
-                ada c = 1
-                selagi c < panjang(baris)
-                    jika baris[c] > val_maks
-                        val_maks = baris[c]
-                        idx_maks = c
-                    selesai
-                    c = c + 1
-                selesai
-                hasil.tambah(idx_maks)
-            selesai
-        selesai
-        pulang hasil
-    selesai
-
-    kerja skor(X_uji, y_uji)
-        ada y_ramal = diri.ramal(X_uji)
-        ada y_ramal_num = []
-        untuk val dalam y_ramal
-            y_ramal_num.tambah(nombor(val))
-        selesai
-        ada y_uji_num = []
-        untuk val dalam y_uji
-            y_uji_num.tambah(nombor(val))
-        selesai
-        pulang skorAkurasi(y_uji_num, y_ramal_num)
-    selesai
-selesai
-
-# --- KELAS PENGELAS BAYES NAIF (Gaussian Naive Bayes) ---
-kelas PengelasBayesNaif
-    bina()
-        diri.kelas_unik = []
-        diri.priors = {}
-        diri.min_fitur = {}
-        diri.sisihan_fitur = {}
-    selesai
-
-    kerja latih(X, y)
-        ada n_sampel = panjang(X)
-        jika n_sampel == 0
-            baling "Dataset latihan kosong!"
-        selesai
-        ada n_fitur = panjang(X[0])
-
-        diri.kelas_unik = []
-        diri.priors = {}
-        diri.min_fitur = {}
-        diri.sisihan_fitur = {}
-
-        # Kumpulkan sampel mengikut label kelas
-        ada data_kelas = {}
-        ada i = 0
-        selagi i < n_sampel
-            ada label = teks(y[i])
-            jika bukan data_kelas.adaKunci(label)
-                data_kelas[label] = []
-                diri.kelas_unik.tambah(label)
-            selesai
-            data_kelas[label].tambah(X[i])
-            i = i + 1
-        selesai
-
-        # Hitung kebarangkalian prior, purata (mean) dan sisihan piawai setiap ciri
-        untuk label dalam diri.kelas_unik
-            ada sampel_c = data_kelas[label]
-            ada n_c = panjang(sampel_c)
-            diri.priors[label] = n_c / n_sampel
-
-            ada senarai_purata = []
-            ada senarai_sisihan = []
-
-            ada d = 0
-            selagi d < n_fitur
-                ada nilai_fitur = []
-                untuk baris dalam sampel_c
-                    nilai_fitur.tambah(baris[d])
-                selesai
-
-                ada m = purata(nilai_fitur)
-                ada s = sisihanPiawai(nilai_fitur)
-                jika s < 0.000001
-                    s = 0.000001
-                selesai
-
-                senarai_purata.tambah(m)
-                senarai_sisihan.tambah(s)
-                d = d + 1
-            selesai
-
-            diri.min_fitur[label] = senarai_purata
-            diri.sisihan_fitur[label] = senarai_sisihan
-        selesai
-    selesai
-
-    kerja kebarangkalianGaussian(x, m, s)
-        ada varians = s * s
-        ada pemalar = 2.5066282746310002 * s
-        ada beza = x - m
-        ada eks = eksponen(0.0 - ((beza * beza) / (2.0 * varians)))
-        pulang eks / pemalar
-    selesai
-
-    kerja ramal(X_baru)
-        ada ramalan = []
-        ada n_fitur = panjang(diri.min_fitur[diri.kelas_unik[0]])
-
-        untuk baris dalam X_baru
-            ada posterior_terbaik = -1000000000.0
-            ada kelas_terbaik = kosong
-
-            untuk label dalam diri.kelas_unik
-                ada prior = diri.priors[label]
-                ada log_posterior = logaritmaAsli(prior)
-
-                ada d = 0
-                selagi d < n_fitur
-                    ada m = diri.min_fitur[label][d]
-                    ada s = diri.sisihan_fitur[label][d]
-                    ada prob = diri.kebarangkalianGaussian(baris[d], m, s)
-                    jika prob < 0.000000000001
-                        prob = 0.000000000001
-                    selesai
-                    log_posterior = log_posterior + logaritmaAsli(prob)
-                    d = d + 1
-                selesai
-
-                jika log_posterior > posterior_terbaik
-                    posterior_terbaik = log_posterior
-                    kelas_terbaik = label
-                selesai
-            selesai
-
-            ramalan.tambah(kelas_terbaik)
-        selesai
-
-        pulang ramalan
-    selesai
-
-    kerja skor(X_uji, y_uji)
-        ada y_ramal = diri.ramal(X_uji)
-        ada y_uji_teks = []
-        untuk val dalam y_uji
-            y_uji_teks.tambah(teks(val))
-        selesai
-        pulang skorAkurasi(y_uji_teks, y_ramal)
-    selesai
-selesai
-"#;
+pub fn builtin_mulakan_pelayan_http(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() < 2 || args.len() > 3 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Fungsi 'mulakanPelayanHTTP' memerlukan 2 atau 3 hujah (port, fungsiPengendali, [hadPermintaan]).",
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+
+    let port = match &args[0] {
+        Value::Nombor(n) => *n as u16,
+        _ => return Err(MelayuError::new("Alamak!", "Port mestilah nombor bulat.", pos.line, pos.col).with_kind(ErrorKind::Runtime)),
+    };
+
+    let handler_val = args[1].clone();
+
+    let had_permintaan = if args.len() == 3 {
+        match &args[2] {
+            Value::Nombor(n) => *n as usize,
+            _ => 0,
+        }
+    } else {
+        0
+    };
+
+    let listener = match TcpListener::bind(("127.0.0.1", port)) {
+        Ok(l) => l,
+        Err(e) => return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Gagal memulakan pelayan HTTP pada port {}: {}", port, e),
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime)),
+    };
+
+    let mut count = 0;
+
+    for stream in listener.incoming() {
+        let mut stream = match stream {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+
+        let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+        let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
+
+        let mut buffer = [0u8; 8192];
+        let bytes_read = match stream.read(&mut buffer) {
+            Ok(n) if n > 0 => n,
+            _ => continue,
+        };
+
+        let req_text = String::from_utf8_lossy(&buffer[..bytes_read]);
+        let mut lines = req_text.lines();
+        let first_line = lines.next().unwrap_or("");
+        let mut first_parts = first_line.split_whitespace();
+        let method = first_parts.next().unwrap_or("GET");
+        let path_full = first_parts.next().unwrap_or("/");
+
+        let mut headers_map = HashMap::new();
+        let mut content_length: usize = 0;
+
+        for line in lines.by_ref() {
+            if line.is_empty() || line == "\r" {
+                break;
+            }
+            if let Some((k, v)) = line.split_once(':') {
+                let k_trim = k.trim().to_lowercase();
+                let v_trim = v.trim().to_string();
+                if k_trim == "content-length" {
+                    content_length = v_trim.parse().unwrap_or(0);
+                }
+                headers_map.insert(k_trim, Value::Teks(v_trim));
+            }
+        }
+
+        let body = if let Some(idx) = req_text.find("\r\n\r\n") {
+            let body_part = &req_text[idx + 4..];
+            if content_length > 0 && body_part.len() > content_length {
+                &body_part[..content_length]
+            } else {
+                body_part
+            }
+        } else {
+            ""
+        };
+
+        let mut req_kamus = HashMap::new();
+        req_kamus.insert("kaedah".to_string(), Value::Teks(method.to_string()));
+        req_kamus.insert("laluan".to_string(), Value::Teks(path_full.to_string()));
+        req_kamus.insert("badan".to_string(), Value::Teks(body.to_string()));
+        req_kamus.insert("pengepala".to_string(), Value::Kamus(Rc::new(RefCell::new(headers_map))));
+
+        let req_val = Value::Kamus(Rc::new(RefCell::new(req_kamus)));
+
+        let mut interp = Interpreter::new();
+        let res_val = match &handler_val {
+            Value::Objek(_) => {
+                interp.panggil_kaedah(handler_val.clone(), "kendaliPermintaan", &[req_val.clone()], pos)
+                    .or_else(|_| interp.panggil_kaedah(handler_val.clone(), "kendali", &[req_val], pos))
+            }
+            _ => interp.panggil_nilai(&handler_val, &[req_val], pos),
+        };
+
+        let (status_code, content_type, res_body) = match res_val {
+            Ok(Value::Kamus(rc)) => {
+                let m = rc.borrow();
+                let status = match m.get("status") {
+                    Some(Value::Nombor(n)) => *n as u16,
+                    _ => 200,
+                };
+                let c_type = match m.get("jenisKandungan") {
+                    Some(Value::Teks(s)) => s.clone(),
+                    _ => "application/json".to_string(),
+                };
+                let b_str = match m.get("badan") {
+                    Some(Value::Teks(s)) => s.clone(),
+                    Some(other) => nilai_ke_json_string(other, false, 0, pos).unwrap_or_else(|_| "{}".to_string()),
+                    None => "".to_string(),
+                };
+                (status, c_type, b_str)
+            }
+            Ok(Value::Teks(s)) => (200, "text/plain".to_string(), s),
+            Ok(other) => {
+                let json = nilai_ke_json_string(&other, false, 0, pos).unwrap_or_else(|_| "{}".to_string());
+                (200, "application/json".to_string(), json)
+            }
+            Err(e) => {
+                let err_json = format!("{{\"ralat\": \"{}\"}}", e.message.replace('\"', "\\\""));
+                (500, "application/json".to_string(), err_json)
+            }
+        };
+
+        let status_msg = match status_code {
+            200 => "OK",
+            201 => "Created",
+            400 => "Bad Request",
+            404 => "Not Found",
+            500 => "Internal Server Error",
+            _ => "Response",
+        };
+
+        let response = format!(
+            "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            status_code, status_msg, content_type, res_body.len(), res_body
+        );
+
+        let _ = stream.write_all(response.as_bytes());
+        let _ = stream.flush();
+
+        count += 1;
+        if had_permintaan > 0 && count >= had_permintaan {
+            break;
+        }
+    }
+
+    Ok(Value::Nombor(count as f64))
+}
+
+pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() < 2 || args.len() > 4 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Fungsi 'hantarPermintaanHTTP' memerlukan 2 hingga 4 hujah (kaedah, url, [badan, pengepala]).",
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime));
+    }
+
+    let kaedah = match &args[0] {
+        Value::Teks(s) => s.to_uppercase(),
+        _ => return Err(MelayuError::new("Alamak!", "Kaedah HTTP mestilah teks (cth: 'GET', 'POST').", pos.line, pos.col).with_kind(ErrorKind::Runtime)),
+    };
+
+    let url_raw = match &args[1] {
+        Value::Teks(s) => s.as_str(),
+        _ => return Err(MelayuError::new("Alamak!", "URL mestilah teks.", pos.line, pos.col).with_kind(ErrorKind::Runtime)),
+    };
+
+    let badan_str = if args.len() >= 3 {
+        match &args[2] {
+            Value::Teks(s) => s.clone(),
+            other => nilai_ke_json_string(other, false, 0, pos)?,
+        }
+    } else {
+        "".to_string()
+    };
+
+    let url_clean = if url_raw.starts_with("http://") {
+        &url_raw[7..]
+    } else {
+        url_raw
+    };
+
+    let (host_port, path) = if let Some(slash_idx) = url_clean.find('/') {
+        (&url_clean[..slash_idx], &url_clean[slash_idx..])
+    } else {
+        (url_clean, "/")
+    };
+
+    let (host, port) = if let Some(colon_idx) = host_port.find(':') {
+        let h = &host_port[..colon_idx];
+        let p: u16 = host_port[colon_idx + 1..].parse().unwrap_or(80);
+        (h, p)
+    } else {
+        (host_port, 80)
+    };
+
+    let mut stream = match TcpStream::connect((host, port)) {
+        Ok(s) => s,
+        Err(e) => return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Gagal menyambung ke {}:{}: {}", host, port, e),
+            pos.line,
+            pos.col,
+        ).with_kind(ErrorKind::Runtime)),
+    };
+
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(10)));
+
+    let req_content = format!(
+        "{} {} HTTP/1.1\r\nHost: {}:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        kaedah, path, host, port, badan_str.len(), badan_str
+    );
+
+    if let Err(e) = stream.write_all(req_content.as_bytes()) {
+        return Err(MelayuError::new("Alamak!", &format!("Gagal menghantar permintaan HTTP: {}", e), pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let _ = stream.flush();
+
+    let mut response_bytes = Vec::new();
+    let _ = stream.read_to_end(&mut response_bytes);
+
+    let res_str = String::from_utf8_lossy(&response_bytes);
+    let mut parts = res_str.splitn(2, "\r\n\r\n");
+    let header_part = parts.next().unwrap_or("");
+    let body_part = parts.next().unwrap_or("").to_string();
+
+    let mut header_lines = header_part.lines();
+    let status_line = header_lines.next().unwrap_or("");
+    let status_code: f64 = status_line
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0.0);
+
+    let mut map_resp = HashMap::new();
+    map_resp.insert("status".to_string(), Value::Nombor(status_code));
+    map_resp.insert("badan".to_string(), Value::Teks(body_part));
+
+    let mut headers_resp = HashMap::new();
+    for hl in header_lines {
+        if let Some((k, v)) = hl.split_once(':') {
+            headers_resp.insert(k.trim().to_lowercase(), Value::Teks(v.trim().to_string()));
+        }
+    }
+    map_resp.insert("pengepala".to_string(), Value::Kamus(Rc::new(RefCell::new(headers_resp))));
+
+    Ok(Value::Kamus(Rc::new(RefCell::new(map_resp))))
+}
+
+pub const AKAL_ML_STDLIB: &str = include_str!("../std/akal.ml");
+pub const SELASIH_STDLIB: &str = include_str!("../std/selasih.ml");

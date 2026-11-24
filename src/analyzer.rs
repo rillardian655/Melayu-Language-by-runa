@@ -383,9 +383,17 @@ impl Analyzer {
                 } else {
                     let source_opt = if sasaran == "akal" || sasaran == "akal_ml" || sasaran == "akalml" || sasaran == "std/akal" || sasaran == "std/akal_ml" {
                         Some(crate::builtins::AKAL_ML_STDLIB.to_string())
+                    } else if sasaran == "selasih" || sasaran == "wau" || sasaran == "web" || sasaran == "std/selasih" || sasaran == "std/wau" {
+                        Some(crate::builtins::SELASIH_STDLIB.to_string())
                     } else if let Ok(src) = std::fs::read_to_string(sasaran) {
                         Some(src)
                     } else if let Ok(src) = std::fs::read_to_string(format!("{}.ml", sasaran)) {
+                        Some(src)
+                    } else if let Ok(src) = std::fs::read_to_string(format!("modul_melayu/{}.ml", sasaran)) {
+                        Some(src)
+                    } else if let Ok(src) = std::fs::read_to_string(format!("modul_melayu/{}/mod.ml", sasaran)) {
+                        Some(src)
+                    } else if let Ok(src) = std::fs::read_to_string(format!("modul_melayu/{}/utama.ml", sasaran)) {
                         Some(src)
                     } else {
                         None

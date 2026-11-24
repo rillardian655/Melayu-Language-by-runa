@@ -239,3 +239,42 @@ semak bundar(f1 * 100) == 86, "Skor F1 mestilah ~0.857 (86%)"
     let res = laksana_kod(code);
     assert!(res.is_ok(), "Ralat: {:?}", res);
 }
+
+#[test]
+fn test_akal_ml_simpan_muat_dan_skala() {
+    let code = r#"
+ambil "akal"
+
+# 1. Uji SkalaMinMaks
+ada X = [
+    [10.0, 100.0],
+    [20.0, 200.0],
+    [30.0, 300.0]
+]
+ada scaler = SkalaMinMaks()
+ada X_skala = scaler.latihTransformasi(X)
+
+semak X_skala[0][0] == 0.0, "Skala minimum mestilah 0.0"
+semak X_skala[2][0] == 1.0, "Skala maksimum mestilah 1.0"
+semak X_skala[1][0] == 0.5, "Skala tengah mestilah 0.5"
+
+ada X_pulih = scaler.songsang(X_skala)
+semak X_pulih[0][0] == 10.0, "Songsangan skala mestilah 10.0"
+semak X_pulih[2][1] == 300.0, "Songsangan skala mestilah 300.0"
+
+# 2. Uji Simpan dan Muat Model Regresi Linear
+ada reg = RegresiLinear(betul)
+reg.latih([[1.0], [2.0], [3.0]], [2.0, 4.0, 6.0])
+
+reg.simpan("target/test_model_regresi.json")
+
+ada reg_baru = RegresiLinear(betul)
+reg_baru.muat("target/test_model_regresi.json")
+
+ada ramal = reg_baru.ramal([[4.0]])
+semak bundar(ramal[0]) == 8, "Model dimuatkan mesti ramal 8"
+"#;
+    let res = laksana_kod(code);
+    let _ = fs::remove_file("target/test_model_regresi.json");
+    assert!(res.is_ok(), "Ralat: {:?}", res);
+}

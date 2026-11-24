@@ -157,6 +157,25 @@ kelas RegresiLinear
         ada y_ramal = diri.ramal(X_uji)
         pulang skorR2(y_uji, y_ramal)
     selesai
+
+    kerja simpan(laluan)
+        ada data = {
+            "tipe": "RegresiLinear",
+            "denganPintas": diri.denganPintas,
+            "pintas": diri.pintas,
+            "pekali": diri.pekali
+        }
+        ada json_str = tulisJSON(data, betul)
+        tulisFail(laluan, json_str)
+    selesai
+
+    kerja muat(laluan)
+        ada kandungan = bacaFail(laluan)
+        ada data = bacaJSON(kandungan)
+        diri.denganPintas = data["denganPintas"]
+        diri.pintas = data["pintas"]
+        diri.pekali = data["pekali"]
+    selesai
 selesai
 
 # --- KELAS PENGELAS KNN (K-Nearest Neighbors) ---
@@ -524,6 +543,27 @@ kelas JaringanSaraf
         selesai
         pulang skorAkurasi(y_uji_num, y_ramal_num)
     selesai
+
+    kerja simpan(laluan)
+        ada data = {
+            "tipe": "JaringanSaraf",
+            "lapisan": diri.lapisan,
+            "kadarBelajar": diri.kadarBelajar,
+            "wajaran": diri.wajaran,
+            "pincang": diri.pincang
+        }
+        ada json_str = tulisJSON(data, betul)
+        tulisFail(laluan, json_str)
+    selesai
+
+    kerja muat(laluan)
+        ada kandungan = bacaFail(laluan)
+        ada data = bacaJSON(kandungan)
+        diri.lapisan = data["lapisan"]
+        diri.kadarBelajar = data["kadarBelajar"]
+        diri.wajaran = data["wajaran"]
+        diri.pincang = data["pincang"]
+    selesai
 selesai
 
 # --- KELAS PENGELAS BAYES NAIF (Gaussian Naive Bayes) ---
@@ -643,5 +683,188 @@ kelas PengelasBayesNaif
             y_uji_teks.tambah(teks(val))
         selesai
         pulang skorAkurasi(y_uji_teks, y_ramal)
+    selesai
+
+    kerja simpan(laluan)
+        ada data = {
+            "tipe": "PengelasBayesNaif",
+            "kelas_unik": diri.kelas_unik,
+            "priors": diri.priors,
+            "min_fitur": diri.min_fitur,
+            "sisihan_fitur": diri.sisihan_fitur
+        }
+        ada json_str = tulisJSON(data, betul)
+        tulisFail(laluan, json_str)
+    selesai
+
+    kerja muat(laluan)
+        ada kandungan = bacaFail(laluan)
+        ada data = bacaJSON(kandungan)
+        diri.kelas_unik = data["kelas_unik"]
+        diri.priors = data["priors"]
+        diri.min_fitur = data["min_fitur"]
+        diri.sisihan_fitur = data["sisihan_fitur"]
+    selesai
+selesai
+
+# --- KELAS SKALA MIN-MAKS (MinMaxScaler Preprocessing) ---
+kelas SkalaMinMaks
+    bina()
+        diri.min_nilai = []
+        diri.maks_nilai = []
+    selesai
+
+    kerja latih(X)
+        ada n_baris = panjang(X)
+        jika n_baris == 0
+            pulang diri
+        selesai
+        ada n_lajur = panjang(X[0])
+        diri.min_nilai = []
+        diri.maks_nilai = []
+
+        ada j = 0
+        selagi j < n_lajur
+            ada min_c = X[0][j]
+            ada maks_c = X[0][j]
+            ada i = 1
+            selagi i < n_baris
+                ada v = X[i][j]
+                jika v < min_c
+                    min_c = v
+                selesai
+                jika v > maks_c
+                    maks_c = v
+                selesai
+                i = i + 1
+            selesai
+            diri.min_nilai.tambah(min_c)
+            diri.maks_nilai.tambah(maks_c)
+            j = j + 1
+        selesai
+    selesai
+
+    kerja transformasi(X)
+        ada n_baris = panjang(X)
+        ada n_lajur = panjang(diri.min_nilai)
+        ada hasil = []
+        ada i = 0
+        selagi i < n_baris
+            ada baris_baru = []
+            ada j = 0
+            selagi j < n_lajur
+                ada rentang = diri.maks_nilai[j] - diri.min_nilai[j]
+                jika rentang == 0
+                    baris_baru.tambah(0.0)
+                jika tidak
+                    baris_baru.tambah((X[i][j] - diri.min_nilai[j]) / rentang)
+                selesai
+                j = j + 1
+            selesai
+            hasil.tambah(baris_baru)
+            i = i + 1
+        selesai
+        pulang hasil
+    selesai
+
+    kerja latihTransformasi(X)
+        diri.latih(X)
+        pulang diri.transformasi(X)
+    selesai
+
+    kerja songsang(X)
+        ada n_baris = panjang(X)
+        ada n_lajur = panjang(diri.min_nilai)
+        ada hasil = []
+        ada i = 0
+        selagi i < n_baris
+            ada baris_baru = []
+            ada j = 0
+            selagi j < n_lajur
+                ada rentang = diri.maks_nilai[j] - diri.min_nilai[j]
+                baris_baru.tambah((X[i][j] * rentang) + diri.min_nilai[j])
+                j = j + 1
+            selesai
+            hasil.tambah(baris_baru)
+            i = i + 1
+        selesai
+        pulang hasil
+    selesai
+selesai
+
+# --- KELAS PENYELARASAN PIAWAI (StandardScaler / Z-Score) ---
+kelas PenyelarasanPiawai
+    bina()
+        diri.purata_nilai = []
+        diri.sisihan_nilai = []
+    selesai
+
+    kerja latih(X)
+        ada n_baris = panjang(X)
+        jika n_baris == 0
+            pulang diri
+        selesai
+        ada n_lajur = panjang(X[0])
+        diri.purata_nilai = []
+        diri.sisihan_nilai = []
+
+        ada j = 0
+        selagi j < n_lajur
+            ada lajur_vals = []
+            ada i = 0
+            selagi i < n_baris
+                lajur_vals.tambah(X[i][j])
+                i = i + 1
+            selesai
+            ada m = purata(lajur_vals)
+            ada s = sisihanPiawai(lajur_vals)
+            jika s < 0.000001
+                s = 0.000001
+            selesai
+            diri.purata_nilai.tambah(m)
+            diri.sisihan_nilai.tambah(s)
+            j = j + 1
+        selesai
+    selesai
+
+    kerja transformasi(X)
+        ada n_baris = panjang(X)
+        ada n_lajur = panjang(diri.purata_nilai)
+        ada hasil = []
+        ada i = 0
+        selagi i < n_baris
+            ada baris_baru = []
+            ada j = 0
+            selagi j < n_lajur
+                baris_baru.tambah((X[i][j] - diri.purata_nilai[j]) / diri.sisihan_nilai[j])
+                j = j + 1
+            selesai
+            hasil.tambah(baris_baru)
+            i = i + 1
+        selesai
+        pulang hasil
+    selesai
+
+    kerja latihTransformasi(X)
+        diri.latih(X)
+        pulang diri.transformasi(X)
+    selesai
+
+    kerja songsang(X)
+        ada n_baris = panjang(X)
+        ada n_lajur = panjang(diri.purata_nilai)
+        ada hasil = []
+        ada i = 0
+        selagi i < n_baris
+            ada baris_baru = []
+            ada j = 0
+            selagi j < n_lajur
+                baris_baru.tambah((X[i][j] * diri.sisihan_nilai[j]) + diri.purata_nilai[j])
+                j = j + 1
+            selesai
+            hasil.tambah(baris_baru)
+            i = i + 1
+        selesai
+        pulang hasil
     selesai
 selesai
