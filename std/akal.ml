@@ -707,6 +707,210 @@ kelas PengelasBayesNaif
     selesai
 selesai
 
+# --- KELAS POKOK KEPUTUSAN (Decision Tree Classifier) ---
+kelas PokokKeputusan
+    bina(kedalamanMaks)
+        ada k = kedalamanMaks
+        jika k == kosong
+            k = 5
+        selesai
+        diri.kedalamanMaks = k
+        diri.pokok = kosong
+    selesai
+
+    kerja kiraGini(y_label)
+        ada n = panjang(y_label)
+        jika n == 0
+            pulang 0.0
+        selesai
+        ada kiraan = {}
+        ada i = 0
+        selagi i < n
+            ada lbl = teks(y_label[i])
+            jika kiraan.adaKunci(lbl)
+                kiraan[lbl] = kiraan[lbl] + 1
+            jika tidak
+                kiraan[lbl] = 1
+            selesai
+            i = i + 1
+        selesai
+
+        ada jumlah_sq = 0.0
+        ada kunci = kiraan.kunci()
+        ada k_idx = 0
+        selagi k_idx < panjang(kunci)
+            ada c = kiraan[kunci[k_idx]]
+            ada p = c / n
+            jumlah_sq = jumlah_sq + (p * p)
+            k_idx = k_idx + 1
+        selesai
+        pulang 1.0 - jumlah_sq
+    selesai
+
+    kerja dapatkanMajoriti(y_label)
+        ada kiraan = {}
+        ada i = 0
+        selagi i < panjang(y_label)
+            ada lbl = teks(y_label[i])
+            jika kiraan.adaKunci(lbl)
+                kiraan[lbl] = kiraan[lbl] + 1
+            jika tidak
+                kiraan[lbl] = 1
+            selesai
+            i = i + 1
+        selesai
+
+        ada max_c = -1
+        ada maj = kosong
+        ada kunci = kiraan.kunci()
+        ada k_idx = 0
+        selagi k_idx < panjang(kunci)
+            ada k = kunci[k_idx]
+            jika kiraan[k] > max_c
+                max_c = kiraan[k]
+                maj = k
+            selesai
+            k_idx = k_idx + 1
+        selesai
+        pulang nombor(maj)
+    selesai
+
+    kerja binaNod(X, y, kedalaman)
+        ada n_sampel = panjang(X)
+        jika n_sampel == 0
+            pulang {"jenis": "daun", "kelas": 0}
+        selesai
+
+        ada maj = diri.dapatkanMajoriti(y)
+        ada gini_asal = diri.kiraGini(y)
+
+        # Hentikan jika sampel tulen atau capai had kedalaman
+        jika gini_asal == 0.0 || kedalaman >= diri.kedalamanMaks || n_sampel <= 2
+            pulang {"jenis": "daun", "kelas": maj}
+        selesai
+
+        ada n_ciri = panjang(X[0])
+        ada skor_terbaik = 1000.0
+        ada ciri_terbaik = kosong
+        ada ambang_terbaik = kosong
+        ada X_kiri_t = []
+        ada y_kiri_t = []
+        ada X_kanan_t = []
+        ada y_kanan_t = []
+
+        ada f = 0
+        selagi f < n_ciri
+            ada s_idx = 0
+            selagi s_idx < n_sampel
+                ada ambang = X[s_idx][f]
+                ada X_kiri = []
+                ada y_kiri = []
+                ada X_kanan = []
+                ada y_kanan = []
+
+                ada i = 0
+                selagi i < n_sampel
+                    jika X[i][f] <= ambang
+                        X_kiri.tambah(X[i])
+                        y_kiri.tambah(y[i])
+                    jika tidak
+                        X_kanan.tambah(X[i])
+                        y_kanan.tambah(y[i])
+                    selesai
+                    i = i + 1
+                selesai
+
+                jika panjang(X_kiri) > 0 && panjang(X_kanan) > 0
+                    ada gini_kiri = diri.kiraGini(y_kiri)
+                    ada gini_kanan = diri.kiraGini(y_kanan)
+                    ada skor_pembahagian = (panjang(X_kiri) / n_sampel * gini_kiri) + (panjang(X_kanan) / n_sampel * gini_kanan)
+                    jika skor_pembahagian < skor_terbaik
+                        skor_terbaik = skor_pembahagian
+                        ciri_terbaik = f
+                        ambang_terbaik = ambang
+                        X_kiri_t = X_kiri
+                        y_kiri_t = y_kiri
+                        X_kanan_t = X_kanan
+                        y_kanan_t = y_kanan
+                    selesai
+                selesai
+                s_idx = s_idx + 1
+            selesai
+            f = f + 1
+        selesai
+
+        jika ciri_terbaik == kosong
+            pulang {"jenis": "daun", "kelas": maj}
+        selesai
+
+        ada cabang_kiri = diri.binaNod(X_kiri_t, y_kiri_t, kedalaman + 1)
+        ada cabang_kanan = diri.binaNod(X_kanan_t, y_kanan_t, kedalaman + 1)
+
+        pulang {
+            "jenis": "nod",
+            "ciri": ciri_terbaik,
+            "ambang": ambang_terbaik,
+            "kiri": cabang_kiri,
+            "kanan": cabang_kanan
+        }
+    selesai
+
+    kerja latih(X, y)
+        jika panjang(X) == 0
+            baling "Dataset latih PokokKeputusan kosong!"
+        selesai
+        diri.pokok = diri.binaNod(X, y, 0)
+    selesai
+
+    kerja ramalSatu(titik, nod)
+        jika nod["jenis"] == "daun"
+            pulang nod["kelas"]
+        selesai
+        ada f = nod["ciri"]
+        ada ambang = nod["ambang"]
+        jika titik[f] <= ambang
+            pulang diri.ramalSatu(titik, nod["kiri"])
+        jika tidak
+            pulang diri.ramalSatu(titik, nod["kanan"])
+        selesai
+    selesai
+
+    kerja ramal(X_baru)
+        jika diri.pokok == kosong
+            baling "PokokKeputusan belum dilatih!"
+        selesai
+        ada hasil = []
+        ada i = 0
+        selagi i < panjang(X_baru)
+            hasil.tambah(diri.ramalSatu(X_baru[i], diri.pokok))
+            i = i + 1
+        selesai
+        pulang hasil
+    selesai
+
+    kerja skor(X_uji, y_uji)
+        ada y_ramal = diri.ramal(X_uji)
+        pulang skorAkurasi(y_uji, y_ramal)
+    selesai
+
+    kerja simpan(laluan)
+        ada data = {
+            "tipe": "PokokKeputusan",
+            "kedalamanMaks": diri.kedalamanMaks,
+            "pokok": diri.pokok
+        }
+        ada json_str = tulisJSON(data, betul)
+        tulisFail(laluan, json_str)
+    selesai
+
+    kerja muat(laluan)
+        ada kandungan = bacaFail(laluan)
+        ada data = bacaJSON(kandungan)
+        diri.kedalamanMaks = data["kedalamanMaks"]
+        diri.pokok = data["pokok"]
+    selesai
+selesai
+
 # --- KELAS SKALA MIN-MAKS (MinMaxScaler Preprocessing) ---
 kelas SkalaMinMaks
     bina()
