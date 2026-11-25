@@ -422,6 +422,7 @@ kelas JaringanSaraf
         selesai
 
         ada n_tahap = panjang(diri.wajaran)
+        ada kadar_purata = diri.kadarBelajar / maksimum(1, panjang(X))
         ada p = 1
         selagi p <= zaman
             # 1. Suapan ke hadapan (Forward pass)
@@ -466,8 +467,8 @@ kelas JaringanSaraf
                 ada grad_w = darabMatriks(a_prev_t, senarai_delta[u])
                 ada grad_b = matriksJumlahLajur(senarai_delta[u])
 
-                ada delta_w = matriksSkala(grad_w, diri.kadarBelajar)
-                ada delta_b = matriksSkala(grad_b, diri.kadarBelajar)
+                ada delta_w = matriksSkala(grad_w, kadar_purata)
+                ada delta_b = matriksSkala(grad_b, kadar_purata)
 
                 diri.wajaran[u] = matriksTolak(diri.wajaran[u], delta_w)
                 diri.pincang[u] = matriksTolak(diri.pincang[u], delta_b)

@@ -178,7 +178,7 @@ ada y = [
     [0.0]
 ]
 
-ada nn = JaringanSaraf([2, 4, 1], 0.8)
+ada nn = JaringanSaraf([2, 4, 1], 3.2)
 nn.latih(X, y, 2000, salah)
 
 ada ramalan = nn.ramal(X)

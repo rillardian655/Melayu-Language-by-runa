@@ -38,8 +38,8 @@ ada y_xor = [
     [0.0]
 ]
 
-# Bina model: 2 neuron masukan, 4 neuron tersembunyi, 1 neuron keluaran, kadar belajar = 0.85
-ada nn = JaringanSaraf([2, 4, 1], 0.85)
+# Bina model: 2 neuron masukan, 4 neuron tersembunyi, 1 neuron keluaran, kadar belajar = 3.4
+ada nn = JaringanSaraf([2, 4, 1], 3.4)
 
 tunjuk "Memulakan latihan model (2500 zaman)..."
 nn.latih(X_xor, y_xor, 2500, betul)
