@@ -7,8 +7,32 @@ use std::env;
 use std::fs;
 use std::process;
 
+fn ambil_pilihan_had_langkah(args: &mut Vec<String>) {
+    let Some(i) = args
+        .iter()
+        .position(|a| a == "--had-langkah" || a.starts_with("--had-langkah="))
+    else {
+        return;
+    };
+    let nilai = match args[i].strip_prefix("--had-langkah=") {
+        Some(v) => v.to_string(),
+        None if i + 1 < args.len() => args.remove(i + 1),
+        None => {
+            eprintln!("\x1b[1;31mAlamak! '--had-langkah' memerlukan nilai, contoh: --had-langkah 0\x1b[0m");
+            process::exit(1);
+        }
+    };
+    args.remove(i);
+    if nilai != "0" && nilai != "tiada" && nilai.parse::<u64>().is_err() {
+        eprintln!("\x1b[1;31mAlamak! Nilai '--had-langkah' mesti nombor bulat atau 0 (tiada had).\x1b[0m");
+        process::exit(1);
+    }
+    env::set_var("MELAYU_HAD_LANGKAH", nilai);
+}
+
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let mut args: Vec<String> = env::args().collect();
+    ambil_pilihan_had_langkah(&mut args);
 
     if args.len() <= 1 {
         // Tanpa argumen: Buka REPL
@@ -344,6 +368,10 @@ fn cetak_bantuan() {
     println!("  melayu taman [port]                Buka Web Playground interaktif (lalai: 7878)");
     println!("  melayu bantuan                     Papar bantuan ini");
     println!("  melayu versi                       Papar versi semasa");
+    println!();
+    println!("PILIHAN:");
+    println!("  --had-langkah <n>                  Had langkah pelaksanaan (lalai: 10000000, 0 = tiada had)");
+    println!("                                     Boleh juga guna pemboleh ubah persekitaran MELAYU_HAD_LANGKAH");
     println!();
     println!("CONTOH:");
     println!("  melayu mula aplikasi_saya");
@@ -853,6 +881,7 @@ fn jalankan_taman_permainan(port: u16) {
             let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("melayu"));
             // Jalankan dalam direktori sandbox dengan had masa maksimum 10 saat
             let (ok, text) = match process::Command::new(exe)
+                .env_remove("MELAYU_HAD_LANGKAH")
                 .current_dir(&tmp_dir)
                 .arg(&tmp_path)
                 .stdout(process::Stdio::piped())

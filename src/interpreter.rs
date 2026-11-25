@@ -312,6 +312,14 @@ pub const HAD_LANGKAH_LALAI: u64 = 10_000_000;
 pub const HAD_SAIZ_TEKS_MAKSIMUM: usize = 16 * 1024 * 1024; // 16 MB
 pub const HAD_ELEMEN_SENARAI_MAKSIMUM: usize = 1_000_000; // 1 juta elemen
 
+pub fn had_langkah_dari_persekitaran() -> Option<u64> {
+    match std::env::var("MELAYU_HAD_LANGKAH").ok().map(|v| v.trim().to_lowercase()) {
+        Some(v) if v == "0" || v == "tiada" => None,
+        Some(v) => Some(v.parse().unwrap_or(HAD_LANGKAH_LALAI)),
+        None => Some(HAD_LANGKAH_LALAI),
+    }
+}
+
 /// Memastikan nombor indeks sah: terhingga, bukan perpuluhan, dan dalam julat yang dibenarkan.
 pub fn sahkan_indeks(n: f64, len: usize, pos: LineCol) -> Result<usize, MelayuError> {
     if !n.is_finite() {
@@ -404,7 +412,7 @@ impl Interpreter {
             kedalaman_panggilan: 0,
             had_rekursi: HAD_REKURSI_LALAI,
             jumlah_langkah: 0,
-            had_langkah: Some(HAD_LANGKAH_LALAI),
+            had_langkah: had_langkah_dari_persekitaran(),
             mod_ujian: false,
             keputusan_ujian: Vec::new(),
         }
