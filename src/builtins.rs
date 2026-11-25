@@ -2678,7 +2678,17 @@ fn pengepala_tersuai(nilai: Option<&Value>) -> Result<(bool, String), String> {
     let mut ada_jenis = false;
     let mut teks = String::new();
     for (nama, nilai) in peta.iter() {
-        let nilai = nilai.to_string();
+        let nilai = match nilai {
+            Value::Teks(t) => t.clone(),
+            Value::Nombor(_) | Value::Betul | Value::Salah => nilai.to_string(),
+            lain => {
+                return Err(format!(
+                    "Nilai pengepala HTTP '{}' mestilah teks atau nombor, bukan {}.",
+                    nama.escape_debug(),
+                    lain.jenis()
+                ))
+            }
+        };
         let nama_sah = !nama.is_empty()
             && nama.bytes().all(|b| b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&b));
         if !nama_sah || nilai.chars().any(|c| c.is_control() && c != '\t') {

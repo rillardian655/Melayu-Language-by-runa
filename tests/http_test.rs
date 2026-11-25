@@ -67,7 +67,7 @@ fn pengepala_tersuai_dihantar_dan_disahkan() {
     let d = h.join().unwrap();
     assert!(d[0].contains("X-Kunci: abc\r\n") && d[0].contains("Content-Type: text/plain\r\n") && !d[0].contains("application/json") && d[0].ends_with("\r\n\r\nisi"), "{}", d[0]);
     assert!(d[1].contains("Content-Type: application/json\r\n"), "{}", d[1]);
-    for p in ["{\"A\": \"x\\r\\nB: y\"}", "{\"A\\nB\": \"y\"}", "{\"A: b\": \"y\"}", "{\"Host\": \"lain\"}", "{\"content-length\": \"1\"}", "5"] {
+    for p in ["{\"A\": [1, 2]}", "{\"A\": {\"b\": 1}}", "{\"A\": \"x\\r\\nB: y\"}", "{\"A\\nB\": \"y\"}", "{\"A: b\": \"y\"}", "{\"Host\": \"lain\"}", "{\"content-length\": \"1\"}", "5"] {
         ralat_bersih(&format!("hantarPermintaanHTTP(\"GET\", \"http://127.0.0.1:9/\", \"\", {})\n", p));
     }
 }
