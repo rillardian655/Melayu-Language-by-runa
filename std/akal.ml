@@ -1578,3 +1578,202 @@ fungsi bacaJadual(laluan)
     ada csv = bacaCSV(laluan, betul)
     pulang JadualData(csv["lajur"], csv["data"])
 selesai
+
+# ==============================================================================
+# PEMPROSESAN BAHASA TABII (NLP: TF-IDF & KESAMAAN COSINE)
+# ==============================================================================
+
+fungsi kesamaanCosine(v1, v2)
+    ada n = panjang(v1)
+    jika n == 0 || n != panjang(v2)
+        pulang 0.0
+    selesai
+    ada dot = titikDarab(v1, v2)
+    ada norm1 = 0.0
+    ada norm2 = 0.0
+    ada i = 0
+    selagi i < n
+        norm1 = norm1 + (v1[i] * v1[i])
+        norm2 = norm2 + (v2[i] * v2[i])
+        i = i + 1
+    selesai
+    ada penyebut = puncaKuasaDua(norm1) * puncaKuasaDua(norm2)
+    jika penyebut == 0.0
+        pulang 0.0
+    selesai
+    pulang dot / penyebut
+selesai
+
+kelas PengiraTFIDF
+    bina()
+        diri.perbendaharaan_kata = {}
+        diri.senarai_kata = []
+        diri.idf = []
+    selesai
+
+    kerja tokenisasi(teks_input)
+        ada bersih = teks_input.hurufKecil().ganti(",", " ").ganti(".", " ").ganti("!", " ").ganti("?", " ")
+        ada mentah = bersih.pecah(" ")
+        ada hasil = []
+        ada i = 0
+        selagi i < panjang(mentah)
+            ada perkataan = mentah[i].potong()
+            jika panjang(perkataan) > 0
+                hasil.tambah(perkataan)
+            selesai
+            i = i + 1
+        selesai
+        pulang hasil
+    selesai
+
+    kerja latih(senarai_dokumen)
+        ada n_dok = panjang(senarai_dokumen)
+        jika n_dok == 0
+            baling "Senarai dokumen untuk TF-IDF tidak boleh kosong!"
+        selesai
+
+        diri.perbendaharaan_kata = {}
+        diri.senarai_kata = []
+        ada df = {}
+        ada kaunter = 0
+
+        ada d = 0
+        selagi d < n_dok
+            ada token = diri.tokenisasi(senarai_dokumen[d])
+            ada unik_dok = {}
+            ada t = 0
+            selagi t < panjang(token)
+                ada kata = token[t]
+                jika bukan diri.perbendaharaan_kata.adaKunci(kata)
+                    diri.perbendaharaan_kata[kata] = kaunter
+                    diri.senarai_kata.tambah(kata)
+                    df[kata] = 0
+                    kaunter = kaunter + 1
+                selesai
+                jika bukan unik_dok.adaKunci(kata)
+                    unik_dok[kata] = betul
+                    df[kata] = df[kata] + 1
+                selesai
+                t = t + 1
+            selesai
+            d = d + 1
+        selesai
+
+        diri.idf = []
+        ada k = 0
+        selagi k < panjang(diri.senarai_kata)
+            ada kata = diri.senarai_kata[k]
+            ada val_idf = logaritmaAsli((n_dok + 1.0) / (df[kata] + 1.0)) + 1.0
+            diri.idf.tambah(val_idf)
+            k = k + 1
+        selesai
+    selesai
+
+    kerja transformasi(senarai_dokumen)
+        ada n_kata = panjang(diri.senarai_kata)
+        ada matriks = []
+        ada d = 0
+        selagi d < panjang(senarai_dokumen)
+            ada token = diri.tokenisasi(senarai_dokumen[d])
+            ada n_tok = panjang(token)
+            ada vektor = []
+            ada j = 0
+            selagi j < n_kata
+                vektor.tambah(0.0)
+                j = j + 1
+            selesai
+
+            jika n_tok > 0
+                ada t = 0
+                selagi t < n_tok
+                    ada kata = token[t]
+                    jika diri.perbendaharaan_kata.adaKunci(kata)
+                        ada idx = diri.perbendaharaan_kata[kata]
+                        vektor[idx] = vektor[idx] + (1.0 / n_tok)
+                    selesai
+                    t = t + 1
+                selesai
+                ada k = 0
+                selagi k < n_kata
+                    vektor[k] = vektor[k] * diri.idf[k]
+                    k = k + 1
+                selesai
+            selesai
+            matriks.tambah(vektor)
+            d = d + 1
+        selesai
+        pulang matriks
+    selesai
+
+    kerja latihTransformasi(senarai_dokumen)
+        diri.latih(senarai_dokumen)
+        pulang diri.transformasi(senarai_dokumen)
+    selesai
+selesai
+
+# ==============================================================================
+# RANGKAIAN TENSOR NATIVE & PENGESAHAN SILANG (K-FOLD)
+# ==============================================================================
+
+kelas LapisanLinear
+    bina(dim_masukan, dim_keluaran)
+        diri.w = rawakTensor([dim_masukan, dim_keluaran]) * 0.5
+        diri.b = sifarTensor([dim_keluaran])
+    selesai
+
+    kerja maju(x_tensor)
+        pulang (x_tensor @ diri.w) + diri.b
+    selesai
+selesai
+
+fungsi pengesahanSilang(kilangModel, X, y, k_lipatan)
+    ada n = panjang(X)
+    ada k = k_lipatan
+    jika k == kosong || k < 2
+        k = 3
+    selesai
+    ada saiz_lipat = lantai(n / k)
+    jika saiz_lipat < 1
+        baling "Dataset terlalu kecil untuk K-Fold Cross Validation!"
+    selesai
+
+    ada skor_semua = []
+    ada jumlah_skor = 0.0
+    ada fold = 0
+    selagi fold < k
+        ada mula_uji = fold * saiz_lipat
+        ada tamat_uji = mula_uji + saiz_lipat
+        jika fold == k - 1
+            tamat_uji = n
+        selesai
+
+        ada X_latih = []
+        ada y_latih = []
+        ada X_uji = []
+        ada y_uji = []
+
+        ada i = 0
+        selagi i < n
+            jika i >= mula_uji && i < tamat_uji
+                X_uji.tambah(X[i])
+                y_uji.tambah(y[i])
+            jika tidak
+                X_latih.tambah(X[i])
+                y_latih.tambah(y[i])
+            selesai
+            i = i + 1
+        selesai
+
+        ada model = kilangModel()
+        model.latih(X_latih, y_latih)
+        ada s = model.skor(X_uji, y_uji)
+        skor_semua.tambah(s)
+        jumlah_skor = jumlah_skor + s
+        fold = fold + 1
+    selesai
+
+    pulang {
+        "skor_lipatan": skor_semua,
+        "purata_skor": jumlah_skor / k
+    }
+selesai

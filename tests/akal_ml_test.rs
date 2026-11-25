@@ -376,3 +376,66 @@ semak ramal_muat[0] == 1, "HutanRawak dimuatkan semula mesti mengekalkan ramalan
     let _ = fs::remove_file("target/test_model_hutan.json");
     assert!(res.is_ok(), "Ralat: {:?}", res);
 }
+
+#[test]
+fn test_akal_ml_tensor_nlp_dan_pengesahan_silang() {
+    let code = r#"
+ambil "akal"
+
+# 1. Uji Primitif Tensor Native & Operator @
+ada A = tensor([[1.0, 2.0], [3.0, 4.0]])
+ada B = tensor([[5.0, 6.0], [7.0, 8.0]])
+ada C = A @ B
+semak jenis(C) == "tensor", "Jenis hasil darab matriks mestilah tensor"
+semak C.bentuk() == [2, 2], "Bentuk hasil mestilah [2, 2]"
+
+ada c_list = C.keSenarai()
+semak c_list[0][0] == 19.0, "Elemen [0][0] mestilah 19"
+semak c_list[1][1] == 50.0, "Elemen [1][1] mestilah 50"
+
+# Broadcasting 1D bias ke 2D tensor & ReLU
+ada bias = tensor([1.0, -60.0])
+ada Z = (C + bias).relu()
+ada z_list = Z.keSenarai()
+semak z_list[0][0] == 20.0, "20.0 selepas ReLU kekal 20.0"
+semak z_list[1][1] == 0.0, "Nilai negatif selepas ReLU mestilah 0.0"
+
+# LapisanLinear
+ada lapisan = LapisanLinear(2, 3)
+ada out = lapisan.maju(A)
+semak out.bentuk() == [2, 3], "Keluaran LapisanLinear mestilah berbentuk [2, 3]"
+
+# 2. Uji NLP PengiraTFIDF & Kesamaan Cosine
+ada dokumen = [
+    "bahasa melayu sangat hebat untuk pembelajaran mesin",
+    "pembelajaran mesin dengan akalml laju dan pintar",
+    "cuaca hari ini sangat cerah dan panas"
+]
+ada tfidf = PengiraTFIDF()
+ada matriks_tfidf = tfidf.latihTransformasi(dokumen)
+semak panjang(matriks_tfidf) == 3, "Mesti ada 3 vektor dokumen"
+
+ada sim_ml = kesamaanCosine(matriks_tfidf[0], matriks_tfidf[1])
+ada sim_cuaca = kesamaanCosine(matriks_tfidf[0], matriks_tfidf[2])
+semak sim_ml > sim_cuaca, "Dokumen topik ML mesti lebih serupa antara satu sama lain berbanding dokumen cuaca"
+
+# 3. Uji Softmax & Cross-Entropy Loss
+ada logits = [[2.0, 1.0, 0.1]]
+ada probs = matriksSoftmax(logits)
+ada jumlah_prob = probs[0][0] + probs[0][1] + probs[0][2]
+semak bundar(jumlah_prob * 100) == 100, "Jumlah kebarangkalian Softmax mestilah 1.0"
+ada loss = ralatEntropiSilang([[1.0, 0.0, 0.0]], probs)
+semak loss > 0.0 && loss < 1.0, "Cross-entropy loss mesti bernilai positif kecil"
+
+# 4. Uji K-Fold Cross Validation
+ada iris = muatIris()
+kerja buatModelKNN()
+    pulang PengelasKNN(3)
+selesai
+ada kfold = pengesahanSilang(buatModelKNN, iris["ciri"], iris["sasaran"], 3)
+semak panjang(kfold["skor_lipatan"]) == 3, "Mesti ada 3 skor lipatan"
+semak kfold["purata_skor"] >= 0.0, "Purata skor K-Fold mesti sah"
+"#;
+    let res = laksana_kod(code);
+    assert!(res.is_ok(), "Ralat: {:?}", res);
+}
