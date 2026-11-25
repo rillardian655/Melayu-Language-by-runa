@@ -1241,6 +1241,9 @@ impl Parser {
 
         while self.check(TokenKind::Atau) {
             let op_tok = self.advance();
+            while self.check(TokenKind::BarisBaru) {
+                self.advance();
+            }
             let pos = LineCol::new(op_tok.line, op_tok.column);
             let right = self.parse_logic_and()?;
             left = Expr::Binary {
@@ -1262,6 +1265,9 @@ impl Parser {
 
         while self.check(TokenKind::Dan) {
             let op_tok = self.advance();
+            while self.check(TokenKind::BarisBaru) {
+                self.advance();
+            }
             let pos = LineCol::new(op_tok.line, op_tok.column);
             let right = self.parse_equality()?;
             left = Expr::Binary {
@@ -1283,6 +1289,9 @@ impl Parser {
 
         while self.check(TokenKind::SamaDengan) || self.check(TokenKind::TidakSama) {
             let op_tok = self.advance();
+            while self.check(TokenKind::BarisBaru) {
+                self.advance();
+            }
             let pos = LineCol::new(op_tok.line, op_tok.column);
             let op = if op_tok.kind == TokenKind::SamaDengan {
                 BinaryOp::SamaDengan
@@ -1313,6 +1322,9 @@ impl Parser {
             || self.check(TokenKind::KurangSama)
         {
             let op_tok = self.advance();
+            while self.check(TokenKind::BarisBaru) {
+                self.advance();
+            }
             let pos = LineCol::new(op_tok.line, op_tok.column);
             let op = match op_tok.kind {
                 TokenKind::Lebih => BinaryOp::Lebih,
@@ -1341,6 +1353,9 @@ impl Parser {
 
         while self.check(TokenKind::Tambah) || self.check(TokenKind::Tolak) {
             let op_tok = self.advance();
+            while self.check(TokenKind::BarisBaru) {
+                self.advance();
+            }
             let pos = LineCol::new(op_tok.line, op_tok.column);
             let op = if op_tok.kind == TokenKind::Tambah {
                 BinaryOp::Tambah
@@ -1371,6 +1386,9 @@ impl Parser {
             || self.check(TokenKind::MatriksDarab)
         {
             let op_tok = self.advance();
+            while self.check(TokenKind::BarisBaru) {
+                self.advance();
+            }
             let pos = LineCol::new(op_tok.line, op_tok.column);
             let op = match op_tok.kind {
                 TokenKind::Kali => BinaryOp::Kali,

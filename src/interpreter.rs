@@ -973,6 +973,14 @@ impl Interpreter {
                     let removed = map.borrow_mut().remove(&key);
                     Ok(removed.unwrap_or(Value::Kosong))
                 }
+                other if matches!(
+                    map.borrow().get(other),
+                    Some(Value::Fungsi { .. } | Value::Bawaan(..) | Value::Kelas(_))
+                ) =>
+                {
+                    let fungsi = map.borrow().get(other).cloned().unwrap_or(Value::Kosong);
+                    self.panggil_nilai(&fungsi, evaluated_args, pos)
+                }
                 other => Err(MelayuError::new(
                     "Eh!",
                     &format!("Kaedah '.{}()' tidak wujud untuk kamus.", other),
@@ -2052,19 +2060,29 @@ impl Interpreter {
                     })?
                 };
 
-                let mut lexer = crate::lexer::Lexer::new(&content);
-                let tokens = lexer.tokenize()?;
-                let mut parser = crate::parser::Parser::new(tokens);
-                let program = parser.parse()?;
-
                 let module_env = Rc::new(RefCell::new(Environment::with_parent(Rc::clone(env))));
-
-                for s in &program.pernyataan {
-                    match self.execute_stmt(s, &module_env)? {
-                        Flow::Lanjut => {}
-                        Flow::Pulang(_) => break,
-                        Flow::Hentikan | Flow::Teruskan => {}
+                let hasil_modul = (|| -> Result<(), MelayuError> {
+                    let mut lexer = crate::lexer::Lexer::new(&content);
+                    let tokens = lexer.tokenize()?;
+                    let mut parser = crate::parser::Parser::new(tokens);
+                    let program = parser.parse()?;
+                    for s in &program.pernyataan {
+                        match self.execute_stmt(s, &module_env)? {
+                            Flow::Lanjut => {}
+                            Flow::Pulang(_) => break,
+                            Flow::Hentikan | Flow::Teruskan => {}
+                        }
                     }
+                    Ok(())
+                })();
+                if let Err(mut e) = hasil_modul {
+                    if e.source_line.is_none() {
+                        if let Some(baris) = content.lines().nth(e.line.saturating_sub(1)) {
+                            e = e.with_source(baris);
+                        }
+                        e.message = format!("{} (dalam modul '{}')", e.message, sasaran);
+                    }
+                    return Err(e);
                 }
 
                 let module_vals = module_env.borrow().values.clone();

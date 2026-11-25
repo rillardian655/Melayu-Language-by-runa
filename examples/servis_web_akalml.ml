@@ -105,5 +105,5 @@ tunjuk "=========================================================="
 
 # Contoh ini sedia dipanggil. Untuk ujian kendiri tanpa menyekat konsol,
 # baris dengar di bawah boleh diaktifkan bila ingin dijalankan sebagai servis berterusan:
-# aplikasi.dengar()
+# aplikasi.dengar(0)
 tunjuk "Integrasi AkalML dan Selasih berjaya disahkan!"

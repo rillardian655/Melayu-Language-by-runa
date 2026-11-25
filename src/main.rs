@@ -567,7 +567,7 @@ tunjuk "  Laman: http://localhost:8080"
 tunjuk "  API  : http://localhost:8080/api/items"
 tunjuk "=========================================================="
 tunjuk "Tekan Ctrl+C untuk menghentikan pelayan."
-aplikasi.dengar()
+aplikasi.dengar(0)
 "#,
                 nama_projek, nama_projek
             ),
