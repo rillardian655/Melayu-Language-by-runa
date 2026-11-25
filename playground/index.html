@@ -203,7 +203,10 @@
       try {
         const res = await fetch('/api/jalankan', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Melayu-Token': '__MELAYU_CSRF_TOKEN__'
+          },
           body: JSON.stringify({ kod: editor.value })
         });
         const data = await res.json();

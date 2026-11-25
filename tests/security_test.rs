@@ -178,3 +178,50 @@ ada sah = (r1 >= 0.0) dan (r1 <= 1.0) dan (r2 >= 10) dan (r2 <= 20)
         .unwrap();
     assert_eq!(sah, Value::Betul);
 }
+
+#[test]
+fn test_sekatan_fail_sensitif_git_dan_env() {
+    for target in &[".git/config", ".env", ".env.production", ".ssh/id_rsa"] {
+        let script = format!("bacaFail(\"{}\")", target);
+        let prog = huraikan(&script).expect("Hurai berjaya");
+        let mut interp = Interpreter::new();
+        let res = interp.interpret(&prog);
+        assert!(res.is_err(), "Akses ke '{}' sepatutnya disekat!", target);
+    }
+}
+
+#[test]
+fn test_sekatan_suntikan_crlf_http() {
+    let script = r#"
+hantarPermintaanHTTP("GET", "http://127.0.0.1:8080/test\r\nEvil-Header: 1")
+"#;
+    let prog = huraikan(script).expect("Hurai berjaya");
+    let mut interp = Interpreter::new();
+    let res = interp.interpret(&prog);
+    assert!(res.is_err(), "Suntikan CRLF pada URL HTTP mestilah disekat!");
+}
+
+#[test]
+fn test_sekatan_kedalaman_json_dos() {
+    let deep_json = format!("{}{}", "[".repeat(510), "]".repeat(510));
+    let script = format!("bacaJSON(\"{}\")", deep_json);
+    let prog = huraikan(&script).expect("Hurai berjaya");
+    let mut interp = Interpreter::new();
+    let res = interp.interpret(&prog);
+    assert!(res.is_err(), "JSON melebihi had kedalaman mestilah disekat!");
+}
+
+#[test]
+fn test_penapis_xss_selit_html_selasih() {
+    let script = r#"
+ambil "selasih"
+ada bahaya = "<script>alert('xss')</script>"
+ada selamat = selitHTML(bahaya)
+semak bukan selamat.mengandungi("<script>"), "Tag skrip mentah mestilah ditukar!"
+semak selamat.mengandungi("&lt;script&gt;"), "Tag mesti dinyahkod ke entiti HTML"
+"#;
+    let prog = huraikan(script).expect("Hurai berjaya");
+    let mut interp = Interpreter::new();
+    let res = interp.interpret(&prog);
+    assert!(res.is_ok(), "Penapis XSS selitHTML gagal: {:?}", res);
+}

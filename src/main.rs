@@ -750,6 +750,14 @@ fn jalankan_taman_permainan(port: u16) {
         }
     };
 
+    // Jana token CSRF rawak untuk sesi ini bagi menghalang serangan CSRF localhost
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let csrf_token = format!("{:x}-{:x}", nanos ^ 0x5a5a_f0f0_1234_9876, process::id());
+    let html_with_token = HTML_PLAYGROUND.replace("__MELAYU_CSRF_TOKEN__", &csrf_token);
+
     println!("\x1b[1;36m==========================================================\x1b[0m");
     println!("\x1b[1;32m  Taman Permainan Web MELAYU & AkalML sedia!\x1b[0m");
     println!("  Buka di pelayar web: \x1b[1;33mhttp://{}\x1b[0m", addr);
@@ -761,6 +769,9 @@ fn jalankan_taman_permainan(port: u16) {
             Ok(s) => s,
             Err(_) => continue,
         };
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
+        let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(5)));
+
         let mut buf = vec![0u8; 65536];
         let n = match stream.read(&mut buf) {
             Ok(n) if n > 0 => n,
@@ -777,12 +788,34 @@ fn jalankan_taman_permainan(port: u16) {
 
         if method == "GET" && path == "/" {
             let resp = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                HTML_PLAYGROUND.len(),
-                HTML_PLAYGROUND
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nConnection: close\r\n\r\n{}",
+                html_with_token.len(),
+                html_with_token
             );
             let _ = stream.write_all(resp.as_bytes());
         } else if method == "POST" && path == "/api/jalankan" {
+            // Sahkan token CSRF bagi menghalang RCE daripada tapak web luar
+            let mut token_sah = false;
+            for line in headers.lines().skip(1) {
+                if let Some((k, v)) = line.split_once(':') {
+                    if k.trim().eq_ignore_ascii_case("x-melayu-token") && v.trim() == csrf_token {
+                        token_sah = true;
+                        break;
+                    }
+                }
+            }
+            if !token_sah {
+                let msg = "{\"kejayaan\":false,\"ralat\":\"Akses ditolak: Token keselamatan CSRF tidak sah.\"}";
+                let resp = format!(
+                    "HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    msg.len(),
+                    msg
+                );
+                let _ = stream.write_all(resp.as_bytes());
+                let _ = stream.flush();
+                continue;
+            }
+
             let dummy_pos = melayu_core::ast::LineCol::new(1, 1);
             let kod_src = match melayu_core::builtins::builtin_baca_json(
                 &[melayu_core::interpreter::Value::Teks(body.to_string())],
@@ -797,11 +830,17 @@ fn jalankan_taman_permainan(port: u16) {
                 _ => String::new(),
             };
 
-            let tmp_path = std::env::temp_dir().join(format!("melayu_pg_{}.ml", process::id()));
+            let tmp_dir = std::env::temp_dir().join("melayu_playground_sandbox");
+            let _ = fs::create_dir_all(&tmp_dir);
+            let tmp_path = tmp_dir.join(format!("melayu_pg_{}.ml", process::id()));
             let _ = fs::write(&tmp_path, &kod_src);
 
             let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("melayu"));
-            let out = process::Command::new(exe).arg(&tmp_path).output();
+            // Jalankan dalam direktori sandbox sementara agar fail projek utama tidak terdedah
+            let out = process::Command::new(exe)
+                .current_dir(&tmp_dir)
+                .arg(&tmp_path)
+                .output();
             let _ = fs::remove_file(&tmp_path);
 
             let (ok, text) = match out {

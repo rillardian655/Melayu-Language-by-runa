@@ -56,6 +56,24 @@ fungsi pengantaraLogger(permintaan)
     pulang kosong
 selesai
 
+fungsi selitHTML(teks_input)
+    ada s = teks(teks_input)
+    s = s.ganti("&", "&amp;")
+    s = s.ganti("<", "&lt;")
+    s = s.ganti(">", "&gt;")
+    s = s.ganti("\"", "&quot;")
+    s = s.ganti("'", "&#x27;")
+    pulang s
+selesai
+
+fungsi pengantaraKeselamatan(permintaan)
+    ada laluan = permintaan["laluan"].hurufKecil()
+    jika laluan.mengandungi("..") || laluan.mengandungi("<script") || laluan.mengandungi("%2e%2e")
+        pulang balasJSON({"ralat": "Permintaan disekat oleh penapis keselamatan Selasih."}, 403)
+    selesai
+    pulang kosong
+selesai
+
 kelas PelayanWeb
     bina(port)
         diri.port = port

@@ -565,6 +565,17 @@ pub fn semak_laluan_selamat(
                 pos.col,
             ));
         }
+        if let Component::Normal(os_str) = comp {
+            let s = os_str.to_string_lossy();
+            if s == ".git" || s == ".env" || s == ".ssh" || s == ".gemini" || s.starts_with(".env.") {
+                return Err(MelayuError::akses_fail_disekat(
+                    laluan_str,
+                    &format!("Akses ke fail/direktori sensitif '{}' disekat demi keselamatan.", s),
+                    pos.line,
+                    pos.col,
+                ));
+            }
+        }
     }
 
     let base = std::env::current_dir().map_err(|e| {
@@ -2501,6 +2512,18 @@ pub fn builtin_mulakan_pelayan_http(args: &[Value], pos: LineCol) -> Result<Valu
             }
         }
 
+        if content_length > 1_048_576 {
+            let err_body = "{\"ralat\": \"Saiz muatan melebihi had keselamatan (1 MB)\"}";
+            let resp = format!(
+                "HTTP/1.1 413 Payload Too Large\r\nContent-Type: application/json\r\nContent-Length: {}\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n{}",
+                err_body.len(),
+                err_body
+            );
+            let _ = stream.write_all(resp.as_bytes());
+            let _ = stream.flush();
+            continue;
+        }
+
         let body = if let Some(idx) = req_text.find("\r\n\r\n") {
             let body_part = &req_text[idx + 4..];
             if content_length > 0 && body_part.len() > content_length {
@@ -2558,18 +2581,23 @@ pub fn builtin_mulakan_pelayan_http(args: &[Value], pos: LineCol) -> Result<Valu
             }
         };
 
+        let safe_content_type = content_type.replace(['\r', '\n'], "");
         let status_msg = match status_code {
             200 => "OK",
             201 => "Created",
+            204 => "No Content",
             400 => "Bad Request",
+            401 => "Unauthorized",
+            403 => "Forbidden",
             404 => "Not Found",
+            413 => "Payload Too Large",
             500 => "Internal Server Error",
             _ => "Response",
         };
 
         let response = format!(
-            "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, Authorization\r\nConnection: close\r\n\r\n{}",
-            status_code, status_msg, content_type, res_body.len(), res_body
+            "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nX-XSS-Protection: 1; mode=block\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, Authorization\r\nConnection: close\r\n\r\n{}",
+            status_code, status_msg, safe_content_type, res_body.len(), res_body
         );
 
         let _ = stream.write_all(response.as_bytes());
@@ -2598,11 +2626,17 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
         Value::Teks(s) => s.to_uppercase(),
         _ => return Err(MelayuError::new("Alamak!", "Kaedah HTTP mestilah teks (cth: 'GET', 'POST').", pos.line, pos.col).with_kind(ErrorKind::Runtime)),
     };
+    if kaedah.contains('\r') || kaedah.contains('\n') || kaedah.contains(' ') {
+        return Err(MelayuError::new("Alamak!", "Suntikan CRLF atau aksara tidak sah dikesan pada kaedah HTTP.", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
 
     let url_raw = match &args[1] {
         Value::Teks(s) => s.as_str(),
         _ => return Err(MelayuError::new("Alamak!", "URL mestilah teks.", pos.line, pos.col).with_kind(ErrorKind::Runtime)),
     };
+    if url_raw.contains('\r') || url_raw.contains('\n') {
+        return Err(MelayuError::new("Alamak!", "Suntikan CRLF dikesan pada URL HTTP.", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
 
     let badan_str = if args.len() >= 3 {
         match &args[2] {
@@ -2657,7 +2691,7 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
     let _ = stream.flush();
 
     let mut response_bytes = Vec::new();
-    let _ = stream.read_to_end(&mut response_bytes);
+    let _ = stream.take(5 * 1024 * 1024).read_to_end(&mut response_bytes);
 
     let res_str = String::from_utf8_lossy(&response_bytes);
     let mut parts = res_str.splitn(2, "\r\n\r\n");
