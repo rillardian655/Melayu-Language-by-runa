@@ -567,7 +567,7 @@ pub fn semak_laluan_selamat(
             ));
         }
         if let Component::Normal(os_str) = comp {
-            let s = os_str.to_string_lossy();
+            let s = os_str.to_string_lossy().to_lowercase();
             if s == ".git" || s == ".env" || s == ".ssh" || s == ".gemini" || s.starts_with(".env.") {
                 return Err(MelayuError::akses_fail_disekat(
                     laluan_str,
@@ -609,6 +609,14 @@ pub fn semak_laluan_selamat(
             }
             Ok(can_target)
         } else {
+            if p.symlink_metadata().is_ok() {
+                return Err(MelayuError::akses_fail_disekat(
+                    laluan_str,
+                    "Pautan simbolik yang rosak (sasaran tidak wujud) tidak dibenarkan.",
+                    pos.line,
+                    pos.col,
+                ));
+            }
             if !p.starts_with(&can_base) {
                 return Err(MelayuError::akses_fail_disekat(
                     laluan_str,
@@ -640,6 +648,14 @@ pub fn semak_laluan_selamat(
             }
             Ok(can_target)
         } else {
+            if combined.symlink_metadata().is_ok() {
+                return Err(MelayuError::akses_fail_disekat(
+                    laluan_str,
+                    "Pautan simbolik yang rosak (sasaran tidak wujud) tidak dibenarkan.",
+                    pos.line,
+                    pos.col,
+                ));
+            }
             if untuk_menulis {
                 if let Some(parent) = combined.parent() {
                     if parent.exists() {
