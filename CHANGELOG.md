@@ -9,23 +9,29 @@ Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut
 - Pilihan `--had-langkah <n>` dan pemboleh ubah persekitaran `MELAYU_HAD_LANGKAH` untuk menaikkan atau mematikan (`0`) had 10 juta langkah.
 - `benihRawak(n)` untuk keputusan `rawak()` dan `rawakTensor()` yang boleh diulang.
 - `cariPecahanTerbaik(X, y, senaraiCiri)`: carian pecahan Gini asli yang digunakan oleh `PokokKeputusan`.
-- `MELAYU_GPU=0` memaksa pendaraban matriks menggunakan CPU.
+- `MELAYU_GPU=0` memaksa pendaraban matriks menggunakan CPU. `MELAYU_GPU=fp32` memilih FP32 pada GPU: lebih laju, tetapi hasil hanya tepat kira-kira 7 digit. Lalai kekal FP64.
 - Nombor dalam notasi saintifik (`1e21`, `5.9e-05`).
 - Ungkapan boleh disambung ke baris seterusnya selepas operator (`+`, `dan`, `==`, dll.).
 - Kamus boleh memanggil fungsi yang disimpan di dalamnya (`Modul.fungsi()` selepas `ambil ... sebagai Modul`).
 
 ### Diubah (Changed)
 - `kamus` dan sifat objek kini mengekalkan susunan kunci mengikut urutan masuk; `tulisJSON` mengikut susunan yang sama.
-- Pendaraban matriks pada GPU kini FP32 (`sgemm`); `infoPerkakas()` memaparkan `ketepatan_gpu`.
+- `infoPerkakas()` memaparkan `ketepatan_gpu`.
+- Senarai nama fail sensitif diperluas (`.aws`, `.npmrc`, `.netrc`, `.docker`, `.kube`, `.gnupg`, `.pypirc`, `.git-credentials`).
 - `HutanRawak` menimbang `sqrt(bilangan ciri)` ciri rawak pada setiap pecahan.
 - `.isih()` menolak senarai yang mengandungi jenis bercampur.
 - `muatIris()` kini memulangkan kesemua 150 rekod dataset Iris (sebelum ini 30).
 
 ### Dibaiki (Fixed)
+- Pengepala tersuai (hujah ke-4 `hantarPermintaanHTTP`) kini benar-benar dihantar; sebelum ini diabaikan.
+- Respons HTTP yang terputus atau melebihi 5 MB memberi ralat dan tidak lagi dipotong secara senyap.
 - Respons HTTP dengan `Transfer-Encoding: chunked` kini dinyahkod; sebelum ini saiz cebisan (contoh `241`) muncul di dalam `badan`.
-- Proses tamat dengan stack overflow apabila memaparkan atau membandingkan senarai/kamus yang merujuk diri sendiri, atau apabila ungkapan sangat bersarang.
-- `tulisFail` melalui pautan simbolik rosak boleh menulis di luar direktori kerja.
-- Semakan anti-SSRF boleh dipintas dengan bentuk alamat lain (`2852039166`, `0xa9fea9fe`, `[::ffff:169.254.169.254]`).
+- Proses tamat dengan stack overflow apabila memaparkan, membandingkan atau melepaskan nilai yang merujuk diri sendiri atau sangat dalam, atau apabila kod sangat bersarang.
+- Sandbox fail: pautan simbolik (fail, folder atau rosak, dengan laluan relatif atau mutlak) tidak lagi boleh membaca, menulis, memadam atau mengimport di luar direktori kerja, atau mencapai fail sensitif seperti `.env`.
+- Semakan anti-SSRF boleh dipintas dengan bentuk alamat lain (`2852039166`, `0xa9fea9fe`, IPv4 terbenam dalam IPv6, NAT64, 6to4 dan Teredo).
+- Hasil darab matriks yang melebihi had tensor kini memberi ralat dan tidak lagi menamatkan proses.
+- `PengelasBayesNaif` menggunakan log ketumpatan dan pelicinan varians, dan kini memberi ramalan yang sama dengan scikit-learn pada iris, wine dan breast cancer.
+- Ralat dalam fungsi modul menunjukkan baris dan nama modul yang betul.
 - Panik semasa memaparkan ralat pada baris yang sangat panjang.
 - Templat `melayu mula --mvc` gagal dijalankan.
 - `bahagiLatihUji` dan `pengesahanSilang` tidak mengocok data, jadi pada dataset yang tersusun mengikut kelas (seperti Iris) set ujian hanya mengandungi satu kelas dan skor K-Fold menjadi 0.

@@ -24,6 +24,7 @@
 
 pub mod analyzer;
 pub mod ast;
+pub mod bekas;
 pub mod builtins;
 pub mod errors;
 pub mod gpu;
@@ -32,6 +33,7 @@ pub mod kamus;
 pub mod lexer;
 pub mod parser;
 pub mod repl;
+pub mod tindanan;
 pub mod tokens;
 
 use analyzer::Analyzer;

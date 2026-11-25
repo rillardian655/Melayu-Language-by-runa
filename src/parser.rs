@@ -2,7 +2,7 @@ use crate::ast::*;
 use crate::errors::{ErrorKind, MelayuError};
 use crate::tokens::{Token, TokenKind};
 
-pub const HAD_KEDALAMAN_UNGKAPAN: usize = 5_000;
+pub const HAD_KEDALAMAN_KOD: usize = 10_000;
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -37,6 +37,13 @@ impl Parser {
     // ----------------------------------------------------
 
     fn parse_statement(&mut self) -> Result<Stmt, MelayuError> {
+        self.masuk()?;
+        let hasil = self.parse_statement_dalam();
+        self.kedalaman -= 1;
+        hasil
+    }
+
+    fn parse_statement_dalam(&mut self) -> Result<Stmt, MelayuError> {
         let tok = self.peek();
         let pos = LineCol::new(tok.line, tok.column);
 
@@ -1150,19 +1157,19 @@ impl Parser {
 
     fn masuk(&mut self) -> Result<(), MelayuError> {
         self.kedalaman += 1;
-        if self.kedalaman > HAD_KEDALAMAN_UNGKAPAN {
+        if self.kedalaman > HAD_KEDALAMAN_KOD || crate::tindanan::hampir_penuh() {
             let cur = self.peek();
             return Err(MelayuError::new(
                 "Alamak!",
                 &format!(
-                    "Ungkapan terlalu bersarang atau terlalu panjang (melebihi {} peringkat).",
-                    HAD_KEDALAMAN_UNGKAPAN
+                    "Kod terlalu bersarang atau ungkapan terlalu panjang (had {} peringkat).",
+                    HAD_KEDALAMAN_KOD
                 ),
                 cur.line,
                 cur.column,
             )
             .with_kind(ErrorKind::Parser)
-            .with_suggestion("Pecahkan ungkapan kepada beberapa pembolehubah yang lebih kecil."));
+            .with_suggestion("Pecahkan kepada beberapa pembolehubah atau fungsi yang lebih kecil."));
         }
         Ok(())
     }

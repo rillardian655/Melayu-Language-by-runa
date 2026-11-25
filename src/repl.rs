@@ -121,7 +121,7 @@ pub fn cetak_ralat(e: &MelayuError, source: &str) {
     };
 
     let mut err = e.clone();
-    if err.source_line.is_none() {
+    if err.source_line.is_none() && err.modul.is_none() {
         if let Some(src) = src_line {
             err = err.with_source(&src);
         }

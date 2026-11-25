@@ -92,6 +92,10 @@ impl Analyzer {
     }
 
     fn analyze_stmt(&mut self, stmt: &Stmt) -> Result<(), MelayuError> {
+        if crate::tindanan::hampir_penuh() {
+            let pos = stmt.pos();
+            return Err(MelayuError::tindanan_penuh(pos.line, pos.col));
+        }
         match stmt {
             Stmt::IsytiharPembolehubah {
                 nama,
@@ -381,23 +385,7 @@ impl Analyzer {
                         self.declare(sym, false, *pos)?;
                     }
                 } else {
-                    let source_opt = if sasaran == "akal" || sasaran == "akal_ml" || sasaran == "akalml" || sasaran == "std/akal" || sasaran == "std/akal_ml" {
-                        Some(crate::builtins::AKAL_ML_STDLIB.to_string())
-                    } else if sasaran == "selasih" || sasaran == "wau" || sasaran == "web" || sasaran == "std/selasih" || sasaran == "std/wau" {
-                        Some(crate::builtins::SELASIH_STDLIB.to_string())
-                    } else if let Ok(src) = std::fs::read_to_string(sasaran) {
-                        Some(src)
-                    } else if let Ok(src) = std::fs::read_to_string(format!("{}.ml", sasaran)) {
-                        Some(src)
-                    } else if let Ok(src) = std::fs::read_to_string(format!("modul_melayu/{}.ml", sasaran)) {
-                        Some(src)
-                    } else if let Ok(src) = std::fs::read_to_string(format!("modul_melayu/{}/mod.ml", sasaran)) {
-                        Some(src)
-                    } else if let Ok(src) = std::fs::read_to_string(format!("modul_melayu/{}/utama.ml", sasaran)) {
-                        Some(src)
-                    } else {
-                        None
-                    };
+                    let source_opt = crate::builtins::baca_modul(sasaran, *pos).ok();
 
                     if let Some(source) = source_opt {
                         let mut lexer = crate::lexer::Lexer::new(&source);
@@ -442,6 +430,10 @@ impl Analyzer {
     }
 
     fn analyze_expr(&mut self, expr: &Expr) -> Result<(), MelayuError> {
+        if crate::tindanan::hampir_penuh() {
+            let pos = expr.pos();
+            return Err(MelayuError::tindanan_penuh(pos.line, pos.col));
+        }
         match expr {
             Expr::Literal(..) => Ok(()),
             Expr::Pengenal(nama, pos) => {
