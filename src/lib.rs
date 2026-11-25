@@ -34,6 +34,7 @@ pub mod kamus;
 pub mod lexer;
 pub mod parser;
 pub mod repl;
+pub mod skop;
 pub mod tindanan;
 pub mod tokens;
 

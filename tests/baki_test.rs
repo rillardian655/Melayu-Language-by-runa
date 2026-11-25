@@ -222,3 +222,15 @@ fn skop_dan_penutupan_kekal_betul() {
     let kod = kod.replace("cuba\n    b1 = tak_wujud\ntangkap e\n    tunjuk \"e\"\nselesai\n", "");
     assert_eq!(jaya(&kod), "32\n321\n14\n164");
 }
+
+#[test]
+fn fungsi_dalam_sifat_boleh_mengubah_objeknya() {
+    let kod = "kelas A\n    bina()\n        diri.x = 1\n        diri.f = kosong\n    selesai\n    kerja m()\n        diri.x = diri.x + 1\n        pulang diri.f()\n    selesai\nselesai\nada a = A()\nkerja g()\n    a.x = a.x + 40\n    pulang a.x\nselesai\na.f = g\ntunjuk a.f()\ntunjuk a.m()\nada k = {}\nkerja h()\n    k[\"x\"] = 42\n    k.buang(\"f\")\n    pulang k[\"x\"]\nselesai\nk[\"f\"] = h\ntunjuk k.f()\nada s = [1, 2, 3]\nkerja p(x)\n    s.tambah(x)\n    pulang x\nselesai\ntunjuk s.petakan(p)\ntunjuk panjang(s)\n";
+    assert_eq!(jaya(kod), "41\n82\n42\n[1, 2, 3]\n6");
+}
+
+#[test]
+fn aliran_gelung_dan_pulang_bersarang() {
+    let kod = "kerja f(n)\n    ada i = 0\n    selagi betul\n        i = i + 1\n        jika i == 2\n            teruskan\n        selesai\n        untuk j dari 1 hingga 5\n            jika j == 3\n                hentikan\n            selesai\n            jika i * j == n\n                pulang [i, j]\n            selesai\n        selesai\n        jika i > 10\n            hentikan\n        jika tidak jika i == 7\n            ada z = i\n            i = z + 1\n        jika tidak\n            i = i\n        selesai\n    selesai\n    pulang \"tiada\"\nselesai\ntunjuk f(6)\ntunjuk f(4)\ntunjuk f(100)\nkerja kosongan()\n    jika betul\n        pulang\n    selesai\nselesai\ntunjuk kosongan()\n";
+    assert_eq!(jaya(kod), "[3, 2]\n[4, 1]\ntiada\nkosong");
+}
