@@ -42,6 +42,21 @@ pub fn arahan(cwd: &Path, hujah: &[&str]) -> Command {
     c
 }
 
+pub fn jalankan_terhad(kod: &str) -> (Option<i32>, String) {
+    let f = Folder::baru();
+    f.tulis("u.ml", kod);
+    if !cfg!(target_os = "linux") {
+        let o = arahan(&f.0, &["u.ml"]).output().unwrap();
+        return (o.status.code(), keluaran(&o));
+    }
+    let o = Command::new("sh")
+        .current_dir(&f.0)
+        .args(["-c", "ulimit -v 2000000; ulimit -t 30; exec \"$0\" u.ml", env!("CARGO_BIN_EXE_melayu")])
+        .output()
+        .unwrap();
+    (o.status.code(), keluaran(&o))
+}
+
 pub fn keluaran(o: &Output) -> String {
     let mut s = String::from_utf8_lossy(&o.stdout).to_string();
     s.push_str(&String::from_utf8_lossy(&o.stderr));

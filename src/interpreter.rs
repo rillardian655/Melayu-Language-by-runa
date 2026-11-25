@@ -3,7 +3,8 @@ use crate::builtins::{daftar_fungsi_bawaan, lakukan_baca_input, HAD_ELEMEN_TENSO
 use crate::errors::{ErrorKind, MelayuError};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fmt;
+use std::fmt::{self, Write as _};
+use std::io::{self, Write as _};
 use std::rc::Rc;
 
 pub use crate::bekas::{PetaNilai, SenaraiNilai};
@@ -85,6 +86,20 @@ pub enum Value {
 
 thread_local! {
     static SEDANG_DIPAPAR: RefCell<std::collections::HashSet<usize>> = RefCell::new(std::collections::HashSet::new());
+}
+
+pub const HAD_PAPARAN: usize = 64 * 1024 * 1024;
+
+struct PenulisTerhad(String);
+
+impl fmt::Write for PenulisTerhad {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        if self.0.len() + s.len() > HAD_PAPARAN {
+            return Err(fmt::Error);
+        }
+        self.0.push_str(s);
+        Ok(())
+    }
 }
 
 fn papar_bekas(
@@ -217,6 +232,21 @@ impl PartialEq for Value {
 }
 
 impl Value {
+    pub fn ke_teks(&self, pos: LineCol) -> Result<String, MelayuError> {
+        if let Value::Teks(s) = self {
+            return Ok(s.clone());
+        }
+        let mut penulis = PenulisTerhad(String::new());
+        match write!(penulis, "{}", self) {
+            Ok(()) => Ok(penulis.0),
+            Err(_) => Err(MelayuError::had_memori_terlampau(
+                "Teks bagi nilai ini melebihi 64 MB",
+                pos.line,
+                pos.col,
+            )),
+        }
+    }
+
     pub fn senarai(isi: Vec<Value>) -> Value {
         Value::Senarai(Rc::new(RefCell::new(isi.into())))
     }
@@ -872,19 +902,26 @@ impl Interpreter {
                     } else {
                         match &evaluated_args[0] {
                             Value::Teks(s) => s.clone(),
-                            other => other.to_string(),
+                            other => other.ke_teks(pos)?,
                         }
                     };
                     let borrowed = list.borrow();
-                    let parts: Vec<String> =
-                        borrowed.iter().map(|v| v.to_string()).collect();
-                    let result = parts.join(&pemisah);
-                    if result.len() > HAD_SAIZ_TEKS_MAKSIMUM {
-                        return Err(MelayuError::had_memori_terlampau(
-                            "Saiz teks cantuman melebihi 16 MB",
-                            pos.line,
-                            pos.col,
-                        ));
+                    let mut result = String::new();
+                    for (i, v) in borrowed.iter().enumerate() {
+                        if i > 0 {
+                            result.push_str(&pemisah);
+                        }
+                        match v {
+                            Value::Teks(t) => result.push_str(t),
+                            lain => result.push_str(&lain.ke_teks(pos)?),
+                        }
+                        if result.len() > HAD_SAIZ_TEKS_MAKSIMUM {
+                            return Err(MelayuError::had_memori_terlampau(
+                                "Saiz teks cantuman melebihi 16 MB",
+                                pos.line,
+                                pos.col,
+                            ));
+                        }
                     }
                     Ok(Value::Teks(result))
                 }
@@ -1044,7 +1081,7 @@ impl Interpreter {
                     }
                     let key = match &evaluated_args[0] {
                         Value::Teks(s) => s.clone(),
-                        other => other.to_string(),
+                        other => other.ke_teks(pos)?,
                     };
                     let exists = map.borrow().contains_key(&key);
                     Ok(if exists { Value::Betul } else { Value::Salah })
@@ -1061,7 +1098,7 @@ impl Interpreter {
                     }
                     let key = match &evaluated_args[0] {
                         Value::Teks(s) => s.clone(),
-                        other => other.to_string(),
+                        other => other.ke_teks(pos)?,
                     };
                     let removed = map.borrow_mut().remove(&key);
                     Ok(removed.unwrap_or(Value::Kosong))
@@ -1102,7 +1139,7 @@ impl Interpreter {
                     } else {
                         match &evaluated_args[0] {
                             Value::Teks(p) => p.clone(),
-                            other => other.to_string(),
+                            other => other.ke_teks(pos)?,
                         }
                     };
                     let items: Vec<Value> = if pemisah.is_empty() {
@@ -1131,8 +1168,8 @@ impl Interpreter {
                         )
                         .with_kind(ErrorKind::Runtime));
                     }
-                    let lama = evaluated_args[0].to_string();
-                    let baru = evaluated_args[1].to_string();
+                    let lama = evaluated_args[0].ke_teks(pos)?;
+                    let baru = evaluated_args[1].ke_teks(pos)?;
                     let replaced = s.replace(&lama, &baru);
                     if replaced.len() > HAD_SAIZ_TEKS_MAKSIMUM {
                         return Err(MelayuError::had_memori_terlampau(
@@ -1219,7 +1256,7 @@ impl Interpreter {
                                     t.clone()
                                 }
                             }
-                            other => other.to_string(),
+                            other => other.ke_teks(pos)?,
                         }
                     } else {
                         " ".to_string()
@@ -1281,7 +1318,7 @@ impl Interpreter {
                                     t.clone()
                                 }
                             }
-                            other => other.to_string(),
+                            other => other.ke_teks(pos)?,
                         }
                     } else {
                         " ".to_string()
@@ -1316,7 +1353,7 @@ impl Interpreter {
                         )
                         .with_kind(ErrorKind::Runtime));
                     }
-                    let awalan = evaluated_args[0].to_string();
+                    let awalan = evaluated_args[0].ke_teks(pos)?;
                     Ok(if s.starts_with(&awalan) {
                         Value::Betul
                     } else {
@@ -1333,7 +1370,7 @@ impl Interpreter {
                         )
                         .with_kind(ErrorKind::Runtime));
                     }
-                    let akhiran = evaluated_args[0].to_string();
+                    let akhiran = evaluated_args[0].ke_teks(pos)?;
                     Ok(if s.ends_with(&akhiran) {
                         Value::Betul
                     } else {
@@ -1350,7 +1387,7 @@ impl Interpreter {
                         )
                         .with_kind(ErrorKind::Runtime));
                     }
-                    let subteks = evaluated_args[0].to_string();
+                    let subteks = evaluated_args[0].ke_teks(pos)?;
                     Ok(if s.contains(&subteks) {
                         Value::Betul
                     } else {
@@ -1708,14 +1745,14 @@ impl Interpreter {
                             Value::Kamus(map) => {
                                 let key_str = match idx_val {
                                     Value::Teks(s) => s,
-                                    other => other.to_string(),
+                                    other => other.ke_teks(*pos)?,
                                 };
                                 map.borrow_mut().insert(key_str, val);
                             }
                             Value::Objek(ref o) => {
                                 let key_str = match idx_val {
                                     Value::Teks(s) => s,
-                                    other => other.to_string(),
+                                    other => other.ke_teks(*pos)?,
                                 };
                                 o.sifat.borrow_mut().insert(key_str, val);
                             }
@@ -1759,13 +1796,21 @@ impl Interpreter {
                 }
                 Ok(Flow::Lanjut)
             }
-            Stmt::Tunjuk(args, _) => {
+            Stmt::Tunjuk(args, pos) => {
                 let mut parts = Vec::new();
                 for arg in args {
                     let val = self.evaluate_expr(arg, env)?;
-                    parts.push(val.to_string());
+                    parts.push(val.ke_teks(arg.pos())?);
                 }
-                println!("{}", parts.join(" "));
+                let mut keluaran = io::stdout().lock();
+                writeln!(keluaran, "{}", parts.join(" ")).map_err(|e| {
+                    MelayuError::new(
+                        "Alamak!",
+                        &format!("Gagal menulis keluaran: {}", e),
+                        pos.line,
+                        pos.col,
+                    )
+                })?;
                 Ok(Flow::Lanjut)
             }
             Stmt::Jika {
@@ -2050,7 +2095,7 @@ impl Interpreter {
             Stmt::Baling(expr, pos) => {
                 let val = self.evaluate_expr(expr, env)?;
                 Err(
-                    MelayuError::new("Alamak!", &val.to_string(), pos.line, pos.col)
+                    MelayuError::new("Alamak!", &val.ke_teks(*pos)?, pos.line, pos.col)
                         .with_kind(ErrorKind::Runtime),
                 )
             }
@@ -2218,7 +2263,7 @@ impl Interpreter {
                 if !cond_val.is_truthy() {
                     let msg = if let Some(m) = mesej {
                         let m_val = self.evaluate_expr(m, env)?;
-                        format!("{}", m_val)
+                        m_val.ke_teks(*pos)?
                     } else {
                         "Semakan penegasan (semak) tidak benar!".to_string()
                     };
@@ -2266,7 +2311,7 @@ impl Interpreter {
                     let key_val = self.evaluate_expr(k, env)?;
                     let key_str = match key_val {
                         Value::Teks(s) => s,
-                        other => other.to_string(),
+                        other => other.ke_teks(k.pos())?,
                     };
                     let val = self.evaluate_expr(v, env)?;
                     map.insert(key_str, val);
@@ -2337,7 +2382,7 @@ impl Interpreter {
                     Value::Kamus(map) => {
                         let key_str = match idx_val {
                             Value::Teks(s) => s,
-                            other => other.to_string(),
+                            other => other.ke_teks(*pos)?,
                         };
                         let borrowed = map.borrow();
                         Ok(borrowed.get(&key_str).cloned().unwrap_or(Value::Kosong))
@@ -2345,7 +2390,7 @@ impl Interpreter {
                     Value::Objek(ref o) => {
                         let key_str = match idx_val {
                             Value::Teks(s) => s,
-                            other => other.to_string(),
+                            other => other.ke_teks(*pos)?,
                         };
                         let borrowed = o.sifat.borrow();
                         Ok(borrowed.get(&key_str).cloned().unwrap_or(Value::Kosong))
@@ -2625,7 +2670,7 @@ impl Interpreter {
                 "Padanan Tidak Lengkap!",
                 &format!(
                     "Tiada corak (pola) yang sepadan untuk nilai '{}'. Sila sertakan 'lain => ...'",
-                    target_val
+                    target_val.ke_teks(p.pos)?
                 ),
                 p.pos.line,
                 p.pos.col,
@@ -2676,7 +2721,7 @@ impl Interpreter {
                     BinaryOp::Tambah => match (&left_val, &right_val) {
                         (Value::Nombor(a), Value::Nombor(b)) => Ok(Value::Nombor(a + b)),
                         (Value::Teks(a), b) => {
-                            let b_str = b.to_string();
+                            let b_str = b.ke_teks(pos)?;
                             if a.len() + b_str.len() > HAD_SAIZ_TEKS_MAKSIMUM {
                                 return Err(MelayuError::had_memori_terlampau(
                                     "Saiz rentetan teks melebihi had keselamatan maksimum (16 MB)",
@@ -2687,7 +2732,7 @@ impl Interpreter {
                             Ok(Value::Teks(format!("{}{}", a, b_str)))
                         }
                         (a, Value::Teks(b)) => {
-                            let a_str = a.to_string();
+                            let a_str = a.ke_teks(pos)?;
                             if a_str.len() + b.len() > HAD_SAIZ_TEKS_MAKSIMUM {
                                 return Err(MelayuError::had_memori_terlampau(
                                     "Saiz rentetan teks melebihi had keselamatan maksimum (16 MB)",

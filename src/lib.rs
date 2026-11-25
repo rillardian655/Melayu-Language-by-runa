@@ -27,6 +27,7 @@ pub mod ast;
 pub mod bekas;
 pub mod builtins;
 pub mod errors;
+pub mod fail_selamat;
 pub mod gpu;
 pub mod interpreter;
 pub mod kamus;

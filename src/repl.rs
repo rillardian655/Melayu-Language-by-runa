@@ -94,7 +94,10 @@ pub fn run_repl() {
                     match interpreter.evaluate_expr(expr, &interpreter.env.clone()) {
                         Ok(val) => {
                             if val != Value::Kosong {
-                                println!("\x1b[36m=>\x1b[0m {}", val);
+                                match val.ke_teks(expr.pos()) {
+                                    Ok(teks) => println!("\x1b[36m=>\x1b[0m {}", teks),
+                                    Err(e) => cetak_ralat(&e, &buffer),
+                                }
                             }
                         }
                         Err(e) => cetak_ralat(&e, &buffer),
