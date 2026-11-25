@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -2679,6 +2679,23 @@ pub fn builtin_mulakan_pelayan_http(args: &[Value], pos: LineCol) -> Result<Valu
     Ok(Value::Nombor(count as f64))
 }
 
+fn alamat_dalaman_disekat(ip: &IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            v4.is_link_local() || v4.is_unspecified() || v4.octets() == [100, 100, 100, 200]
+        }
+        IpAddr::V6(v6) => {
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return alamat_dalaman_disekat(&IpAddr::V4(v4));
+            }
+            let seg = v6.segments();
+            v6.is_unspecified()
+                || (seg[0] & 0xffc0) == 0xfe80
+                || seg == [0xfd00, 0x0ec2, 0, 0, 0, 0, 0, 0x0254]
+        }
+    }
+}
+
 pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
     if args.len() < 2 || args.len() > 4 {
         return Err(MelayuError::new(
@@ -2714,8 +2731,18 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
         "".to_string()
     };
 
-    let url_clean = if url_raw.starts_with("http://") {
-        &url_raw[7..]
+    let ralat_url = |mesej: &str| {
+        MelayuError::new("Alamak!", mesej, pos.line, pos.col).with_kind(ErrorKind::Runtime)
+    };
+
+    let url_clean = if let Some(baki) = url_raw.strip_prefix("http://") {
+        baki
+    } else if url_raw.to_lowercase().starts_with("https://") {
+        return Err(ralat_url(
+            "HTTPS belum disokong kerana MELAYU tiada pustaka TLS terbina-dalam. Guna alamat http:// atau proksi tempatan.",
+        ));
+    } else if url_raw.contains("://") {
+        return Err(ralat_url("Hanya URL http:// disokong oleh hantarPermintaanHTTP."));
     } else {
         url_raw
     };
@@ -2726,41 +2753,71 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
         (url_clean, "/")
     };
 
-    let (host, port) = if let Some(colon_idx) = host_port.find(':') {
-        let h = &host_port[..colon_idx];
-        let p: u16 = host_port[colon_idx + 1..].parse().map_err(|_| {
-            MelayuError::new("Alamak!", "Nombor port URL tidak sah.", pos.line, pos.col)
-                .with_kind(ErrorKind::Runtime)
-        })?;
-        (h, p)
+    let baca_port = |teks: &str| -> Result<u16, MelayuError> {
+        teks.parse().map_err(|_| ralat_url("Nombor port URL tidak sah."))
+    };
+
+    let (host, port) = if let Some(baki) = host_port.strip_prefix('[') {
+        let tutup = baki
+            .find(']')
+            .ok_or_else(|| ralat_url("Alamat IPv6 dalam URL tidak lengkap (tiada ']')."))?;
+        let selepas = &baki[tutup + 1..];
+        let p = match selepas.strip_prefix(':') {
+            Some(teks_port) => baca_port(teks_port)?,
+            None if selepas.is_empty() => 80,
+            None => return Err(ralat_url("Format hos URL tidak sah.")),
+        };
+        (&baki[..tutup], p)
+    } else if let Some(colon_idx) = host_port.find(':') {
+        (&host_port[..colon_idx], baca_port(&host_port[colon_idx + 1..])?)
     } else {
         (host_port, 80)
     };
 
-    // Sekatan SSRF terhadap alamat metadata awan (Cloud Metadata) & link-local
     let host_lower = host.to_lowercase();
-    if host_lower.starts_with("169.254.")
-        || host_lower == "metadata.google.internal"
-        || host_lower == "metadata"
-        || host_lower == "0.0.0.0"
-    {
-        return Err(MelayuError::new(
-            "Alamak!",
-            &format!("Akses HTTP ke hos dalaman/metadata '{}' disekat (Anti-SSRF).", host),
-            pos.line,
-            pos.col,
-        )
-        .with_kind(ErrorKind::Runtime));
+    if host_lower == "metadata.google.internal" || host_lower == "metadata" {
+        return Err(ralat_url(&format!(
+            "Akses HTTP ke hos dalaman/metadata '{}' disekat (Anti-SSRF).",
+            host
+        )));
     }
 
-    let mut stream = match TcpStream::connect((host, port)) {
-        Ok(s) => s,
-        Err(e) => return Err(MelayuError::new(
-            "Alamak!",
-            &format!("Gagal menyambung ke {}:{}: {}", host, port, e),
-            pos.line,
-            pos.col,
-        ).with_kind(ErrorKind::Runtime)),
+    let senarai_alamat: Vec<SocketAddr> = (host, port)
+        .to_socket_addrs()
+        .map_err(|e| ralat_url(&format!("Gagal mencari alamat hos '{}': {}", host, e)))?
+        .collect();
+    if senarai_alamat.is_empty() {
+        return Err(ralat_url(&format!("Hos '{}' tidak mempunyai alamat IP.", host)));
+    }
+    if let Some(disekat) = senarai_alamat.iter().find(|a| alamat_dalaman_disekat(&a.ip())) {
+        return Err(ralat_url(&format!(
+            "Akses HTTP ke hos dalaman/metadata '{}' ({}) disekat (Anti-SSRF).",
+            host,
+            disekat.ip()
+        )));
+    }
+
+    let mut sambungan = None;
+    let mut ralat_akhir = None;
+    for alamat in &senarai_alamat {
+        match TcpStream::connect_timeout(alamat, Duration::from_secs(10)) {
+            Ok(s) => {
+                sambungan = Some(s);
+                break;
+            }
+            Err(e) => ralat_akhir = Some(e),
+        }
+    }
+    let mut stream = match sambungan {
+        Some(s) => s,
+        None => {
+            return Err(ralat_url(&format!(
+                "Gagal menyambung ke {}:{}: {}",
+                host,
+                port,
+                ralat_akhir.map(|e| e.to_string()).unwrap_or_default()
+            )))
+        }
     };
 
     let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
@@ -2768,7 +2825,12 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
 
     let req_content = format!(
         "{} {} HTTP/1.1\r\nHost: {}:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        kaedah, path, host, port, badan_str.len(), badan_str
+        kaedah,
+        path,
+        if host.contains(':') { format!("[{}]", host) } else { host.to_string() },
+        port,
+        badan_str.len(),
+        badan_str
     );
 
     if let Err(e) = stream.write_all(req_content.as_bytes()) {
