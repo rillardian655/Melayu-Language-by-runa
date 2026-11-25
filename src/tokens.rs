@@ -74,9 +74,10 @@ pub enum TokenKind {
     // Operator Aritmetik
     Tambah, // tambah / +
     Tolak,  // tolak / -
-    Kali,   // kali / *
-    Bahagi, // bahagi / /
-    Modulo, // modulo / %
+    Kali,         // kali / *
+    Bahagi,       // bahagi / /
+    Modulo,       // modulo / %
+    MatriksDarab, // @ (perkalian matriks / tensor)
 
     // Operator Perbandingan
     SamaDengan, // sama dengan / ==
@@ -190,6 +191,7 @@ impl fmt::Display for TokenKind {
             TokenKind::Kali => write!(f, "kali (*)"),
             TokenKind::Bahagi => write!(f, "bahagi (/)"),
             TokenKind::Modulo => write!(f, "modulo (%)"),
+            TokenKind::MatriksDarab => write!(f, "darab matriks (@)"),
             TokenKind::SamaDengan => write!(f, "sama dengan (==)"),
             TokenKind::TidakSama => write!(f, "tidak sama (!=)"),
             TokenKind::LebihSama => write!(f, "lebih sama (>=)"),

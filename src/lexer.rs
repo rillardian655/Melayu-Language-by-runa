@@ -199,6 +199,10 @@ impl Lexer {
                     self.advance();
                     tokens.push(Token::new(TokenKind::Modulo, "%", start_line, start_col));
                 }
+                '@' => {
+                    self.advance();
+                    tokens.push(Token::new(TokenKind::MatriksDarab, "@", start_line, start_col));
+                }
                 '=' => {
                     self.advance();
                     if self.peek() == '=' {

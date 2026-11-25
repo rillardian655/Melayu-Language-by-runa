@@ -69,6 +69,14 @@ pub fn daftar_fungsi_bawaan() -> Vec<(&'static str, BuiltinFn)> {
         ("skorF1", builtin_skor_f1),
         ("kejituan", builtin_kejituan),
         ("kepekaan", builtin_kepekaan),
+        ("matriksSoftmax", builtin_matriks_softmax),
+        ("matriksReLU", builtin_matriks_relu),
+        ("ralatEntropiSilang", builtin_ralat_entropi_silang),
+        // Primitif Tensor Native
+        ("tensor", builtin_tensor),
+        ("sifarTensor", builtin_sifar_tensor),
+        ("satuTensor", builtin_satu_tensor),
+        ("rawakTensor", builtin_rawak_tensor),
         // Kerangka Kerja Web & Rangkaian (Selasih)
         ("mulakanPelayanHTTP", builtin_mulakan_pelayan_http),
         ("hantarPermintaanHTTP", builtin_hantar_permintaan_http),
@@ -1400,6 +1408,38 @@ pub fn nilai_ke_json_string(
                 Ok(format!("{{{}}}", parts.join(",")))
             }
         }
+        Value::Tensor { data, shape } => {
+            if shape.len() == 2 {
+                let (rows, cols) = (shape[0], shape[1]);
+                let mut row_strs = Vec::with_capacity(rows);
+                for r in 0..rows {
+                    let col_strs: Vec<String> = (0..cols)
+                        .map(|c| {
+                            let v = data[r * cols + c];
+                            if v.fract() == 0.0 && v.is_finite() {
+                                format!("{:.0}", v)
+                            } else {
+                                format!("{}", v)
+                            }
+                        })
+                        .collect();
+                    row_strs.push(format!("[{}]", col_strs.join(",")));
+                }
+                Ok(format!("[{}]", row_strs.join(",")))
+            } else {
+                let strs: Vec<String> = data
+                    .iter()
+                    .map(|&v| {
+                        if v.fract() == 0.0 && v.is_finite() {
+                            format!("{:.0}", v)
+                        } else {
+                            format!("{}", v)
+                        }
+                    })
+                    .collect();
+                Ok(format!("[{}]", strs.join(",")))
+            }
+        }
         other => Err(MelayuError::new(
             "Alamak!",
             &format!(
@@ -2616,6 +2656,256 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
     map_resp.insert("pengepala".to_string(), Value::Kamus(Rc::new(RefCell::new(headers_resp))));
 
     Ok(Value::Kamus(Rc::new(RefCell::new(map_resp))))
+}
+
+// ==============================================================================
+// PRIMITIF TENSOR NATIVE & DEEP LEARNING LANJUTAN
+// ==============================================================================
+
+fn ekstrak_bentuk_tensor(val: &Value, pos: LineCol) -> Result<Vec<usize>, MelayuError> {
+    match val {
+        Value::Senarai(rc) => {
+            let mut dims = Vec::new();
+            for item in rc.borrow().iter() {
+                match item {
+                    Value::Nombor(n) if *n > 0.0 => dims.push(*n as usize),
+                    _ => {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Setiap dimensi bentuk tensor mestilah nombor positif.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                }
+            }
+            if dims.is_empty() || dims.len() > 2 {
+                return Err(MelayuError::new(
+                    "Alamak!",
+                    "Bentuk tensor kini menyokong 1 atau 2 dimensi sahaja.",
+                    pos.line,
+                    pos.col,
+                )
+                .with_kind(ErrorKind::Runtime));
+            }
+            Ok(dims)
+        }
+        _ => Err(MelayuError::new(
+            "Alamak!",
+            "Bentuk tensor mestilah senarai dimensi, contoh: [2, 3].",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime)),
+    }
+}
+
+pub fn builtin_tensor(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Fungsi 'tensor' memerlukan 1 hujah (senarai 1D atau 2D).",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime));
+    }
+    match &args[0] {
+        Value::Senarai(rc) => {
+            let borrowed = rc.borrow();
+            if borrowed.is_empty() {
+                return Ok(Value::Tensor {
+                    data: vec![],
+                    shape: vec![0],
+                });
+            }
+            if matches!(borrowed[0], Value::Senarai(_)) {
+                let mut data = Vec::new();
+                let rows = borrowed.len();
+                let mut cols = None;
+                for row_val in borrowed.iter() {
+                    let row = match row_val {
+                        Value::Senarai(r) => r.borrow(),
+                        _ => {
+                            return Err(MelayuError::new(
+                                "Alamak!",
+                                "Semua baris tensor 2D mestilah senarai.",
+                                pos.line,
+                                pos.col,
+                            )
+                            .with_kind(ErrorKind::Runtime));
+                        }
+                    };
+                    match cols {
+                        None => cols = Some(row.len()),
+                        Some(c) if c != row.len() => {
+                            return Err(MelayuError::new(
+                                "Alamak!",
+                                "Semua baris tensor 2D mestilah sama panjang.",
+                                pos.line,
+                                pos.col,
+                            )
+                            .with_kind(ErrorKind::Runtime));
+                        }
+                        _ => {}
+                    }
+                    for v in row.iter() {
+                        match v {
+                            Value::Nombor(n) => data.push(*n),
+                            _ => {
+                                return Err(MelayuError::new(
+                                    "Alamak!",
+                                    "Semua elemen tensor mestilah nombor.",
+                                    pos.line,
+                                    pos.col,
+                                )
+                                .with_kind(ErrorKind::Runtime));
+                            }
+                        }
+                    }
+                }
+                Ok(Value::Tensor {
+                    data,
+                    shape: vec![rows, cols.unwrap_or(0)],
+                })
+            } else {
+                let mut data = Vec::with_capacity(borrowed.len());
+                for v in borrowed.iter() {
+                    match v {
+                        Value::Nombor(n) => data.push(*n),
+                        _ => {
+                            return Err(MelayuError::new(
+                                "Alamak!",
+                                "Semua elemen tensor mestilah nombor.",
+                                pos.line,
+                                pos.col,
+                            )
+                            .with_kind(ErrorKind::Runtime));
+                        }
+                    }
+                }
+                let len = data.len();
+                Ok(Value::Tensor {
+                    data,
+                    shape: vec![len],
+                })
+            }
+        }
+        Value::Tensor { data, shape } => Ok(Value::Tensor {
+            data: data.clone(),
+            shape: shape.clone(),
+        }),
+        _ => Err(MelayuError::new(
+            "Alamak!",
+            "Hujah 'tensor()' mestilah senarai nombor 1D atau 2D.",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime)),
+    }
+}
+
+pub fn builtin_sifar_tensor(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new("Alamak!", "Fungsi 'sifarTensor' memerlukan 1 hujah (senarai bentuk).", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let shape = ekstrak_bentuk_tensor(&args[0], pos)?;
+    let total: usize = shape.iter().product();
+    Ok(Value::Tensor {
+        data: vec![0.0; total],
+        shape,
+    })
+}
+
+pub fn builtin_satu_tensor(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new("Alamak!", "Fungsi 'satuTensor' memerlukan 1 hujah (senarai bentuk).", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let shape = ekstrak_bentuk_tensor(&args[0], pos)?;
+    let total: usize = shape.iter().product();
+    Ok(Value::Tensor {
+        data: vec![1.0; total],
+        shape,
+    })
+}
+
+pub fn builtin_rawak_tensor(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new("Alamak!", "Fungsi 'rawakTensor' memerlukan 1 hujah (senarai bentuk).", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let shape = ekstrak_bentuk_tensor(&args[0], pos)?;
+    let total: usize = shape.iter().product();
+    let mut seed: u64 = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as u64;
+    let mut data = Vec::with_capacity(total);
+    for _ in 0..total {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        let u = ((seed >> 11) as f64) / ((1u64 << 53) as f64);
+        data.push(u * 2.0 - 1.0); // julat [-1.0, 1.0]
+    }
+    Ok(Value::Tensor { data, shape })
+}
+
+pub fn builtin_matriks_softmax(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new("Alamak!", "Fungsi 'matriksSoftmax' memerlukan 1 hujah matriks.", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let mat = ekstrak_matriks(&args[0], pos)?;
+    let mut out = Vec::with_capacity(mat.len());
+    for row in mat {
+        let max_v = row.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let exps: Vec<f64> = row.iter().map(|&x| (x - max_v).exp()).collect();
+        let sum: f64 = exps.iter().sum();
+        let probs: Vec<Value> = exps
+            .into_iter()
+            .map(|e| Value::Nombor(if sum > 0.0 { e / sum } else { 0.0 }))
+            .collect();
+        out.push(Value::Senarai(Rc::new(RefCell::new(probs))));
+    }
+    Ok(Value::Senarai(Rc::new(RefCell::new(out))))
+}
+
+pub fn builtin_matriks_relu(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 1 {
+        return Err(MelayuError::new("Alamak!", "Fungsi 'matriksReLU' memerlukan 1 hujah matriks.", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let mat = ekstrak_matriks(&args[0], pos)?;
+    let out: Vec<Value> = mat
+        .into_iter()
+        .map(|row| {
+            let r: Vec<Value> = row
+                .into_iter()
+                .map(|x| Value::Nombor(if x > 0.0 { x } else { 0.0 }))
+                .collect();
+            Value::Senarai(Rc::new(RefCell::new(r)))
+        })
+        .collect();
+    Ok(Value::Senarai(Rc::new(RefCell::new(out))))
+}
+
+pub fn builtin_ralat_entropi_silang(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if args.len() != 2 {
+        return Err(MelayuError::new("Alamak!", "Fungsi 'ralatEntropiSilang' memerlukan 2 hujah (y_benar_matriks, y_ramal_matriks).", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let y_true = ekstrak_matriks(&args[0], pos)?;
+    let y_pred = ekstrak_matriks(&args[1], pos)?;
+    if y_true.len() != y_pred.len() || y_true.is_empty() {
+        return Err(MelayuError::new("Alamak!", "Saiz matriks y_benar dan y_ramal mestilah sama dan tidak kosong.", pos.line, pos.col).with_kind(ErrorKind::Runtime));
+    }
+    let mut total_loss = 0.0;
+    let eps = 1e-12;
+    for (r_t, r_p) in y_true.iter().zip(y_pred.iter()) {
+        for (&yt, &yp) in r_t.iter().zip(r_p.iter()) {
+            if yt > 0.0 {
+                let p_clamped = yp.clamp(eps, 1.0 - eps);
+                total_loss -= yt * p_clamped.ln();
+            }
+        }
+    }
+    Ok(Value::Nombor(total_loss / (y_true.len() as f64)))
 }
 
 pub const AKAL_ML_STDLIB: &str = include_str!("../std/akal.ml");

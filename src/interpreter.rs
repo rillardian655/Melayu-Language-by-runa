@@ -68,6 +68,10 @@ pub enum Value {
     Kelas(Rc<KelasData>),
     Objek(Rc<ObjekData>),
     Induk(Rc<IndukData>),
+    Tensor {
+        data: Vec<f64>,
+        shape: Vec<usize>,
+    },
 }
 
 impl PartialEq for Value {
@@ -87,6 +91,9 @@ impl PartialEq for Value {
                 a.nama_kelas == b.nama_kelas && *a.sifat.borrow() == *b.sifat.borrow()
             }
             (Value::Induk(a), Value::Induk(b)) => a == b,
+            (Value::Tensor { data: d1, shape: s1 }, Value::Tensor { data: d2, shape: s2 }) => {
+                s1 == s2 && d1 == d2
+            }
             _ => false,
         }
     }
@@ -106,6 +113,7 @@ impl Value {
             Value::Kelas(_) => "kelas",
             Value::Objek(_) => "objek",
             Value::Induk(_) => "induk",
+            Value::Tensor { .. } => "tensor",
         }
     }
 
@@ -178,6 +186,44 @@ impl fmt::Display for Value {
                 write!(f, "}}>")
             }
             Value::Induk(i) => write!(f, "<induk: {}>", i.nama_induk),
+            Value::Tensor { data, shape } => {
+                if shape.len() == 2 {
+                    let (rows, cols) = (shape[0], shape[1]);
+                    write!(f, "tensor([")?;
+                    for r in 0..rows {
+                        if r > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "[")?;
+                        for c in 0..cols {
+                            if c > 0 {
+                                write!(f, ", ")?;
+                            }
+                            let v = data[r * cols + c];
+                            if v.fract() == 0.0 && v.is_finite() {
+                                write!(f, "{:.0}", v)?;
+                            } else {
+                                write!(f, "{:.4}", v)?;
+                            }
+                        }
+                        write!(f, "]")?;
+                    }
+                    write!(f, "])")
+                } else {
+                    write!(f, "tensor([")?;
+                    for (i, v) in data.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        if v.fract() == 0.0 && v.is_finite() {
+                            write!(f, "{:.0}", v)?;
+                        } else {
+                            write!(f, "{:.4}", v)?;
+                        }
+                    }
+                    write!(f, "])")
+                }
+            }
         }
     }
 }
@@ -1164,6 +1210,139 @@ impl Interpreter {
                 )
                 .with_kind(ErrorKind::Runtime)
                 .with_suggestion("Kaedah teks yang ada: .hurufBesar(), .hurufKecil(), .hurufAwalBesar(), .panjang(), .potong(), .pecah(pemisah), .ganti(lama, baru), .ulang(n), .selitDepan(panjang, aksara?), .selitBelakang(panjang, aksara?), .mulaDengan(awalan), .tamatDengan(akhiran), .mengandungi(subteks)")),
+            },
+            Value::Tensor { ref data, ref shape } => match kaedah {
+                "bentuk" => {
+                    let s: Vec<Value> = shape.iter().map(|&d| Value::Nombor(d as f64)).collect();
+                    Ok(Value::Senarai(Rc::new(RefCell::new(s))))
+                }
+                "jumlah" => {
+                    let sum: f64 = data.iter().sum();
+                    Ok(Value::Nombor(sum))
+                }
+                "purata" => {
+                    let sum: f64 = data.iter().sum();
+                    let len = if data.is_empty() { 1.0 } else { data.len() as f64 };
+                    Ok(Value::Nombor(sum / len))
+                }
+                "transposisi" => {
+                    if shape.len() != 2 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.transposisi()' memerlukan tensor 2 dimensi.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let (rows, cols) = (shape[0], shape[1]);
+                    let mut out = vec![0.0; rows * cols];
+                    for r in 0..rows {
+                        for c in 0..cols {
+                            out[c * rows + r] = data[r * cols + c];
+                        }
+                    }
+                    Ok(Value::Tensor {
+                        data: out,
+                        shape: vec![cols, rows],
+                    })
+                }
+                "sigmoid" => {
+                    let out: Vec<f64> = data.iter().map(|&x| 1.0 / (1.0 + (-x).exp())).collect();
+                    Ok(Value::Tensor {
+                        data: out,
+                        shape: shape.clone(),
+                    })
+                }
+                "relu" => {
+                    let out: Vec<f64> = data.iter().map(|&x| if x > 0.0 { x } else { 0.0 }).collect();
+                    Ok(Value::Tensor {
+                        data: out,
+                        shape: shape.clone(),
+                    })
+                }
+                "ubahBentuk" => {
+                    if evaluated_args.len() != 1 {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            "Kaedah '.ubahBentuk(senarai_bentuk)' memerlukan 1 hujah.",
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    let new_shape = match &evaluated_args[0] {
+                        Value::Senarai(rc) => {
+                            let mut dims = Vec::new();
+                            for item in rc.borrow().iter() {
+                                match item {
+                                    Value::Nombor(n) if *n > 0.0 => dims.push(*n as usize),
+                                    _ => {
+                                        return Err(MelayuError::new(
+                                            "Alamak!",
+                                            "Dimensi bentuk mestilah nombor positif.",
+                                            pos.line,
+                                            pos.col,
+                                        )
+                                        .with_kind(ErrorKind::Runtime));
+                                    }
+                                }
+                            }
+                            dims
+                        }
+                        _ => {
+                            return Err(MelayuError::new(
+                                "Alamak!",
+                                "Hujah '.ubahBentuk()' mestilah senarai dimensi.",
+                                pos.line,
+                                pos.col,
+                            )
+                            .with_kind(ErrorKind::Runtime));
+                        }
+                    };
+                    let prod: usize = new_shape.iter().product();
+                    if prod != data.len() {
+                        return Err(MelayuError::new(
+                            "Alamak!",
+                            &format!(
+                                "Saiz bentuk baharu ({}) tidak sepadan dengan jumlah elemen tensor ({}).",
+                                prod,
+                                data.len()
+                            ),
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime));
+                    }
+                    Ok(Value::Tensor {
+                        data: data.clone(),
+                        shape: new_shape,
+                    })
+                }
+                "keSenarai" => {
+                    if shape.len() == 2 {
+                        let (rows, cols) = (shape[0], shape[1]);
+                        let mut res = Vec::with_capacity(rows);
+                        for r in 0..rows {
+                            let row_vals: Vec<Value> = (0..cols)
+                                .map(|c| Value::Nombor(data[r * cols + c]))
+                                .collect();
+                            res.push(Value::Senarai(Rc::new(RefCell::new(row_vals))));
+                        }
+                        Ok(Value::Senarai(Rc::new(RefCell::new(res))))
+                    } else {
+                        let vals: Vec<Value> = data.iter().map(|&v| Value::Nombor(v)).collect();
+                        Ok(Value::Senarai(Rc::new(RefCell::new(vals))))
+                    }
+                }
+                other => Err(MelayuError::new(
+                    "Alamak!",
+                    &format!("Kaedah '.{}()' tidak wujud untuk jenis 'tensor'.", other),
+                    pos.line,
+                    pos.col,
+                )
+                .with_kind(ErrorKind::Runtime)
+                .with_suggestion("Kaedah tensor: .bentuk(), .transposisi(), .jumlah(), .purata(), .sigmoid(), .relu(), .ubahBentuk(bentuk), .keSenarai()")),
             },
             Value::Objek(ref o) => {
                 if let Some(method) = o.kaedah.get(kaedah) {
@@ -2456,8 +2635,16 @@ impl Interpreter {
                             combined.extend(b.borrow().clone());
                             Ok(Value::Senarai(Rc::new(RefCell::new(combined))))
                         }
+                        (Value::Tensor { data: d1, shape: s1 }, Value::Tensor { data: d2, shape: s2 }) => {
+                            tensor_binary_op(d1, s1, d2, s2, |a, b| a + b, pos)
+                        }
+                        (Value::Tensor { data: d, shape: s }, Value::Nombor(n))
+                        | (Value::Nombor(n), Value::Tensor { data: d, shape: s }) => Ok(Value::Tensor {
+                            data: d.iter().map(|&x| x + n).collect(),
+                            shape: s.clone(),
+                        }),
                         _ => Err(MelayuError::jenis_salah(
-                            "nombor, teks, atau senarai",
+                            "nombor, teks, senarai, atau tensor",
                             &format!("{} dan {}", left_val.jenis(), right_val.jenis()),
                             pos.line,
                             pos.col,
@@ -2465,8 +2652,19 @@ impl Interpreter {
                     },
                     BinaryOp::Tolak => match (&left_val, &right_val) {
                         (Value::Nombor(a), Value::Nombor(b)) => Ok(Value::Nombor(a - b)),
+                        (Value::Tensor { data: d1, shape: s1 }, Value::Tensor { data: d2, shape: s2 }) => {
+                            tensor_binary_op(d1, s1, d2, s2, |a, b| a - b, pos)
+                        }
+                        (Value::Tensor { data: d, shape: s }, Value::Nombor(n)) => Ok(Value::Tensor {
+                            data: d.iter().map(|&x| x - n).collect(),
+                            shape: s.clone(),
+                        }),
+                        (Value::Nombor(n), Value::Tensor { data: d, shape: s }) => Ok(Value::Tensor {
+                            data: d.iter().map(|&x| n - x).collect(),
+                            shape: s.clone(),
+                        }),
                         _ => Err(MelayuError::jenis_salah(
-                            "nombor",
+                            "nombor atau tensor",
                             &format!("{} dan {}", left_val.jenis(), right_val.jenis()),
                             pos.line,
                             pos.col,
@@ -2474,8 +2672,16 @@ impl Interpreter {
                     },
                     BinaryOp::Kali => match (&left_val, &right_val) {
                         (Value::Nombor(a), Value::Nombor(b)) => Ok(Value::Nombor(a * b)),
+                        (Value::Tensor { data: d1, shape: s1 }, Value::Tensor { data: d2, shape: s2 }) => {
+                            tensor_binary_op(d1, s1, d2, s2, |a, b| a * b, pos)
+                        }
+                        (Value::Tensor { data: d, shape: s }, Value::Nombor(n))
+                        | (Value::Nombor(n), Value::Tensor { data: d, shape: s }) => Ok(Value::Tensor {
+                            data: d.iter().map(|&x| x * n).collect(),
+                            shape: s.clone(),
+                        }),
                         _ => Err(MelayuError::jenis_salah(
-                            "nombor",
+                            "nombor atau tensor",
                             &format!("{} dan {}", left_val.jenis(), right_val.jenis()),
                             pos.line,
                             pos.col,
@@ -2488,8 +2694,23 @@ impl Interpreter {
                             }
                             Ok(Value::Nombor(a / b))
                         }
+                        (Value::Tensor { data: d1, shape: s1 }, Value::Tensor { data: d2, shape: s2 }) => {
+                            if d2.iter().any(|&x| x == 0.0) {
+                                return Err(MelayuError::bahagi_kosong(pos.line, pos.col));
+                            }
+                            tensor_binary_op(d1, s1, d2, s2, |a, b| a / b, pos)
+                        }
+                        (Value::Tensor { data: d, shape: s }, Value::Nombor(n)) => {
+                            if *n == 0.0 {
+                                return Err(MelayuError::bahagi_kosong(pos.line, pos.col));
+                            }
+                            Ok(Value::Tensor {
+                                data: d.iter().map(|&x| x / n).collect(),
+                                shape: s.clone(),
+                            })
+                        }
                         _ => Err(MelayuError::jenis_salah(
-                            "nombor",
+                            "nombor atau tensor",
                             &format!("{} dan {}", left_val.jenis(), right_val.jenis()),
                             pos.line,
                             pos.col,
@@ -2504,6 +2725,17 @@ impl Interpreter {
                         }
                         _ => Err(MelayuError::jenis_salah(
                             "nombor",
+                            &format!("{} dan {}", left_val.jenis(), right_val.jenis()),
+                            pos.line,
+                            pos.col,
+                        )),
+                    },
+                    BinaryOp::MatriksDarab => match (&left_val, &right_val) {
+                        (Value::Tensor { data: d1, shape: s1 }, Value::Tensor { data: d2, shape: s2 }) => {
+                            tensor_matmul(d1, s1, d2, s2, pos)
+                        }
+                        _ => Err(MelayuError::jenis_salah(
+                            "tensor",
                             &format!("{} dan {}", left_val.jenis(), right_val.jenis()),
                             pos.line,
                             pos.col,
@@ -2577,5 +2809,139 @@ impl Interpreter {
                     },
                     BinaryOp::Dan | BinaryOp::Atau => unreachable!(),
                 }
+    }
+}
+
+fn tensor_binary_op<F>(
+    d1: &[f64],
+    s1: &[usize],
+    d2: &[f64],
+    s2: &[usize],
+    op: F,
+    pos: LineCol,
+) -> Result<Value, MelayuError>
+where
+    F: Fn(f64, f64) -> f64,
+{
+    if s1 == s2 {
+        let out: Vec<f64> = d1.iter().zip(d2.iter()).map(|(&a, &b)| op(a, b)).collect();
+        return Ok(Value::Tensor {
+            data: out,
+            shape: s1.to_vec(),
+        });
+    }
+    // Broadcasting 1D [cols] ke atas 2D [rows, cols]
+    if s1.len() == 2 && s2.len() == 1 && s1[1] == s2[0] {
+        let (rows, cols) = (s1[0], s1[1]);
+        let mut out = Vec::with_capacity(rows * cols);
+        for r in 0..rows {
+            for c in 0..cols {
+                out.push(op(d1[r * cols + c], d2[c]));
+            }
+        }
+        return Ok(Value::Tensor {
+            data: out,
+            shape: s1.to_vec(),
+        });
+    }
+    // Broadcasting 2D [1, cols] ke atas 2D [rows, cols]
+    if s1.len() == 2 && s2.len() == 2 && s2[0] == 1 && s1[1] == s2[1] {
+        let (rows, cols) = (s1[0], s1[1]);
+        let mut out = Vec::with_capacity(rows * cols);
+        for r in 0..rows {
+            for c in 0..cols {
+                out.push(op(d1[r * cols + c], d2[c]));
+            }
+        }
+        return Ok(Value::Tensor {
+            data: out,
+            shape: s1.to_vec(),
+        });
+    }
+    Err(MelayuError::new(
+        "Alamak!",
+        &format!("Dimensi tensor tidak sepadan untuk operasi: {:?} dan {:?}", s1, s2),
+        pos.line,
+        pos.col,
+    )
+    .with_kind(ErrorKind::Runtime))
+}
+
+fn tensor_matmul(
+    d1: &[f64],
+    s1: &[usize],
+    d2: &[f64],
+    s2: &[usize],
+    pos: LineCol,
+) -> Result<Value, MelayuError> {
+    if s1.len() == 2 && s2.len() == 2 {
+        let (m, k1) = (s1[0], s1[1]);
+        let (k2, n) = (s2[0], s2[1]);
+        if k1 != k2 {
+            return Err(MelayuError::new(
+                "Alamak!",
+                &format!("Dimensi darab matriks (@) tidak sepadan: {:?} @ {:?}", s1, s2),
+                pos.line,
+                pos.col,
+            )
+            .with_kind(ErrorKind::Runtime));
+        }
+        let mut out = vec![0.0; m * n];
+        for i in 0..m {
+            for k in 0..k1 {
+                let a = d1[i * k1 + k];
+                for j in 0..n {
+                    out[i * n + j] += a * d2[k * n + j];
+                }
+            }
+        }
+        Ok(Value::Tensor {
+            data: out,
+            shape: vec![m, n],
+        })
+    } else if s1.len() == 2 && s2.len() == 1 {
+        let (m, k1) = (s1[0], s1[1]);
+        let k2 = s2[0];
+        if k1 != k2 {
+            return Err(MelayuError::new(
+                "Alamak!",
+                &format!("Dimensi darab matriks (@) tidak sepadan: {:?} @ {:?}", s1, s2),
+                pos.line,
+                pos.col,
+            )
+            .with_kind(ErrorKind::Runtime));
+        }
+        let mut out = vec![0.0; m];
+        for i in 0..m {
+            let mut sum = 0.0;
+            for k in 0..k1 {
+                sum += d1[i * k1 + k] * d2[k];
+            }
+            out[i] = sum;
+        }
+        Ok(Value::Tensor {
+            data: out,
+            shape: vec![m],
+        })
+    } else if s1.len() == 1 && s2.len() == 1 {
+        if s1[0] != s2[0] {
+            return Err(MelayuError::new(
+                "Alamak!",
+                &format!("Dimensi titik darab vektor (@) tidak sepadan: {:?} @ {:?}", s1, s2),
+                pos.line,
+                pos.col,
+            )
+            .with_kind(ErrorKind::Runtime));
+        }
+        let sum: f64 = d1.iter().zip(d2.iter()).map(|(&a, &b)| a * b).sum();
+        Ok(Value::Nombor(sum))
+    } else {
+        Err(MelayuError::new(
+            "Alamak!",
+            &format!("Operasi '@' menyokong tensor 1D atau 2D, dapat {:?} dan {:?}", s1, s2),
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime))
     }
 }

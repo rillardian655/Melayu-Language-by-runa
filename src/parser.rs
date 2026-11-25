@@ -1317,6 +1317,7 @@ impl Parser {
         while self.check(TokenKind::Kali)
             || self.check(TokenKind::Bahagi)
             || self.check(TokenKind::Modulo)
+            || self.check(TokenKind::MatriksDarab)
         {
             let op_tok = self.advance();
             let pos = LineCol::new(op_tok.line, op_tok.column);
@@ -1324,6 +1325,7 @@ impl Parser {
                 TokenKind::Kali => BinaryOp::Kali,
                 TokenKind::Bahagi => BinaryOp::Bahagi,
                 TokenKind::Modulo => BinaryOp::Modulo,
+                TokenKind::MatriksDarab => BinaryOp::MatriksDarab,
                 _ => unreachable!(),
             };
             let right = self.parse_unary()?;
