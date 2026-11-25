@@ -3177,6 +3177,10 @@ pub fn builtin_info_perkakas(args: &[Value], pos: LineCol) -> Result<Value, Mela
         if gpu_aktif { Value::Betul } else { Value::Salah },
     );
     map.insert(
+        "ketepatan_gpu".to_string(),
+        Value::Teks(if gpu_aktif { "FP32" } else { "tiada" }.to_string()),
+    );
+    map.insert(
         "status_gpu".to_string(),
         Value::Teks(if gpu_aktif {
             format!("Aktif pada perkakasan: {}", gpu_kind.nama())
