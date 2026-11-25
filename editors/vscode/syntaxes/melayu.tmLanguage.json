@@ -88,7 +88,11 @@
       "patterns": [
         {
           "name": "support.function.builtin.melayu",
-          "match": "\\b(tunjuk|baca|panjang|jenis|hurufBesar|hurufKecil|puncaKuasaDua|rawak|bacaFail|tulisFail|wujudFail|padamFail|bundar|lantai|siling|mutlak|maksimum|minimum|bacaJSON|dariJSON|tulisJSON|keJSON|capMasa|masaKini|tarikhKini)\\b"
+          "match": "\\b(tunjuk|baca|panjang|jenis|hurufBesar|hurufKecil|puncaKuasaDua|rawak|bacaFail|tulisFail|wujudFail|padamFail|bundar|lantai|siling|mutlak|maksimum|minimum|bacaJSON|dariJSON|tulisJSON|keJSON|capMasa|masaKini|tarikhKini|tensor|sifarTensor|satuTensor|rawakTensor|darabMatriks|transposisiMatriks|songsangMatriks|matriksSoftmax|matriksReLU|ralatEntropiSilang|bacaCSV|bahagiLatihUji|matriksKekeliruan|skorF1|kejituan|kepekaan|skorAkurasi|skorR2|skorMSE|muatIris|muatKredit|janaDataSintetik|bacaJadual|pengesahanSilang|kesamaanCosine|balasJSON|balasHTML|balasTeks|balasCORS|pengantaraLogger|hantarPermintaanHTTP|mulakanPelayanHTTP)\\b"
+        },
+        {
+          "name": "support.class.melayu",
+          "match": "\\b(RegresiLinear|PengelasKNN|PengelompokanKMeans|JaringanSaraf|PengelasBayesNaif|PokokKeputusan|HutanRawak|JadualData|SkalaMinMaks|PenyelarasanPiawai|PengkodLabel|PengkodSatuPanas|PengiraTFIDF|LapisanLinear|PelayanWeb)\\b"
         }
       ]
     },
@@ -112,7 +116,7 @@
         },
         {
           "name": "keyword.operator.symbol.melayu",
-          "match": "(==|!=|>=|<=|>|<|\\+|-|\\*|/|%|&&|\\|\\||!|=|\\|>|\\?\\?|\\?\\.|=>)"
+          "match": "(==|!=|>=|<=|>|<|\\+|-|\\*|/|%|@|&&|\\|\\||!|=|\\|>|\\?\\?|\\?\\.|=>)"
         }
       ]
     },
@@ -120,7 +124,7 @@
       "patterns": [
         {
           "name": "support.type.melayu",
-          "match": "\\b(teks|nombor|senarai|kamus)\\b"
+          "match": "\\b(teks|nombor|senarai|kamus|tensor)\\b"
         }
       ]
     },

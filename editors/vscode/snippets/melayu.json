@@ -242,6 +242,76 @@
       "${1:data} |> ${2:fungsi1} |> ${3:fungsi2}"
     ],
     "description": "Rantaian saluran paip data (|>) Melayu"
+  },
+  "AkalML: Jaringan Saraf (akal-nn)": {
+    "prefix": "akal-nn",
+    "body": [
+      "ambil \"akal\"",
+      "",
+      "ada penyekala = SkalaMinMaks()",
+      "ada X_skala = penyekala.latihTransformasi(${1:X})",
+      "",
+      "ada model = JaringanSaraf([${2:2, 4, 1}], ${3:0.5})",
+      "model.latih(X_skala, ${4:y}, ${5:1000}, betul)",
+      "ada ramalan = model.ramal(X_skala)",
+      "tunjuk \"Akurasi:\", model.skor(X_skala, ${4:y}) * 100, \"%\""
+    ],
+    "description": "Templat lengkap Jaringan Saraf Tiruan (Deep Learning) AkalML"
+  },
+  "AkalML: Hutan Rawak & JadualData (akal-hutan)": {
+    "prefix": "akal-hutan",
+    "body": [
+      "ambil \"akal\"",
+      "",
+      "ada jadual = bacaJadual(\"${1:data.csv}\")",
+      "ada pengkod = PengkodLabel()",
+      "ada y = pengkod.latihTransformasi(jadual.dapatkanLajur(\"${2:sasaran}\"))",
+      "ada X = jadual.pilihLajur([${3:\"ciri1\", \"ciri2\"}]).keMatriks()",
+      "",
+      "ada hutan = HutanRawak(${4:7}, ${5:4})",
+      "hutan.latih(X, y)",
+      "tunjuk \"Akurasi HutanRawak:\", hutan.skor(X, y) * 100, \"%\""
+    ],
+    "description": "Pipeline Machine Learning JadualData + HutanRawak (Random Forest)"
+  },
+  "AkalML: NLP TF-IDF (akal-tfidf)": {
+    "prefix": "akal-tfidf",
+    "body": [
+      "ambil \"akal\"",
+      "",
+      "ada dokumen = [${1:\"saya suka bahasa melayu\", \"pembelajaran mesin sangat hebat\"}]",
+      "ada pengira = PengiraTFIDF()",
+      "ada matriks_vektor = pengira.latihTransformasi(dokumen)",
+      "tunjuk \"Kesamaan Cosine:\", kesamaanCosine(matriks_vektor[0], matriks_vektor[1])"
+    ],
+    "description": "Pengekstrakan ciri teks TF-IDF dan Kesamaan Cosine (NLP)"
+  },
+  "AkalML: Tensor Native (akal-tensor)": {
+    "prefix": "akal-tensor",
+    "body": [
+      "ada A = tensor([[${1:1, 2}], [${2:3, 4}]])",
+      "ada W = rawakTensor([2, ${3:3}])",
+      "ada b = sifarTensor([${3:3}])",
+      "ada hasil = ((A @ W) + b).relu()",
+      "tunjuk hasil"
+    ],
+    "description": "Operasi Tensor native dan pendaraban matriks (@)"
+  },
+  "Selasih: Pelayan Web REST API (selasih-api)": {
+    "prefix": "selasih-api",
+    "body": [
+      "ambil \"selasih\"",
+      "",
+      "kerja kendaliUtama(req)",
+      "\tpulang balasJSON({\"status\": \"aktif\", \"mesej\": \"${1:Salam dari Selasih}\"}, 200)",
+      "selesai",
+      "",
+      "ada app = PelayanWeb(${2:8080})",
+      "app.guna(pengantaraLogger)",
+      "app.dapatkan(\"/\", kendaliUtama)",
+      "app.dengar()"
+    ],
+    "description": "Pelayan Web REST API Selasih lengkap dengan middleware"
   }
 }
 
