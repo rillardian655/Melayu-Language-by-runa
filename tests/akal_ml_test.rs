@@ -459,6 +459,15 @@ ada c_list = C.keSenarai()
 semak c_list[0][0] == 64.0, "Elemen [0][0] mestilah 64.0"
 semak c_list[63][63] == 64.0, "Elemen [63][63] mestilah 64.0"
 semak C.jumlah() == 262144.0, "Jumlah semua elemen (64*64*64) mestilah 262144.0"
+
+# 3. Uji pendaraban matriks Tensor besar (128x128 @ 128x128 - laluan GPU ROCm/CUDA jika tersedia)
+ada G1 = satuTensor([128, 128])
+ada G2 = satuTensor([128, 128])
+ada G3 = G1 @ G2
+semak G3.bentuk() == [128, 128], "Bentuk hasil 128x128 mestilah [128, 128]"
+ada g_list = G3.keSenarai()
+semak g_list[0][0] == 128.0, "Elemen [0][0] mestilah 128.0"
+semak g_list[127][127] == 128.0, "Elemen [127][127] mestilah 128.0"
 "#;
     let res = laksana_kod(code);
     assert!(res.is_ok(), "Ralat: {:?}", res);

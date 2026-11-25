@@ -26,6 +26,7 @@ pub mod analyzer;
 pub mod ast;
 pub mod builtins;
 pub mod errors;
+pub mod gpu;
 pub mod interpreter;
 pub mod lexer;
 pub mod parser;

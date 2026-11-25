@@ -2886,6 +2886,15 @@ fn tensor_matmul(
             )
             .with_kind(ErrorKind::Runtime));
         }
+        if m * k1 * n >= 262_144 {
+            if let Some(gpu_out) = crate::gpu::gpu_matmul(d1, d2, m, k1, n) {
+                return Ok(Value::Tensor {
+                    data: gpu_out,
+                    shape: vec![m, n],
+                });
+            }
+        }
+
         let mut out = vec![0.0; m * n];
         let num_threads = std::thread::available_parallelism()
             .map(|t| t.get())

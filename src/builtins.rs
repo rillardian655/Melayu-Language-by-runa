@@ -3076,11 +3076,18 @@ pub fn builtin_info_perkakas(args: &[Value], pos: LineCol) -> Result<Value, Mela
         || std::path::Path::new("/dev/nvidia0").exists();
     let ada_rocm = std::path::Path::new("/opt/rocm").exists();
 
+    let gpu_kind = crate::gpu::gpu_kind();
+    let gpu_aktif = gpu_kind != crate::gpu::GpuKind::None;
+
     let mut map = HashMap::new();
     map.insert("teras_cpu".to_string(), Value::Nombor(teras_cpu as f64));
     map.insert(
         "enjin_matriks".to_string(),
-        Value::Teks("CPU Selari Multi-Teras (Rust std::thread::scope)".to_string()),
+        Value::Teks(if gpu_aktif {
+            format!("{} + CPU Selari Multi-Teras", gpu_kind.nama())
+        } else {
+            "CPU Selari Multi-Teras (Rust std::thread::scope)".to_string()
+        }),
     );
     map.insert(
         "gpu_cuda_dikesan".to_string(),
@@ -3091,8 +3098,16 @@ pub fn builtin_info_perkakas(args: &[Value], pos: LineCol) -> Result<Value, Mela
         if ada_rocm { Value::Betul } else { Value::Salah },
     );
     map.insert(
+        "gpu_aktif".to_string(),
+        if gpu_aktif { Value::Betul } else { Value::Salah },
+    );
+    map.insert(
         "status_gpu".to_string(),
-        Value::Teks("Belum aktif (komputasi kini dipecut pada CPU selari multi-teras)".to_string()),
+        Value::Teks(if gpu_aktif {
+            format!("Aktif pada perkakasan: {}", gpu_kind.nama())
+        } else {
+            "Fallback ke CPU selari multi-teras".to_string()
+        }),
     );
 
     Ok(Value::Kamus(Rc::new(RefCell::new(map))))
