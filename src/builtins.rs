@@ -532,6 +532,7 @@ pub fn builtin_rawak(args: &[Value], pos: LineCol) -> Result<Value, MelayuError>
 }
 
 pub const HAD_SAIZ_FAIL_MAKSIMUM: u64 = 5 * 1024 * 1024; // 5 MB
+pub const HAD_ELEMEN_TENSOR_MAKSIMUM: usize = 1_000_000; // 1 juta elemen (~8 MB)
 
 pub fn semak_laluan_selamat(
     laluan_str: &str,
@@ -1972,6 +1973,15 @@ pub fn builtin_baca_csv(args: &[Value], pos: LineCol) -> Result<Value, MelayuErr
     };
 
     let safe_path = semak_laluan_selamat(&path_str, false, pos)?;
+    if let Ok(meta) = fs::metadata(&safe_path) {
+        if meta.len() > HAD_SAIZ_FAIL_MAKSIMUM {
+            return Err(MelayuError::had_memori_terlampau(
+                "Saiz fail CSV melebihi had keselamatan maksimum (5 MB).",
+                pos.line,
+                pos.col,
+            ));
+        }
+    }
     let content = fs::read_to_string(&safe_path).map_err(|e| {
         MelayuError::akses_fail_disekat(&path_str, &format!("Gagal membaca fail CSV: {}", e), pos.line, pos.col)
     })?;
@@ -2482,13 +2492,53 @@ pub fn builtin_mulakan_pelayan_http(args: &[Value], pos: LineCol) -> Result<Valu
         let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
         let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
 
-        let mut buffer = [0u8; 8192];
-        let bytes_read = match stream.read(&mut buffer) {
-            Ok(n) if n > 0 => n,
-            _ => continue,
-        };
+        // Baca pengepala dan badan secara berperingkat sehingga Content-Length (had 1 MB)
+        let mut raw_bytes = Vec::with_capacity(4096);
+        let mut temp_buf = [0u8; 4096];
+        let mut header_end_idx: Option<usize> = None;
+        let mut expected_content_len: usize = 0;
 
-        let req_text = String::from_utf8_lossy(&buffer[..bytes_read]);
+        loop {
+            match stream.read(&mut temp_buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    raw_bytes.extend_from_slice(&temp_buf[..n]);
+                    if header_end_idx.is_none() {
+                        if let Some(pos_hdr) = raw_bytes.windows(4).position(|w| w == b"\r\n\r\n") {
+                            header_end_idx = Some(pos_hdr + 4);
+                            let hdr_str = String::from_utf8_lossy(&raw_bytes[..pos_hdr]);
+                            for hl in hdr_str.lines().skip(1) {
+                                if let Some((k, v)) = hl.split_once(':') {
+                                    if k.trim().eq_ignore_ascii_case("content-length") {
+                                        expected_content_len = v.trim().parse().unwrap_or(0);
+                                    }
+                                }
+                            }
+                            if expected_content_len > 1_048_576 {
+                                break;
+                            }
+                        } else if raw_bytes.len() > 16_384 {
+                            break; // Had saiz pengepala 16 KB
+                        }
+                    }
+                    if let Some(hdr_end) = header_end_idx {
+                        if raw_bytes.len() >= hdr_end + expected_content_len {
+                            break;
+                        }
+                    }
+                    if raw_bytes.len() > 1_064_960 {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+
+        if raw_bytes.is_empty() {
+            continue;
+        }
+
+        let req_text = String::from_utf8_lossy(&raw_bytes);
         let mut lines = req_text.lines();
         let first_line = lines.next().unwrap_or("");
         let mut first_parts = first_line.split_whitespace();
@@ -2576,7 +2626,8 @@ pub fn builtin_mulakan_pelayan_http(args: &[Value], pos: LineCol) -> Result<Valu
                 (200, "application/json".to_string(), json)
             }
             Err(e) => {
-                let err_json = format!("{{\"ralat\": \"{}\"}}", e.message.replace('\"', "\\\""));
+                eprintln!("[Selasih Ralat Dalaman] {}", e.message);
+                let err_json = "{\"ralat\": \"Ralat dalaman pelayan.\"}".to_string();
                 (500, "application/json".to_string(), err_json)
             }
         };
@@ -2661,11 +2712,30 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
 
     let (host, port) = if let Some(colon_idx) = host_port.find(':') {
         let h = &host_port[..colon_idx];
-        let p: u16 = host_port[colon_idx + 1..].parse().unwrap_or(80);
+        let p: u16 = host_port[colon_idx + 1..].parse().map_err(|_| {
+            MelayuError::new("Alamak!", "Nombor port URL tidak sah.", pos.line, pos.col)
+                .with_kind(ErrorKind::Runtime)
+        })?;
         (h, p)
     } else {
         (host_port, 80)
     };
+
+    // Sekatan SSRF terhadap alamat metadata awan (Cloud Metadata) & link-local
+    let host_lower = host.to_lowercase();
+    if host_lower.starts_with("169.254.")
+        || host_lower == "metadata.google.internal"
+        || host_lower == "metadata"
+        || host_lower == "0.0.0.0"
+    {
+        return Err(MelayuError::new(
+            "Alamak!",
+            &format!("Akses HTTP ke hos dalaman/metadata '{}' disekat (Anti-SSRF).", host),
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime));
+    }
 
     let mut stream = match TcpStream::connect((host, port)) {
         Ok(s) => s,
@@ -2729,13 +2799,31 @@ fn ekstrak_bentuk_tensor(val: &Value, pos: LineCol) -> Result<Vec<usize>, Melayu
     match val {
         Value::Senarai(rc) => {
             let mut dims = Vec::new();
+            let mut total: usize = 1;
             for item in rc.borrow().iter() {
                 match item {
-                    Value::Nombor(n) if *n > 0.0 => dims.push(*n as usize),
+                    Value::Nombor(n) if n.is_finite() && *n > 0.0 && *n <= (HAD_ELEMEN_TENSOR_MAKSIMUM as f64) => {
+                        let d = *n as usize;
+                        total = total.checked_mul(d).ok_or_else(|| {
+                            MelayuError::had_memori_terlampau(
+                                "Saiz dimensi tensor melimpah (overflow).",
+                                pos.line,
+                                pos.col,
+                            )
+                        })?;
+                        if total > HAD_ELEMEN_TENSOR_MAKSIMUM {
+                            return Err(MelayuError::had_memori_terlampau(
+                                "Jumlah elemen tensor melebihi had keselamatan maksimum (1,000,000).",
+                                pos.line,
+                                pos.col,
+                            ));
+                        }
+                        dims.push(d);
+                    }
                     _ => {
                         return Err(MelayuError::new(
                             "Alamak!",
-                            "Setiap dimensi bentuk tensor mestilah nombor positif.",
+                            "Setiap dimensi bentuk tensor mestilah nombor positif yang sah.",
                             pos.line,
                             pos.col,
                         )

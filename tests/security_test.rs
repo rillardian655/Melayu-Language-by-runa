@@ -225,3 +225,25 @@ semak selamat.mengandungi("&lt;script&gt;"), "Tag mesti dinyahkod ke entiti HTML
     let res = interp.interpret(&prog);
     assert!(res.is_ok(), "Penapis XSS selitHTML gagal: {:?}", res);
 }
+
+#[test]
+fn test_sekatan_oom_tensor() {
+    let script = r#"
+sifarTensor([100000, 100000])
+"#;
+    let prog = huraikan(script).expect("Hurai berjaya");
+    let mut interp = Interpreter::new();
+    let res = interp.interpret(&prog);
+    assert!(res.is_err(), "Alokasi tensor raksasa mestilah disekat daripada OOM!");
+}
+
+#[test]
+fn test_sekatan_ssrf_metadata_http() {
+    let script = r#"
+hantarPermintaanHTTP("GET", "http://169.254.169.254/latest/meta-data/")
+"#;
+    let prog = huraikan(script).expect("Hurai berjaya");
+    let mut interp = Interpreter::new();
+    let res = interp.interpret(&prog);
+    assert!(res.is_err(), "Akses SSRF ke metadata awan mestilah disekat!");
+}

@@ -643,6 +643,10 @@ fn pasang_pakej(sasaran_opt: Option<&str>) {
 
     match sasaran_opt {
         Some(sasaran) => {
+            if sasaran.trim().is_empty() || sasaran == "." || sasaran == ".." || sasaran.contains('\0') {
+                eprintln!("\x1b[1;31mAlamak! Nama modul '{}' tidak sah.\x1b[0m", sasaran);
+                process::exit(1);
+            }
             let src_path = std::path::Path::new(sasaran);
             let fail_nama = if let Some(n) = src_path.file_name() {
                 n.to_string_lossy().to_string()
@@ -794,18 +798,29 @@ fn jalankan_taman_permainan(port: u16) {
             );
             let _ = stream.write_all(resp.as_bytes());
         } else if method == "POST" && path == "/api/jalankan" {
-            // Sahkan token CSRF bagi menghalang RCE daripada tapak web luar
+            // Sahkan token CSRF & pengepala Host bagi menghalang RCE & DNS Rebinding
             let mut token_sah = false;
+            let mut host_sah = false;
+            let expected_host1 = format!("127.0.0.1:{}", port);
+            let expected_host2 = format!("localhost:{}", port);
             for line in headers.lines().skip(1) {
                 if let Some((k, v)) = line.split_once(':') {
-                    if k.trim().eq_ignore_ascii_case("x-melayu-token") && v.trim() == csrf_token {
+                    let k_trim = k.trim();
+                    let v_trim = v.trim();
+                    if k_trim.eq_ignore_ascii_case("x-melayu-token") && v_trim == csrf_token {
                         token_sah = true;
-                        break;
+                    } else if k_trim.eq_ignore_ascii_case("host")
+                        && (v_trim == expected_host1
+                            || v_trim == expected_host2
+                            || v_trim == "127.0.0.1"
+                            || v_trim == "localhost")
+                    {
+                        host_sah = true;
                     }
                 }
             }
-            if !token_sah {
-                let msg = "{\"kejayaan\":false,\"ralat\":\"Akses ditolak: Token keselamatan CSRF tidak sah.\"}";
+            if !token_sah || !host_sah {
+                let msg = "{\"kejayaan\":false,\"ralat\":\"Akses ditolak: Token keselamatan CSRF atau hos tidak sah.\"}";
                 let resp = format!(
                     "HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                     msg.len(),
@@ -836,23 +851,52 @@ fn jalankan_taman_permainan(port: u16) {
             let _ = fs::write(&tmp_path, &kod_src);
 
             let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("melayu"));
-            // Jalankan dalam direktori sandbox sementara agar fail projek utama tidak terdedah
-            let out = process::Command::new(exe)
+            // Jalankan dalam direktori sandbox dengan had masa maksimum 10 saat
+            let (ok, text) = match process::Command::new(exe)
                 .current_dir(&tmp_dir)
                 .arg(&tmp_path)
-                .output();
-            let _ = fs::remove_file(&tmp_path);
-
-            let (ok, text) = match out {
-                Ok(o) if o.status.success() => {
-                    (true, String::from_utf8_lossy(&o.stdout).to_string())
+                .stdout(process::Stdio::piped())
+                .stderr(process::Stdio::piped())
+                .spawn()
+            {
+                Ok(mut child) => {
+                    let start = std::time::Instant::now();
+                    let mut timed_out = false;
+                    loop {
+                        match child.try_wait() {
+                            Ok(Some(_)) => break,
+                            Ok(None) => {
+                                if start.elapsed() > std::time::Duration::from_secs(10) {
+                                    let _ = child.kill();
+                                    timed_out = true;
+                                    break;
+                                }
+                                std::thread::sleep(std::time::Duration::from_millis(25));
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                    let _ = fs::remove_file(&tmp_path);
+                    if timed_out {
+                        (false, "Alamak! Pelaksanaan melebihi had masa keselamatan (10 saat) dan dihentikan.".to_string())
+                    } else {
+                        match child.wait_with_output() {
+                            Ok(o) if o.status.success() => {
+                                (true, String::from_utf8_lossy(&o.stdout).to_string())
+                            }
+                            Ok(o) => {
+                                let err_txt = String::from_utf8_lossy(&o.stderr).to_string();
+                                let out_txt = String::from_utf8_lossy(&o.stdout).to_string();
+                                (false, format!("{}{}", out_txt, err_txt))
+                            }
+                            Err(e) => (false, format!("Gagal membaca keluaran proses: {}", e)),
+                        }
+                    }
                 }
-                Ok(o) => {
-                    let err_txt = String::from_utf8_lossy(&o.stderr).to_string();
-                    let out_txt = String::from_utf8_lossy(&o.stdout).to_string();
-                    (false, format!("{}{}", out_txt, err_txt))
+                Err(e) => {
+                    let _ = fs::remove_file(&tmp_path);
+                    (false, format!("Gagal menjalankan proses: {}", e))
                 }
-                Err(e) => (false, format!("Gagal menjalankan proses: {}", e)),
             };
 
             let mut resp_map = std::collections::HashMap::new();
