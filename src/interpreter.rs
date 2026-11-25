@@ -1,13 +1,12 @@
 use crate::ast::*;
-use crate::builtins::{daftar_fungsi_bawaan, lakukan_baca_input, semak_laluan_selamat};
+use crate::builtins::{daftar_fungsi_bawaan, lakukan_baca_input, HAD_ELEMEN_TENSOR_MAKSIMUM};
 use crate::errors::{ErrorKind, MelayuError};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
-use std::fs;
 use std::rc::Rc;
 
-pub type PetaNilai = crate::kamus::PetaTersusun<Value>;
+pub use crate::bekas::{PetaNilai, SenaraiNilai};
 
 #[derive(Debug, Clone)]
 pub struct KaedahKelas {
@@ -16,6 +15,13 @@ pub struct KaedahKelas {
     pub jenis_pulangan: Option<String>,
     pub badan: Rc<Vec<Stmt>>,
     pub closure: Rc<RefCell<Environment>>,
+    pub sumber: Rc<SumberKod>,
+}
+
+#[derive(Debug, Default)]
+pub struct SumberKod {
+    pub modul: Option<String>,
+    pub kandungan: String,
 }
 
 impl PartialEq for KaedahKelas {
@@ -58,13 +64,14 @@ pub enum Value {
     Salah,
     Nombor(f64),
     Teks(String),
-    Senarai(Rc<RefCell<Vec<Value>>>),
+    Senarai(Rc<RefCell<SenaraiNilai>>),
     Kamus(Rc<RefCell<PetaNilai>>),
     Fungsi {
         nama: String,
         parameter: Vec<(String, Option<String>)>,
         badan: Rc<Vec<Stmt>>,
         closure: Rc<RefCell<Environment>>,
+        sumber: Rc<SumberKod>,
     },
     Bawaan(String, fn(&[Value], LineCol) -> Result<Value, MelayuError>),
     Kelas(Rc<KelasData>),
@@ -78,7 +85,6 @@ pub enum Value {
 
 thread_local! {
     static SEDANG_DIPAPAR: RefCell<std::collections::HashSet<usize>> = RefCell::new(std::collections::HashSet::new());
-    static SEDANG_DIBANDING: RefCell<std::collections::HashSet<(usize, usize)>> = RefCell::new(std::collections::HashSet::new());
 }
 
 fn papar_bekas(
@@ -87,7 +93,9 @@ fn papar_bekas(
     ganti: &str,
     papar: impl FnOnce(&mut fmt::Formatter<'_>) -> fmt::Result,
 ) -> fmt::Result {
-    if !SEDANG_DIPAPAR.with(|s| s.borrow_mut().insert(alamat)) {
+    if crate::tindanan::hampir_penuh()
+        || !SEDANG_DIPAPAR.with(|s| s.borrow_mut().insert(alamat))
+    {
         return write!(f, "{}", ganti);
     }
     let hasil = papar(f);
@@ -95,57 +103,124 @@ fn papar_bekas(
     hasil
 }
 
-fn banding_bekas(a: usize, b: usize, banding: impl FnOnce() -> bool) -> bool {
-    if a == b {
-        return true;
-    }
-    if !SEDANG_DIBANDING.with(|s| s.borrow_mut().insert((a, b))) {
-        return true;
-    }
-    let hasil = banding();
-    SEDANG_DIBANDING.with(|s| s.borrow_mut().remove(&(a, b)));
-    hasil
+fn banding_cetek(a: &Value, b: &Value) -> Option<bool> {
+    Some(match (a, b) {
+        (Value::Kosong, Value::Kosong) => true,
+        (Value::Betul, Value::Betul) => true,
+        (Value::Salah, Value::Salah) => true,
+        (Value::Nombor(a), Value::Nombor(b)) => a == b,
+        (Value::Teks(a), Value::Teks(b)) => a == b,
+        (Value::Senarai(a), Value::Senarai(b)) => {
+            if a.borrow().len() == b.borrow().len() {
+                return None;
+            }
+            false
+        }
+        (Value::Kamus(a), Value::Kamus(b)) => {
+            if a.borrow().len() == b.borrow().len() {
+                return None;
+            }
+            false
+        }
+        (Value::Objek(a), Value::Objek(b)) => {
+            if a.nama_kelas == b.nama_kelas && a.sifat.borrow().len() == b.sifat.borrow().len() {
+                return None;
+            }
+            false
+        }
+        (Value::Induk(a), Value::Induk(b)) => {
+            if a.nama_induk == b.nama_induk
+                && a.instans_kelas == b.instans_kelas
+                && a.instans_sifat.borrow().len() == b.instans_sifat.borrow().len()
+            {
+                return None;
+            }
+            false
+        }
+        (Value::Fungsi { nama: a, .. }, Value::Fungsi { nama: b, .. }) => a == b,
+        (Value::Bawaan(a, _), Value::Bawaan(b, _)) => a == b,
+        (Value::Kelas(a), Value::Kelas(b)) => Rc::ptr_eq(a, b) || a == b,
+        (Value::Tensor { data: d1, shape: s1 }, Value::Tensor { data: d2, shape: s2 }) => {
+            s1 == s2 && d1 == d2
+        }
+        _ => false,
+    })
 }
 
-impl PartialEq for Value {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Value::Kosong, Value::Kosong) => true,
-            (Value::Betul, Value::Betul) => true,
-            (Value::Salah, Value::Salah) => true,
-            (Value::Nombor(a), Value::Nombor(b)) => a == b,
-            (Value::Teks(a), Value::Teks(b)) => a == b,
-            (Value::Senarai(a), Value::Senarai(b)) => banding_bekas(
-                Rc::as_ptr(a) as *const () as usize,
-                Rc::as_ptr(b) as *const () as usize,
-                || *a.borrow() == *b.borrow(),
-            ),
-            (Value::Kamus(a), Value::Kamus(b)) => banding_bekas(
-                Rc::as_ptr(a) as *const () as usize,
-                Rc::as_ptr(b) as *const () as usize,
-                || *a.borrow() == *b.borrow(),
-            ),
-            (Value::Fungsi { nama: a, .. }, Value::Fungsi { nama: b, .. }) => a == b,
-            (Value::Bawaan(a, _), Value::Bawaan(b, _)) => a == b,
-            (Value::Kelas(a), Value::Kelas(b)) => a == b,
-            (Value::Objek(a), Value::Objek(b)) => {
-                a.nama_kelas == b.nama_kelas
-                    && banding_bekas(
-                        Rc::as_ptr(&a.sifat) as *const () as usize,
-                        Rc::as_ptr(&b.sifat) as *const () as usize,
-                        || *a.sifat.borrow() == *b.sifat.borrow(),
-                    )
-            }
-            (Value::Induk(a), Value::Induk(b)) => a == b,
-            (Value::Tensor { data: d1, shape: s1 }, Value::Tensor { data: d2, shape: s2 }) => {
-                s1 == s2 && d1 == d2
-            }
-            _ => false,
+fn alamat_bekas(nilai: &Value) -> usize {
+    match nilai {
+        Value::Senarai(rc) => Rc::as_ptr(rc) as *const () as usize,
+        Value::Kamus(rc) => Rc::as_ptr(rc) as *const () as usize,
+        Value::Objek(o) => Rc::as_ptr(&o.sifat) as *const () as usize,
+        Value::Induk(i) => Rc::as_ptr(&i.instans_sifat) as *const () as usize,
+        _ => 0,
+    }
+}
+
+fn banding_anak(a: &Value, b: &Value, tugas: &mut Vec<(Value, Value)>) -> bool {
+    match banding_cetek(a, b) {
+        Some(hasil) => hasil,
+        None => {
+            tugas.push((a.clone(), b.clone()));
+            true
         }
     }
 }
 
+fn banding_peta(a: &PetaNilai, b: &PetaNilai, tugas: &mut Vec<(Value, Value)>) -> bool {
+    a.len() == b.len()
+        && a.iter().all(|(k, v)| match b.get(k) {
+            Some(w) => banding_anak(v, w, tugas),
+            None => false,
+        })
+}
+
+fn nilai_sama(a: &Value, b: &Value) -> bool {
+    if let Some(hasil) = banding_cetek(a, b) {
+        return hasil;
+    }
+    let mut tugas = vec![(a.clone(), b.clone())];
+    let mut dilihat = std::collections::HashSet::new();
+    while let Some((x, y)) = tugas.pop() {
+        let induk = matches!(x, Value::Induk(_));
+        if !dilihat.insert((induk, alamat_bekas(&x), alamat_bekas(&y))) {
+            continue;
+        }
+        let sama = match (&x, &y) {
+            (Value::Senarai(p), Value::Senarai(q)) => {
+                let (p, q) = (p.borrow(), q.borrow());
+                p.len() == q.len()
+                    && p.iter().zip(q.iter()).all(|(m, n)| banding_anak(m, n, &mut tugas))
+            }
+            (Value::Kamus(p), Value::Kamus(q)) => banding_peta(&p.borrow(), &q.borrow(), &mut tugas),
+            (Value::Objek(p), Value::Objek(q)) => {
+                banding_peta(&p.sifat.borrow(), &q.sifat.borrow(), &mut tugas)
+            }
+            (Value::Induk(p), Value::Induk(q)) => banding_peta(
+                &p.instans_sifat.borrow(),
+                &q.instans_sifat.borrow(),
+                &mut tugas,
+            ),
+            _ => false,
+        };
+        if !sama {
+            return false;
+        }
+    }
+    true
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        nilai_sama(self, other)
+    }
+}
+
 impl Value {
+    pub fn senarai(isi: Vec<Value>) -> Value {
+        Value::Senarai(Rc::new(RefCell::new(isi.into())))
+    }
+
     pub fn jenis(&self) -> &'static str {
         match self {
             Value::Kosong => "kosong",
@@ -433,6 +508,7 @@ pub struct Interpreter {
     pub had_rekursi: usize,
     pub jumlah_langkah: u64,
     pub had_langkah: Option<u64>,
+    sumber: Rc<SumberKod>,
     pub mod_ujian: bool,
     pub keputusan_ujian: Vec<KeputusanUjian>,
 }
@@ -459,6 +535,7 @@ impl Interpreter {
             had_rekursi: HAD_REKURSI_LALAI,
             jumlah_langkah: 0,
             had_langkah: had_langkah_dari_persekitaran(),
+            sumber: Rc::new(SumberKod::default()),
             mod_ujian: false,
             keputusan_ujian: Vec::new(),
         }
@@ -514,6 +591,48 @@ impl Interpreter {
         Ok(Value::Kosong)
     }
 
+    fn dalam_sumber<T>(
+        &mut self,
+        sumber: &Rc<SumberKod>,
+        kerja: impl FnOnce(&mut Self) -> Result<T, MelayuError>,
+    ) -> Result<T, MelayuError> {
+        let asal = std::mem::replace(&mut self.sumber, Rc::clone(sumber));
+        let hasil = kerja(self);
+        self.sumber = asal;
+        hasil.map_err(|e| e.tandakan_asal(sumber.modul.as_deref(), &sumber.kandungan))
+    }
+
+    fn jalankan_badan(
+        &mut self,
+        badan: &[Stmt],
+        env: &Rc<RefCell<Environment>>,
+        sumber: &Rc<SumberKod>,
+        pos: LineCol,
+    ) -> Result<Value, MelayuError> {
+        self.kedalaman_panggilan += 1;
+        let aliran = self.dalam_sumber(sumber, |s| {
+            for stmt in badan {
+                match s.execute_stmt(stmt, env)? {
+                    Flow::Lanjut => {}
+                    lain => return Ok(lain),
+                }
+            }
+            Ok(Flow::Lanjut)
+        });
+        self.kedalaman_panggilan -= 1;
+        match aliran? {
+            Flow::Lanjut => Ok(Value::Kosong),
+            Flow::Pulang(v) => Ok(v),
+            Flow::Hentikan | Flow::Teruskan => Err(MelayuError::new(
+                "Woy!",
+                "'hentikan' atau 'teruskan' tidak sah di luar gelung.",
+                pos.line,
+                pos.col,
+            )
+            .with_kind(ErrorKind::Runtime)),
+        }
+    }
+
     pub fn panggil_nilai(
         &mut self,
         func_val: &Value,
@@ -527,6 +646,7 @@ impl Interpreter {
                 parameter,
                 badan,
                 closure,
+                sumber,
             } => {
                 if parameter.len() != evaluated_args.len() {
                     return Err(MelayuError::new(
@@ -558,33 +678,7 @@ impl Interpreter {
                         .define(p_name, evaluated_args[i].clone(), false);
                 }
 
-                self.kedalaman_panggilan += 1;
-                let mut hasil = Ok(Value::Kosong);
-                for s in badan.iter() {
-                    match self.execute_stmt(s, &call_env) {
-                        Ok(Flow::Lanjut) => {}
-                        Ok(Flow::Pulang(v)) => {
-                            hasil = Ok(v);
-                            break;
-                        }
-                        Ok(Flow::Hentikan) | Ok(Flow::Teruskan) => {
-                            hasil = Err(MelayuError::new(
-                                "Woy!",
-                                "'hentikan' atau 'teruskan' tidak sah di luar gelung.",
-                                pos.line,
-                                pos.col,
-                            )
-                            .with_kind(ErrorKind::Runtime));
-                            break;
-                        }
-                        Err(e) => {
-                            hasil = Err(e);
-                            break;
-                        }
-                    }
-                }
-                self.kedalaman_panggilan -= 1;
-                hasil
+                self.jalankan_badan(badan, &call_env, sumber, pos)
             }
             Value::Kelas(ref k) => {
                 let instans_sifat = Rc::new(RefCell::new(PetaNilai::new()));
@@ -641,27 +735,7 @@ impl Interpreter {
                             .define(p_name, evaluated_args[i].clone(), false);
                     }
 
-                    self.kedalaman_panggilan += 1;
-                    let hasil = (|| -> Result<(), MelayuError> {
-                        for s in ctor.badan.iter() {
-                            match self.execute_stmt(s, &call_env)? {
-                                Flow::Lanjut => {}
-                                Flow::Pulang(_) => return Ok(()),
-                                Flow::Hentikan | Flow::Teruskan => {
-                                    return Err(MelayuError::new(
-                                        "Woy!",
-                                        "'hentikan' atau 'teruskan' tidak sah di luar gelung.",
-                                        pos.line,
-                                        pos.col,
-                                    )
-                                    .with_kind(ErrorKind::Runtime));
-                                }
-                            }
-                        }
-                        Ok(())
-                    })();
-                    self.kedalaman_panggilan -= 1;
-                    hasil?;
+                    self.jalankan_badan(&ctor.badan, &call_env, &ctor.sumber, pos)?;
                 } else if !evaluated_args.is_empty() {
                     return Err(MelayuError::new(
                         "Alamak!",
@@ -762,7 +836,7 @@ impl Interpreter {
                     let mut borrowed = list.borrow_mut();
                     let semua_nombor = borrowed.iter().all(|v| matches!(v, Value::Nombor(_)));
                     let semua_teks = borrowed.iter().all(|v| matches!(v, Value::Teks(_)));
-                    if !semua_nombor && !semua_teks {
+                    if borrowed.len() > 1 && !semua_nombor && !semua_teks {
                         let jenis: Vec<&str> = {
                             let mut j: Vec<&str> = borrowed.iter().map(|v| v.jenis()).collect();
                             j.sort_unstable();
@@ -838,7 +912,7 @@ impl Interpreter {
                             pos.col,
                         ));
                     }
-                    Ok(Value::Senarai(Rc::new(RefCell::new(mapped))))
+                    Ok(Value::senarai(mapped))
                 }
                 "tapis" => {
                     if evaluated_args.len() != 1 {
@@ -860,7 +934,7 @@ impl Interpreter {
                             filtered.push(item);
                         }
                     }
-                    Ok(Value::Senarai(Rc::new(RefCell::new(filtered))))
+                    Ok(Value::senarai(filtered))
                 }
                 "kiraSemua" => {
                     if evaluated_args.len() != 2 {
@@ -950,12 +1024,12 @@ impl Interpreter {
                     let borrowed = map.borrow();
                     let keys: Vec<Value> =
                         borrowed.keys().cloned().map(Value::Teks).collect();
-                    Ok(Value::Senarai(Rc::new(RefCell::new(keys))))
+                    Ok(Value::senarai(keys))
                 }
                 "nilai" => {
                     let borrowed = map.borrow();
                     let values: Vec<Value> = borrowed.values().cloned().collect();
-                    Ok(Value::Senarai(Rc::new(RefCell::new(values))))
+                    Ok(Value::senarai(values))
                 }
                 "panjang" => Ok(Value::Nombor(map.borrow().len() as f64)),
                 "adaKunci" => {
@@ -1045,7 +1119,7 @@ impl Interpreter {
                             pos.col,
                         ));
                     }
-                    Ok(Value::Senarai(Rc::new(RefCell::new(items))))
+                    Ok(Value::senarai(items))
                 }
                 "ganti" => {
                     if evaluated_args.len() != 2 {
@@ -1295,7 +1369,7 @@ impl Interpreter {
             Value::Tensor { ref data, ref shape } => match kaedah {
                 "bentuk" => {
                     let s: Vec<Value> = shape.iter().map(|&d| Value::Nombor(d as f64)).collect();
-                    Ok(Value::Senarai(Rc::new(RefCell::new(s))))
+                    Ok(Value::senarai(s))
                 }
                 "jumlah" => {
                     let sum: f64 = data.iter().sum();
@@ -1408,12 +1482,12 @@ impl Interpreter {
                             let row_vals: Vec<Value> = (0..cols)
                                 .map(|c| Value::Nombor(data[r * cols + c]))
                                 .collect();
-                            res.push(Value::Senarai(Rc::new(RefCell::new(row_vals))));
+                            res.push(Value::senarai(row_vals));
                         }
-                        Ok(Value::Senarai(Rc::new(RefCell::new(res))))
+                        Ok(Value::senarai(res))
                     } else {
                         let vals: Vec<Value> = data.iter().map(|&v| Value::Nombor(v)).collect();
-                        Ok(Value::Senarai(Rc::new(RefCell::new(vals))))
+                        Ok(Value::senarai(vals))
                     }
                 }
                 other => Err(MelayuError::new(
@@ -1474,27 +1548,7 @@ impl Interpreter {
                             .define(p_name, evaluated_args[i].clone(), false);
                     }
 
-                    self.kedalaman_panggilan += 1;
-                    let hasil = (|| -> Result<Value, MelayuError> {
-                        for s in method.badan.iter() {
-                            match self.execute_stmt(s, &call_env)? {
-                                Flow::Lanjut => {}
-                                Flow::Pulang(v) => return Ok(v),
-                                Flow::Hentikan | Flow::Teruskan => {
-                                    return Err(MelayuError::new(
-                                        "Woy!",
-                                        "'hentikan' atau 'teruskan' tidak sah di luar gelung.",
-                                        pos.line,
-                                        pos.col,
-                                    )
-                                    .with_kind(ErrorKind::Runtime));
-                                }
-                            }
-                        }
-                        Ok(Value::Kosong)
-                    })();
-                    self.kedalaman_panggilan -= 1;
-                    hasil
+                    self.jalankan_badan(&method.badan, &call_env, &method.sumber, pos)
                 } else if let Some(field_val) = o.sifat.borrow().get(kaedah).cloned() {
                     self.panggil_nilai(&field_val, evaluated_args, pos)
                 } else {
@@ -1564,27 +1618,7 @@ impl Interpreter {
                                     .define(p_name, evaluated_args[i].clone(), false);
                             }
 
-                            self.kedalaman_panggilan += 1;
-                            let hasil = (|| -> Result<Value, MelayuError> {
-                                for s in method.badan.iter() {
-                                    match self.execute_stmt(s, &call_env)? {
-                                        Flow::Lanjut => {}
-                                        Flow::Pulang(v) => return Ok(v),
-                                        Flow::Hentikan | Flow::Teruskan => {
-                                            return Err(MelayuError::new(
-                                                "Woy!",
-                                                "'hentikan' atau 'teruskan' tidak sah di luar gelung.",
-                                                pos.line,
-                                                pos.col,
-                                            )
-                                            .with_kind(ErrorKind::Runtime));
-                                        }
-                                    }
-                                }
-                                Ok(Value::Kosong)
-                            })();
-                            self.kedalaman_panggilan -= 1;
-                            hasil
+                            self.jalankan_badan(&method.badan, &call_env, &method.sumber, pos)
                         } else {
                             Err(MelayuError::new(
                                 "Eh!",
@@ -1622,6 +1656,10 @@ impl Interpreter {
         stmt: &Stmt,
         env: &Rc<RefCell<Environment>>,
     ) -> Result<Flow, MelayuError> {
+        if crate::tindanan::hampir_penuh() {
+            let pos = stmt.pos();
+            return Err(MelayuError::tindanan_penuh(pos.line, pos.col));
+        }
         self.jumlah_langkah += 1;
         if let Some(had) = self.had_langkah {
             if self.jumlah_langkah > had {
@@ -1805,7 +1843,7 @@ impl Interpreter {
             } => {
                 let target_val = self.evaluate_expr(senarai, env)?;
                 let items: Vec<Value> = match target_val {
-                    Value::Senarai(list) => list.borrow().clone(),
+                    Value::Senarai(list) => list.borrow().to_vec(),
                     Value::Teks(s) => s.chars().map(|c| Value::Teks(c.to_string())).collect(),
                     other => {
                         return Err(MelayuError::jenis_salah(
@@ -1937,6 +1975,7 @@ impl Interpreter {
                     parameter: parameter.clone(),
                     badan: Rc::new(badan.clone()),
                     closure: Rc::clone(env),
+                    sumber: Rc::clone(&self.sumber),
                 };
                 env.borrow_mut().define(nama, func_val, true);
                 Ok(Flow::Lanjut)
@@ -2025,84 +2064,24 @@ impl Interpreter {
                 alias,
                 pos,
             } => {
-                let safe_path = semak_laluan_selamat(sasaran, false, *pos)?;
-                let final_path = if !safe_path.exists() && !sasaran.ends_with(".ml") {
-                    let with_ml = safe_path.with_extension("ml");
-                    if with_ml.exists() {
-                        with_ml
-                    } else {
-                        safe_path
-                    }
-                } else {
-                    safe_path
-                };
-
-                let content = if !final_path.exists() {
-                    if sasaran == "akal" || sasaran == "akal_ml" || sasaran == "akalml" || sasaran == "std/akal" || sasaran == "std/akal_ml" {
-                        crate::builtins::AKAL_ML_STDLIB.to_string()
-                    } else if sasaran == "selasih" || sasaran == "wau" || sasaran == "web" || sasaran == "std/selasih" || sasaran == "std/wau" {
-                        crate::builtins::SELASIH_STDLIB.to_string()
-                    } else {
-                        let modul_path = std::path::Path::new("modul_melayu").join(format!("{}.ml", sasaran));
-                        let modul_dir_mod = std::path::Path::new("modul_melayu").join(sasaran).join("mod.ml");
-                        let modul_dir_utama = std::path::Path::new("modul_melayu").join(sasaran).join("utama.ml");
-
-                        if modul_path.exists() {
-                            fs::read_to_string(&modul_path).map_err(|e| {
-                                MelayuError::akses_fail_disekat(sasaran, &format!("Gagal membaca fail modul: {}", e), pos.line, pos.col)
-                            })?
-                        } else if modul_dir_mod.exists() {
-                            fs::read_to_string(&modul_dir_mod).map_err(|e| {
-                                MelayuError::akses_fail_disekat(sasaran, &format!("Gagal membaca fail modul: {}", e), pos.line, pos.col)
-                            })?
-                        } else if modul_dir_utama.exists() {
-                            fs::read_to_string(&modul_dir_utama).map_err(|e| {
-                                MelayuError::akses_fail_disekat(sasaran, &format!("Gagal membaca fail modul: {}", e), pos.line, pos.col)
-                            })?
-                        } else {
-                            return Err(MelayuError::akses_fail_disekat(
-                                sasaran,
-                                "Fail modul tidak dijumpai (termasuk dalam modul_melayu/).",
-                                pos.line,
-                                pos.col,
-                            ));
-                        }
-                    }
-                } else {
-                    fs::read_to_string(&final_path).map_err(|e| {
-                        MelayuError::akses_fail_disekat(
-                            sasaran,
-                            &format!("Gagal membaca fail modul: {}", e),
-                            pos.line,
-                            pos.col,
-                        )
-                    })?
-                };
-
+                let content = crate::builtins::baca_modul(sasaran, *pos)?;
+                let sumber = Rc::new(SumberKod {
+                    modul: Some(sasaran.clone()),
+                    kandungan: content,
+                });
                 let module_env = Rc::new(RefCell::new(Environment::with_parent(Rc::clone(env))));
-                let hasil_modul = (|| -> Result<(), MelayuError> {
-                    let mut lexer = crate::lexer::Lexer::new(&content);
-                    let tokens = lexer.tokenize()?;
-                    let mut parser = crate::parser::Parser::new(tokens);
-                    let program = parser.parse()?;
-                    for s in &program.pernyataan {
-                        match self.execute_stmt(s, &module_env)? {
+                self.dalam_sumber(&sumber, |s| {
+                    let tokens = crate::lexer::Lexer::new(&sumber.kandungan).tokenize()?;
+                    let program = crate::parser::Parser::new(tokens).parse()?;
+                    for stmt in &program.pernyataan {
+                        match s.execute_stmt(stmt, &module_env)? {
                             Flow::Lanjut => {}
                             Flow::Pulang(_) => break,
                             Flow::Hentikan | Flow::Teruskan => {}
                         }
                     }
                     Ok(())
-                })();
-                if let Err(mut e) = hasil_modul {
-                    if e.source_line.is_none() {
-                        if let Some(baris) = content.lines().nth(e.line.saturating_sub(1)) {
-                            e = e.with_source(baris);
-                        }
-                        e.message = format!("{} (dalam modul '{}')", e.message, sasaran);
-                    }
-                    return Err(e);
-                }
+                })?;
 
                 let module_vals = module_env.borrow().values.clone();
 
@@ -2180,6 +2159,7 @@ impl Interpreter {
                         jenis_pulangan: None,
                         badan: Rc::new(pembina_ast.badan.clone()),
                         closure: Rc::clone(env),
+                        sumber: Rc::clone(&self.sumber),
                     });
                 }
 
@@ -2192,6 +2172,7 @@ impl Interpreter {
                             jenis_pulangan: k_ast.jenis_pulangan.clone(),
                             badan: Rc::new(k_ast.badan.clone()),
                             closure: Rc::clone(env),
+                            sumber: Rc::clone(&self.sumber),
                         },
                     );
                 }
@@ -2259,6 +2240,10 @@ impl Interpreter {
         expr: &Expr,
         env: &Rc<RefCell<Environment>>,
     ) -> Result<Value, MelayuError> {
+        if crate::tindanan::hampir_penuh() {
+            let pos = expr.pos();
+            return Err(MelayuError::tindanan_penuh(pos.line, pos.col));
+        }
         match expr {
             Expr::Literal(lit, _) => match lit {
                 LiteralValue::Nombor(n) => Ok(Value::Nombor(*n)),
@@ -2273,7 +2258,7 @@ impl Interpreter {
                 for item in items {
                     evaluated.push(self.evaluate_expr(item, env)?);
                 }
-                Ok(Value::Senarai(Rc::new(RefCell::new(evaluated))))
+                Ok(Value::senarai(evaluated))
             }
             Expr::Kamus(pasangan, _) => {
                 let mut map = PetaNilai::new();
@@ -2722,9 +2707,9 @@ impl Interpreter {
                                     pos.col,
                                 ));
                             }
-                            let mut combined = a.borrow().clone();
+                            let mut combined = a.borrow().to_vec();
                             combined.extend(b.borrow().clone());
-                            Ok(Value::Senarai(Rc::new(RefCell::new(combined))))
+                            Ok(Value::senarai(combined))
                         }
                         (Value::Tensor { data: d1, shape: s1 }, Value::Tensor { data: d2, shape: s2 }) => {
                             tensor_binary_op(d1, s1, d2, s2, |a, b| a + b, pos)
@@ -2976,6 +2961,13 @@ fn tensor_matmul(
                 pos.col,
             )
             .with_kind(ErrorKind::Runtime));
+        }
+        if m.saturating_mul(n) > HAD_ELEMEN_TENSOR_MAKSIMUM {
+            return Err(MelayuError::had_memori_terlampau(
+                "Hasil darab matriks melebihi had elemen tensor maksimum (1,000,000).",
+                pos.line,
+                pos.col,
+            ));
         }
         if m * k1 * n >= 262_144 {
             if let Some(gpu_out) = crate::gpu::gpu_matmul(d1, d2, m, k1, n) {

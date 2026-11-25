@@ -30,17 +30,25 @@ fn ambil_pilihan_had_langkah(args: &mut Vec<String>) {
     env::set_var("MELAYU_HAD_LANGKAH", nilai);
 }
 
-const SAIZ_TINDANAN_UTAMA: usize = 256 * 1024 * 1024;
+const SAIZ_TINDANAN: [usize; 3] = [256 * 1024 * 1024, 64 * 1024 * 1024, 16 * 1024 * 1024];
 
 fn main() {
-    let utas = std::thread::Builder::new()
-        .name("melayu-utama".to_string())
-        .stack_size(SAIZ_TINDANAN_UTAMA)
-        .spawn(main_utama)
-        .expect("gagal memulakan utas utama");
-    if utas.join().is_err() {
-        process::exit(101);
+    for saiz in SAIZ_TINDANAN {
+        let utas = std::thread::Builder::new()
+            .name("melayu-utama".to_string())
+            .stack_size(saiz)
+            .spawn(move || {
+                melayu_core::tindanan::tetapkan_saiz(saiz);
+                main_utama();
+            });
+        if let Ok(utas) = utas {
+            if utas.join().is_err() {
+                process::exit(101);
+            }
+            return;
+        }
     }
+    main_utama();
 }
 
 fn main_utama() {

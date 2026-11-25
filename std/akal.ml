@@ -604,6 +604,18 @@ kelas PengelasBayesNaif
             i = i + 1
         selesai
 
+        ada varians_maks = 0.0
+        ada f = 0
+        selagi f < n_fitur
+            ada lajur = []
+            untuk baris dalam X
+                lajur.tambah(baris[f])
+            selesai
+            varians_maks = maksimum(varians_maks, diri.variansPopulasi(lajur))
+            f = f + 1
+        selesai
+        ada pelicin = varians_maks * 0.000000001
+
         # Hitung kebarangkalian prior, purata (mean) dan sisihan piawai setiap ciri
         untuk label dalam diri.kelas_unik
             ada sampel_c = data_kelas[label]
@@ -621,8 +633,8 @@ kelas PengelasBayesNaif
                 selesai
 
                 ada m = purata(nilai_fitur)
-                ada s = sisihanPiawai(nilai_fitur)
-                jika s < 0.000001
+                ada s = puncaKuasaDua(diri.variansPopulasi(nilai_fitur) + pelicin)
+                jika s == 0
                     s = 0.000001
                 selesai
 
@@ -634,6 +646,20 @@ kelas PengelasBayesNaif
             diri.min_fitur[label] = senarai_purata
             diri.sisihan_fitur[label] = senarai_sisihan
         selesai
+    selesai
+
+    kerja variansPopulasi(nilai)
+        ada n = panjang(nilai)
+        jika n < 2
+            pulang 0.0
+        selesai
+        ada s = sisihanPiawai(nilai)
+        pulang s * s * (n - 1) / n
+    selesai
+
+    kerja logKebarangkalianGaussian(x, m, s)
+        ada z = (x - m) / s
+        pulang 0.0 - logaritmaAsli(2.5066282746310002 * s) - (z * z / 2.0)
     selesai
 
     kerja kebarangkalianGaussian(x, m, s)
@@ -649,7 +675,7 @@ kelas PengelasBayesNaif
         ada n_fitur = panjang(diri.min_fitur[diri.kelas_unik[0]])
 
         untuk baris dalam X_baru
-            ada posterior_terbaik = -1000000000.0
+            ada posterior_terbaik = 0.0
             ada kelas_terbaik = kosong
 
             untuk label dalam diri.kelas_unik
@@ -660,15 +686,11 @@ kelas PengelasBayesNaif
                 selagi d < n_fitur
                     ada m = diri.min_fitur[label][d]
                     ada s = diri.sisihan_fitur[label][d]
-                    ada prob = diri.kebarangkalianGaussian(baris[d], m, s)
-                    jika prob < 0.000000000001
-                        prob = 0.000000000001
-                    selesai
-                    log_posterior = log_posterior + logaritmaAsli(prob)
+                    log_posterior = log_posterior + diri.logKebarangkalianGaussian(baris[d], m, s)
                     d = d + 1
                 selesai
 
-                jika log_posterior > posterior_terbaik
+                jika kelas_terbaik == kosong atau log_posterior > posterior_terbaik
                     posterior_terbaik = log_posterior
                     kelas_terbaik = label
                 selesai
@@ -730,24 +752,18 @@ kelas PokokKeputusan
             semua.tambah(i)
             i = i + 1
         selesai
-        jika diri.maksCiri == kosong atau diri.maksCiri >= n_ciri
+        jika diri.maksCiri == kosong
             pulang semua
         selesai
-        ada a = 0
-        selagi a < diri.maksCiri
-            ada b = rawak(a, n_ciri - 1)
+        ada a = n_ciri - 1
+        selagi a > 0
+            ada b = rawak(0, a)
             ada sementara = semua[a]
             semua[a] = semua[b]
             semua[b] = sementara
-            a = a + 1
+            a = a - 1
         selesai
-        ada pilihan = []
-        ada c = 0
-        selagi c < diri.maksCiri
-            pilihan.tambah(semua[c])
-            c = c + 1
-        selesai
-        pulang pilihan
+        pulang semua
     selesai
 
     kerja kiraGini(y_label)
@@ -821,7 +837,7 @@ kelas PokokKeputusan
             pulang {"jenis": "daun", "kelas": maj}
         selesai
 
-        ada pecahan = cariPecahanTerbaik(X, y, diri.pilihCiri(panjang(X[0])))
+        ada pecahan = cariPecahanTerbaik(X, y, diri.pilihCiri(panjang(X[0])), diri.maksCiri)
         jika pecahan == kosong
             pulang {"jenis": "daun", "kelas": maj}
         selesai
@@ -1121,6 +1137,7 @@ fungsi muatIris()
         [6.7, 3.3, 5.7, 2.5], [6.7, 3.0, 5.2, 2.3], [6.3, 2.5, 5.0, 1.9], [6.5, 3.0, 5.2, 2.0],
         [6.2, 3.4, 5.4, 2.3], [5.9, 3.0, 5.1, 1.8]
     ]
+    # Sasaran: 0 = Setosa, 1 = Versicolor, 2 = Virginica
     ada y = [
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -1238,7 +1255,7 @@ kelas HutanRawak
             selesai
 
             ada pokok = PokokKeputusan(diri.kedalamanMaks)
-            pokok.maksCiri = maksimum(1, bundar(puncaKuasaDua(panjang(X[0]))))
+            pokok.maksCiri = maksimum(1, lantai(puncaKuasaDua(panjang(X[0]))))
             pokok.latih(X_boot, y_boot)
             diri.hutan.tambah(pokok)
             p = p + 1

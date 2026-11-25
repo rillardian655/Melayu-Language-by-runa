@@ -65,6 +65,11 @@ impl<V> PetaTersusun<V> {
         Some(nilai)
     }
 
+    pub fn ambil_nilai(&mut self) -> Vec<V> {
+        self.indeks.clear();
+        std::mem::take(&mut self.entri).into_iter().map(|(_, v)| v).collect()
+    }
+
     pub fn clear(&mut self) {
         self.entri.clear();
         self.indeks.clear();
