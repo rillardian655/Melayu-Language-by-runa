@@ -760,10 +760,29 @@ impl Interpreter {
                 }
                 "isih" => {
                     let mut borrowed = list.borrow_mut();
+                    let semua_nombor = borrowed.iter().all(|v| matches!(v, Value::Nombor(_)));
+                    let semua_teks = borrowed.iter().all(|v| matches!(v, Value::Teks(_)));
+                    if !semua_nombor && !semua_teks {
+                        let jenis: Vec<&str> = {
+                            let mut j: Vec<&str> = borrowed.iter().map(|v| v.jenis()).collect();
+                            j.sort_unstable();
+                            j.dedup();
+                            j
+                        };
+                        return Err(MelayuError::new(
+                            "Eh!",
+                            &format!(
+                                ".isih() hanya boleh menyusun senarai nombor sahaja atau teks sahaja, tetapi senarai ini mengandungi: {}.",
+                                jenis.join(", ")
+                            ),
+                            pos.line,
+                            pos.col,
+                        )
+                        .with_kind(ErrorKind::Runtime)
+                        .with_suggestion("Tapis atau tukar elemen dahulu, contoh: senarai.tapis(...) atau teks(x)."));
+                    }
                     borrowed.sort_by(|a, b| match (a, b) {
-                        (Value::Nombor(x), Value::Nombor(y)) => {
-                            x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)
-                        }
+                        (Value::Nombor(x), Value::Nombor(y)) => x.total_cmp(y),
                         (Value::Teks(x), Value::Teks(y)) => x.cmp(y),
                         _ => std::cmp::Ordering::Equal,
                     });
