@@ -1,8 +1,7 @@
 use crate::ast::LineCol;
 use crate::errors::{ErrorKind, MelayuError};
-use crate::interpreter::{Interpreter, Value};
+use crate::interpreter::{Interpreter, PetaNilai, Value};
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
@@ -1006,7 +1005,7 @@ impl SimpleJsonParser {
     fn parse_object(&mut self) -> Result<Value, MelayuError> {
         self.expect_char('{')?;
         self.depth += 1;
-        let mut map = HashMap::new();
+        let mut map = PetaNilai::new();
 
         self.skip_whitespace();
         if let Some('}') = self.peek() {
@@ -1381,8 +1380,7 @@ pub fn nilai_ke_json_string(
                 return Ok("{}".to_string());
             }
 
-            let mut keys: Vec<&String> = borrowed.keys().collect();
-            keys.sort();
+            let keys: Vec<&String> = borrowed.keys().collect();
 
             if cantik {
                 let indent_item = "  ".repeat(kedalaman + 1);
@@ -1412,8 +1410,7 @@ pub fn nilai_ke_json_string(
                 return Ok("{}".to_string());
             }
 
-            let mut keys: Vec<&String> = borrowed.keys().collect();
-            keys.sort();
+            let keys: Vec<&String> = borrowed.keys().collect();
 
             if cantik {
                 let indent_item = "  ".repeat(kedalaman + 1);
@@ -2037,7 +2034,7 @@ pub fn builtin_baca_csv(args: &[Value], pos: LineCol) -> Result<Value, MelayuErr
         }
     }
 
-    let mut map = HashMap::new();
+    let mut map = PetaNilai::new();
     let row_count = data_rows.len() as f64;
     let col_count = columns.len() as f64;
     map.insert("lajur".to_string(), Value::Senarai(Rc::new(RefCell::new(columns))));
@@ -2414,7 +2411,7 @@ pub fn builtin_matriks_kekeliruan(args: &[Value], pos: LineCol) -> Result<Value,
             (true, false) => fn_val += 1.0,
         }
     }
-    let mut map = HashMap::new();
+    let mut map = PetaNilai::new();
     map.insert("TP".to_string(), Value::Nombor(tp));
     map.insert("FP".to_string(), Value::Nombor(fp));
     map.insert("TN".to_string(), Value::Nombor(tn));
@@ -2561,7 +2558,7 @@ pub fn builtin_mulakan_pelayan_http(args: &[Value], pos: LineCol) -> Result<Valu
         let method = first_parts.next().unwrap_or("GET");
         let path_full = first_parts.next().unwrap_or("/");
 
-        let mut headers_map = HashMap::new();
+        let mut headers_map = PetaNilai::new();
         let mut content_length: usize = 0;
 
         for line in lines.by_ref() {
@@ -2601,7 +2598,7 @@ pub fn builtin_mulakan_pelayan_http(args: &[Value], pos: LineCol) -> Result<Valu
             ""
         };
 
-        let mut req_kamus = HashMap::new();
+        let mut req_kamus = PetaNilai::new();
         req_kamus.insert("kaedah".to_string(), Value::Teks(method.to_string()));
         req_kamus.insert("laluan".to_string(), Value::Teks(path_full.to_string()));
         req_kamus.insert("badan".to_string(), Value::Teks(body.to_string()));
@@ -2854,11 +2851,11 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
         .and_then(|s| s.parse().ok())
         .unwrap_or(0.0);
 
-    let mut map_resp = HashMap::new();
+    let mut map_resp = PetaNilai::new();
     map_resp.insert("status".to_string(), Value::Nombor(status_code));
     map_resp.insert("badan".to_string(), Value::Teks(body_part));
 
-    let mut headers_resp = HashMap::new();
+    let mut headers_resp = PetaNilai::new();
     for hl in header_lines {
         if let Some((k, v)) = hl.split_once(':') {
             headers_resp.insert(k.trim().to_lowercase(), Value::Teks(v.trim().to_string()));
@@ -3157,7 +3154,7 @@ pub fn builtin_info_perkakas(args: &[Value], pos: LineCol) -> Result<Value, Mela
     let gpu_kind = crate::gpu::gpu_kind();
     let gpu_aktif = gpu_kind != crate::gpu::GpuKind::None;
 
-    let mut map = HashMap::new();
+    let mut map = PetaNilai::new();
     map.insert("teras_cpu".to_string(), Value::Nombor(teras_cpu as f64));
     map.insert(
         "enjin_matriks".to_string(),

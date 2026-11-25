@@ -28,6 +28,7 @@ pub mod builtins;
 pub mod errors;
 pub mod gpu;
 pub mod interpreter;
+pub mod kamus;
 pub mod lexer;
 pub mod parser;
 pub mod repl;

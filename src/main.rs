@@ -941,7 +941,7 @@ fn jalankan_taman_permainan(port: u16) {
                 }
             };
 
-            let mut resp_map = std::collections::HashMap::new();
+            let mut resp_map = melayu_core::interpreter::PetaNilai::new();
             resp_map.insert(
                 "kejayaan".to_string(),
                 if ok {

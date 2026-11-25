@@ -7,6 +7,8 @@ use std::fmt;
 use std::fs;
 use std::rc::Rc;
 
+pub type PetaNilai = crate::kamus::PetaTersusun<Value>;
+
 #[derive(Debug, Clone)]
 pub struct KaedahKelas {
     pub nama: String,
@@ -37,7 +39,7 @@ pub struct KelasData {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ObjekData {
     pub nama_kelas: String,
-    pub sifat: Rc<RefCell<HashMap<String, Value>>>,
+    pub sifat: Rc<RefCell<PetaNilai>>,
     pub kaedah: HashMap<String, KaedahKelas>,
     pub induk: Option<String>,
 }
@@ -45,7 +47,7 @@ pub struct ObjekData {
 #[derive(Debug, Clone, PartialEq)]
 pub struct IndukData {
     pub nama_induk: String,
-    pub instans_sifat: Rc<RefCell<HashMap<String, Value>>>,
+    pub instans_sifat: Rc<RefCell<PetaNilai>>,
     pub instans_kelas: String,
 }
 
@@ -57,7 +59,7 @@ pub enum Value {
     Nombor(f64),
     Teks(String),
     Senarai(Rc<RefCell<Vec<Value>>>),
-    Kamus(Rc<RefCell<HashMap<String, Value>>>),
+    Kamus(Rc<RefCell<PetaNilai>>),
     Fungsi {
         nama: String,
         parameter: Vec<(String, Option<String>)>,
@@ -585,7 +587,7 @@ impl Interpreter {
                 hasil
             }
             Value::Kelas(ref k) => {
-                let instans_sifat = Rc::new(RefCell::new(HashMap::new()));
+                let instans_sifat = Rc::new(RefCell::new(PetaNilai::new()));
                 let instans = Value::Objek(Rc::new(ObjekData {
                     nama_kelas: k.nama.clone(),
                     sifat: Rc::clone(&instans_sifat),
@@ -2068,7 +2070,7 @@ impl Interpreter {
                 let module_vals = module_env.borrow().values.clone();
 
                 if let Some(alias_name) = alias {
-                    let mut map = HashMap::new();
+                    let mut map = PetaNilai::new();
                     for (k, v) in module_vals {
                         map.insert(k, v.nilai);
                     }
@@ -2237,7 +2239,7 @@ impl Interpreter {
                 Ok(Value::Senarai(Rc::new(RefCell::new(evaluated))))
             }
             Expr::Kamus(pasangan, _) => {
-                let mut map = HashMap::new();
+                let mut map = PetaNilai::new();
                 for (k, v) in pasangan {
                     let key_val = self.evaluate_expr(k, env)?;
                     let key_str = match key_val {
