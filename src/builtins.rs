@@ -3201,11 +3201,11 @@ pub fn builtin_info_perkakas(args: &[Value], pos: LineCol) -> Result<Value, Mela
     );
     map.insert(
         "gpu_cuda_dikesan".to_string(),
-        if ada_cuda { Value::Betul } else { Value::Salah },
+        if ada_cuda || gpu_kind == crate::gpu::GpuKind::Cuda { Value::Betul } else { Value::Salah },
     );
     map.insert(
         "gpu_rocm_dikesan".to_string(),
-        if ada_rocm { Value::Betul } else { Value::Salah },
+        if ada_rocm || gpu_kind == crate::gpu::GpuKind::Rocm { Value::Betul } else { Value::Salah },
     );
     map.insert(
         "gpu_aktif".to_string(),

@@ -1,6 +1,7 @@
 mod bantuan;
 
 use bantuan::*;
+#[cfg(unix)]
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
