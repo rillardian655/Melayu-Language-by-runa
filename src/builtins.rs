@@ -1,10 +1,10 @@
 use crate::ast::LineCol;
 use crate::errors::{ErrorKind, MelayuError};
-use crate::interpreter::{Interpreter, PetaNilai, Value};
+use crate::interpreter::{Interpreter, PetaNilai, SenaraiNilai, Value};
 use std::cell::RefCell;
 use std::fs;
 use std::io::{self, BufRead, Read, Write};
-use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -553,161 +553,141 @@ pub fn builtin_rawak(args: &[Value], pos: LineCol) -> Result<Value, MelayuError>
 pub const HAD_SAIZ_FAIL_MAKSIMUM: u64 = 5 * 1024 * 1024; // 5 MB
 pub const HAD_ELEMEN_TENSOR_MAKSIMUM: usize = 1_000_000; // 1 juta elemen (~8 MB)
 
+const NAMA_SENSITIF: [&str; 12] = [
+    ".git", ".env", ".ssh", ".gemini", ".aws", ".gnupg", ".kube", ".docker", ".netrc", ".npmrc", ".pypirc", ".git-credentials",
+];
+
+fn nama_sensitif(laluan: &Path) -> Option<String> {
+    laluan.components().find_map(|bahagian| match bahagian {
+        Component::Normal(nama) => {
+            let nama = nama.to_string_lossy().to_lowercase();
+            let disekat = NAMA_SENSITIF.contains(&nama.as_str()) || nama.starts_with(".env.");
+            disekat.then_some(nama)
+        }
+        _ => None,
+    })
+}
+
 static AKAR_SANDBOX: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
 pub fn tetapkan_akar_sandbox(akar: PathBuf) {
-    let _ = AKAR_SANDBOX.set(akar.canonicalize().unwrap_or(akar));
+    let _ = AKAR_SANDBOX.set(akar);
 }
 
-pub fn semak_laluan_selamat(
-    laluan_str: &str,
-    untuk_menulis: bool,
-    pos: LineCol,
-) -> Result<PathBuf, MelayuError> {
+fn akar_sandbox() -> io::Result<PathBuf> {
+    match AKAR_SANDBOX.get() {
+        Some(akar) => Ok(akar.clone()),
+        None => std::env::current_dir()?.canonicalize(),
+    }
+}
+
+pub fn semak_laluan_selamat(laluan_str: &str, pos: LineCol) -> Result<PathBuf, MelayuError> {
+    let ralat = |sebab: &str| MelayuError::akses_fail_disekat(laluan_str, sebab, pos.line, pos.col);
     if laluan_str.trim().is_empty() {
-        return Err(MelayuError::akses_fail_disekat(
-            laluan_str,
-            "Nama laluan fail tidak boleh kosong.",
-            pos.line,
-            pos.col,
-        ));
+        return Err(ralat("Nama laluan fail tidak boleh kosong."));
     }
     if laluan_str.contains('\0') {
-        return Err(MelayuError::akses_fail_disekat(
-            laluan_str,
-            "Aksara batal (null byte) dikesan dalam laluan fail.",
-            pos.line,
-            pos.col,
-        ));
+        return Err(ralat("Aksara batal (null byte) dikesan dalam laluan fail."));
     }
 
     let p = Path::new(laluan_str);
-    for comp in p.components() {
-        if matches!(comp, Component::ParentDir) {
-            return Err(MelayuError::akses_fail_disekat(
-                laluan_str,
-                "Komponen laluan '..' dilarang demi keselamatan sandbox persekitaran fail.",
-                pos.line,
-                pos.col,
-            ));
-        }
-        if let Component::Normal(os_str) = comp {
-            let s = os_str.to_string_lossy().to_lowercase();
-            if s == ".git" || s == ".env" || s == ".ssh" || s == ".gemini" || s.starts_with(".env.") {
-                return Err(MelayuError::akses_fail_disekat(
-                    laluan_str,
-                    &format!("Akses ke fail/direktori sensitif '{}' disekat demi keselamatan.", s),
-                    pos.line,
-                    pos.col,
-                ));
-            }
-        }
+    if p.components().any(|bahagian| matches!(bahagian, Component::ParentDir)) {
+        return Err(ralat("Komponen laluan '..' dilarang demi keselamatan sandbox persekitaran fail."));
     }
 
-    let base = std::env::current_dir().map_err(|e| {
-        MelayuError::akses_fail_disekat(
-            laluan_str,
-            &format!("Gagal mendapatkan direktori kerja semasa: {}", e),
-            pos.line,
-            pos.col,
-        )
-    })?;
-    let can_base = base.canonicalize().unwrap_or(base);
-    let akar = AKAR_SANDBOX.get().cloned().unwrap_or_else(|| can_base.clone());
-    let di_luar = format!("Laluan ini berada di luar sandbox projek ({}).", akar.display());
+    let akar = akar_sandbox()
+        .map_err(|e| ralat(&format!("Gagal mendapatkan folder sandbox: {}", e)))?;
+    let penuh = akar.join(p);
+    if let Some(nama) = nama_sensitif(penuh.strip_prefix(&akar).unwrap_or(p)) {
+        return Err(ralat(&format!(
+            "Akses ke fail/direktori sensitif '{}' disekat demi keselamatan.",
+            nama
+        )));
+    }
 
-    if p.is_absolute() {
-        if p.exists() {
-            let can_target = p.canonicalize().map_err(|e| {
-                MelayuError::akses_fail_disekat(
-                    laluan_str,
-                    &format!("Laluan mutlak tidak sah: {}", e),
-                    pos.line,
-                    pos.col,
-                )
-            })?;
-            if !can_target.starts_with(&akar) {
-                return Err(MelayuError::akses_fail_disekat(
-                    laluan_str,
-                    &di_luar,
-                    pos.line,
-                    pos.col,
-                ));
-            }
-            Ok(can_target)
-        } else {
-            if p.symlink_metadata().is_ok() {
-                return Err(MelayuError::akses_fail_disekat(
-                    laluan_str,
-                    "Pautan simbolik yang rosak (sasaran tidak wujud) tidak dibenarkan.",
-                    pos.line,
-                    pos.col,
-                ));
-            }
-            if !p.starts_with(&akar) {
-                return Err(MelayuError::akses_fail_disekat(
-                    laluan_str,
-                    &di_luar,
-                    pos.line,
-                    pos.col,
-                ));
-            }
-            Ok(p.to_path_buf())
+    let mut wujud = penuh;
+    let mut baki = Vec::new();
+    while fs::symlink_metadata(&wujud).is_err() {
+        match wujud.file_name().map(|n| n.to_os_string()) {
+            Some(nama) => baki.push(nama),
+            None => return Err(ralat("Laluan fail tidak sah.")),
         }
-    } else {
-        let combined = akar.join(p);
-        if combined.exists() {
-            let can_target = combined.canonicalize().map_err(|e| {
-                MelayuError::akses_fail_disekat(
-                    laluan_str,
-                    &format!("Laluan fail tidak sah: {}", e),
-                    pos.line,
-                    pos.col,
-                )
-            })?;
-            if !can_target.starts_with(&akar) {
-                return Err(MelayuError::akses_fail_disekat(
-                    laluan_str,
-                    &di_luar,
-                    pos.line,
-                    pos.col,
-                ));
-            }
-            Ok(can_target)
-        } else {
-            if combined.symlink_metadata().is_ok() {
-                return Err(MelayuError::akses_fail_disekat(
-                    laluan_str,
-                    "Pautan simbolik yang rosak (sasaran tidak wujud) tidak dibenarkan.",
-                    pos.line,
-                    pos.col,
-                ));
-            }
-            if untuk_menulis {
-                if let Some(parent) = combined.parent() {
-                    if parent.exists() {
-                        let can_parent = parent.canonicalize().map_err(|e| {
-                            MelayuError::akses_fail_disekat(
-                                laluan_str,
-                                &format!("Direktori induk tidak sah: {}", e),
-                                pos.line,
-                                pos.col,
-                            )
-                        })?;
-                        if !can_parent.starts_with(&akar) {
-                            return Err(MelayuError::akses_fail_disekat(
-                                laluan_str,
-                                &di_luar,
-                                pos.line,
-                                pos.col,
-                            ));
-                        }
-                    }
-                }
-            }
-            Ok(combined)
+        wujud.pop();
+    }
+    let mut sebenar = wujud
+        .canonicalize()
+        .map_err(|_| ralat("Pautan simbolik yang rosak (sasaran tidak wujud) tidak dibenarkan."))?;
+    sebenar.extend(baki.into_iter().rev());
+
+    match sebenar.strip_prefix(&akar) {
+        Err(_) => Err(ralat(&format!(
+            "Laluan ini berada di luar sandbox projek ({}).",
+            akar.display()
+        ))),
+        Ok(dalam) => match nama_sensitif(dalam) {
+            Some(nama) => Err(ralat(&format!(
+                "Akses ke fail/direktori sensitif '{}' disekat demi keselamatan.",
+                nama
+            ))),
+            None => Ok(sebenar),
+        },
+    }
+}
+
+fn baca_teks_terhad(laluan: &Path, nama: &str, pos: LineCol) -> Result<String, MelayuError> {
+    let ralat = |sebab: String| MelayuError::akses_fail_disekat(nama, &sebab, pos.line, pos.col);
+    let meta = fs::metadata(laluan).map_err(|e| ralat(format!("Gagal membaca metadata fail: {}", e)))?;
+    if !meta.is_file() {
+        return Err(ralat("Laluan ini bukan fail biasa.".to_string()));
+    }
+    if meta.len() > HAD_SAIZ_FAIL_MAKSIMUM {
+        return Err(ralat(format!(
+            "Saiz fail ({} bait) melebihi had keselamatan 5 MB.",
+            meta.len()
+        )));
+    }
+    fs::read_to_string(laluan).map_err(|e| ralat(format!("Gagal membaca fail: {}", e)))
+}
+
+fn modul_terbina(nama: &str) -> Option<&'static str> {
+    match nama {
+        "akal" | "akal_ml" | "akalml" | "std/akal" | "std/akal_ml" => Some(AKAL_ML_STDLIB),
+        "selasih" | "wau" | "web" | "std/selasih" | "std/wau" => Some(SELASIH_STDLIB),
+        _ => None,
+    }
+}
+
+pub fn baca_modul(sasaran: &str, pos: LineCol) -> Result<String, MelayuError> {
+    let mut calon = vec![sasaran.to_string()];
+    if !sasaran.ends_with(".ml") {
+        calon.push(format!("{}.ml", sasaran));
+        calon.push(Path::new(sasaran).with_extension("ml").to_string_lossy().to_string());
+    }
+    for nama in &calon {
+        let laluan = semak_laluan_selamat(nama, pos)?;
+        if laluan.is_file() {
+            return baca_teks_terhad(&laluan, sasaran, pos);
         }
     }
+    if let Some(isi) = modul_terbina(sasaran) {
+        return Ok(isi.to_string());
+    }
+    for nama in [
+        format!("modul_melayu/{}.ml", sasaran),
+        format!("modul_melayu/{}/mod.ml", sasaran),
+        format!("modul_melayu/{}/utama.ml", sasaran),
+    ] {
+        let laluan = semak_laluan_selamat(&nama, pos)?;
+        if laluan.is_file() {
+            return baca_teks_terhad(&laluan, sasaran, pos);
+        }
+    }
+    Err(MelayuError::akses_fail_disekat(
+        sasaran,
+        "Fail modul tidak dijumpai (termasuk dalam modul_melayu/).",
+        pos.line,
+        pos.col,
+    ))
 }
 
 pub fn builtin_baca_fail(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
@@ -737,7 +717,7 @@ pub fn builtin_baca_fail(args: &[Value], pos: LineCol) -> Result<Value, MelayuEr
         }
     };
 
-    let safe_path = semak_laluan_selamat(laluan_str, false, pos)?;
+    let safe_path = semak_laluan_selamat(laluan_str, pos)?;
     if !safe_path.exists() {
         return Err(MelayuError::akses_fail_disekat(
             laluan_str,
@@ -747,37 +727,7 @@ pub fn builtin_baca_fail(args: &[Value], pos: LineCol) -> Result<Value, MelayuEr
         ));
     }
 
-    let meta = fs::metadata(&safe_path).map_err(|e| {
-        MelayuError::akses_fail_disekat(
-            laluan_str,
-            &format!("Gagal membaca metadata fail: {}", e),
-            pos.line,
-            pos.col,
-        )
-    })?;
-
-    if meta.len() > HAD_SAIZ_FAIL_MAKSIMUM {
-        return Err(MelayuError::akses_fail_disekat(
-            laluan_str,
-            &format!(
-                "Saiz fail ({} bait) melebihi had keselamatan 5 MB.",
-                meta.len()
-            ),
-            pos.line,
-            pos.col,
-        ));
-    }
-
-    let content = fs::read_to_string(&safe_path).map_err(|e| {
-        MelayuError::akses_fail_disekat(
-            laluan_str,
-            &format!("Gagal membaca kandungan fail teks: {}", e),
-            pos.line,
-            pos.col,
-        )
-    })?;
-
-    Ok(Value::Teks(content))
+    baca_teks_terhad(&safe_path, laluan_str, pos).map(Value::Teks)
 }
 
 pub fn builtin_tulis_fail(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
@@ -831,7 +781,7 @@ pub fn builtin_tulis_fail(args: &[Value], pos: LineCol) -> Result<Value, MelayuE
         ));
     }
 
-    let safe_path = semak_laluan_selamat(laluan_str, true, pos)?;
+    let safe_path = semak_laluan_selamat(laluan_str, pos)?;
 
     fs::write(&safe_path, kandungan).map_err(|e| {
         MelayuError::akses_fail_disekat(
@@ -870,7 +820,7 @@ pub fn builtin_wujud_fail(args: &[Value], pos: LineCol) -> Result<Value, MelayuE
         }
     };
 
-    let safe_path = semak_laluan_selamat(laluan_str, false, pos)?;
+    let safe_path = semak_laluan_selamat(laluan_str, pos)?;
     Ok(if safe_path.exists() {
         Value::Betul
     } else {
@@ -903,7 +853,7 @@ pub fn builtin_padam_fail(args: &[Value], pos: LineCol) -> Result<Value, MelayuE
         }
     };
 
-    let safe_path = semak_laluan_selamat(laluan_str, false, pos)?;
+    let safe_path = semak_laluan_selamat(laluan_str, pos)?;
     if safe_path.exists() {
         fs::remove_file(&safe_path).map_err(|e| {
             MelayuError::akses_fail_disekat(
@@ -1100,7 +1050,7 @@ impl SimpleJsonParser {
         if let Some(']') = self.peek() {
             self.advance();
             self.depth -= 1;
-            return Ok(Value::Senarai(Rc::new(RefCell::new(list))));
+            return Ok(Value::senarai(list));
         }
 
         loop {
@@ -1146,7 +1096,7 @@ impl SimpleJsonParser {
         }
 
         self.depth -= 1;
-        Ok(Value::Senarai(Rc::new(RefCell::new(list))))
+        Ok(Value::senarai(list))
     }
 
     fn parse_string(&mut self) -> Result<String, MelayuError> {
@@ -1719,9 +1669,9 @@ fn ekstrak_matriks(val: &Value, pos: LineCol) -> Result<Vec<Vec<f64>>, MelayuErr
 fn matriks_ke_nilai(mat: &[Vec<f64>]) -> Value {
     let rows: Vec<Value> = mat.iter().map(|row| {
         let cols: Vec<Value> = row.iter().map(|&n| Value::Nombor(n)).collect();
-        Value::Senarai(Rc::new(RefCell::new(cols)))
+        Value::senarai(cols)
     }).collect();
-    Value::Senarai(Rc::new(RefCell::new(rows)))
+    Value::senarai(rows)
 }
 
 fn ekstrak_vektor(val: &Value, pos: LineCol) -> Result<Vec<f64>, MelayuError> {
@@ -1763,7 +1713,7 @@ pub fn builtin_darab_matriks(args: &[Value], pos: LineCol) -> Result<Value, Mela
     let a = ekstrak_matriks(&args[0], pos)?;
     let b = ekstrak_matriks(&args[1], pos)?;
     if a.is_empty() || b.is_empty() {
-        return Ok(Value::Senarai(Rc::new(RefCell::new(Vec::new()))));
+        return Ok(Value::senarai(Vec::new()));
     }
     let m = a.len();
     let k = a[0].len();
@@ -1776,6 +1726,13 @@ pub fn builtin_darab_matriks(args: &[Value], pos: LineCol) -> Result<Value, Mela
             pos.line,
             pos.col,
         ).with_kind(ErrorKind::Runtime));
+    }
+    if m.saturating_mul(n) > HAD_ELEMEN_TENSOR_MAKSIMUM {
+        return Err(MelayuError::had_memori_terlampau(
+            "Hasil darab matriks melebihi had elemen maksimum (1,000,000).",
+            pos.line,
+            pos.col,
+        ));
     }
     let mut c = vec![vec![0.0; n]; m];
     let num_threads = std::thread::available_parallelism()
@@ -1828,7 +1785,7 @@ pub fn builtin_transposisi_matriks(args: &[Value], pos: LineCol) -> Result<Value
     }
     let a = ekstrak_matriks(&args[0], pos)?;
     if a.is_empty() {
-        return Ok(Value::Senarai(Rc::new(RefCell::new(Vec::new()))));
+        return Ok(Value::senarai(Vec::new()));
     }
     let m = a.len();
     let n = a[0].len();
@@ -2013,7 +1970,7 @@ pub fn builtin_baca_csv(args: &[Value], pos: LineCol) -> Result<Value, MelayuErr
         true
     };
 
-    let safe_path = semak_laluan_selamat(&path_str, false, pos)?;
+    let safe_path = semak_laluan_selamat(&path_str, pos)?;
     if let Ok(meta) = fs::metadata(&safe_path) {
         if meta.len() > HAD_SAIZ_FAIL_MAKSIMUM {
             return Err(MelayuError::had_memori_terlampau(
@@ -2023,9 +1980,7 @@ pub fn builtin_baca_csv(args: &[Value], pos: LineCol) -> Result<Value, MelayuErr
             ));
         }
     }
-    let content = fs::read_to_string(&safe_path).map_err(|e| {
-        MelayuError::akses_fail_disekat(&path_str, &format!("Gagal membaca fail CSV: {}", e), pos.line, pos.col)
-    })?;
+    let content = baca_teks_terhad(&safe_path, &path_str, pos)?;
 
     let mut lines = content.lines().filter(|l| !l.trim().is_empty());
     let mut columns = Vec::new();
@@ -2048,7 +2003,7 @@ pub fn builtin_baca_csv(args: &[Value], pos: LineCol) -> Result<Value, MelayuErr
                 Value::Teks(c)
             }
         }).collect();
-        data_rows.push(Value::Senarai(Rc::new(RefCell::new(row_vals))));
+        data_rows.push(Value::senarai(row_vals));
     }
 
     if !ada_tajuk && !data_rows.is_empty() {
@@ -2065,8 +2020,8 @@ pub fn builtin_baca_csv(args: &[Value], pos: LineCol) -> Result<Value, MelayuErr
     let mut map = PetaNilai::new();
     let row_count = data_rows.len() as f64;
     let col_count = columns.len() as f64;
-    map.insert("lajur".to_string(), Value::Senarai(Rc::new(RefCell::new(columns))));
-    map.insert("data".to_string(), Value::Senarai(Rc::new(RefCell::new(data_rows))));
+    map.insert("lajur".to_string(), Value::senarai(columns));
+    map.insert("data".to_string(), Value::senarai(data_rows));
     map.insert("baris".to_string(), Value::Nombor(row_count));
     map.insert("bil_lajur".to_string(), Value::Nombor(col_count));
 
@@ -2132,12 +2087,12 @@ pub fn builtin_bahagi_latih_uji(args: &[Value], pos: LineCol) -> Result<Value, M
         }
     }
 
-    Ok(Value::Senarai(Rc::new(RefCell::new(vec![
-        Value::Senarai(Rc::new(RefCell::new(x_train))),
-        Value::Senarai(Rc::new(RefCell::new(x_test))),
-        Value::Senarai(Rc::new(RefCell::new(y_train))),
-        Value::Senarai(Rc::new(RefCell::new(y_test))),
-    ]))))
+    Ok(Value::senarai(vec![
+        Value::senarai(x_train),
+        Value::senarai(x_test),
+        Value::senarai(y_train),
+        Value::senarai(y_test),
+    ]))
 }
 
 pub fn builtin_purata(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
@@ -2710,19 +2665,43 @@ pub fn builtin_mulakan_pelayan_http(args: &[Value], pos: LineCol) -> Result<Valu
     Ok(Value::Nombor(count as f64))
 }
 
+fn ipv4_terbenam(v6: &Ipv6Addr) -> Vec<Ipv4Addr> {
+    let o = v6.octets();
+    let seg = v6.segments();
+    let akhir = Ipv4Addr::new(o[12], o[13], o[14], o[15]);
+    let mut hasil = Vec::new();
+    if let Some(v4) = v6.to_ipv4_mapped() {
+        hasil.push(v4);
+    }
+    if seg[..6] == [0; 6] && !v6.is_loopback() && !v6.is_unspecified() {
+        hasil.push(akhir);
+    }
+    if seg[0] == 0x0064 && seg[1] == 0xff9b {
+        hasil.push(akhir);
+        hasil.push(Ipv4Addr::new(o[6], o[7], o[9], o[10]));
+    }
+    if seg[0] == 0x2002 {
+        hasil.push(Ipv4Addr::new(o[2], o[3], o[4], o[5]));
+    }
+    if seg[0] == 0x2001 && seg[1] == 0 {
+        hasil.push(Ipv4Addr::new(!o[12], !o[13], !o[14], !o[15]));
+    }
+    hasil
+}
+
+fn ipv4_disekat(v4: &Ipv4Addr) -> bool {
+    v4.is_link_local() || v4.is_unspecified() || v4.octets() == [100, 100, 100, 200]
+}
+
 fn alamat_dalaman_disekat(ip: &IpAddr) -> bool {
     match ip {
-        IpAddr::V4(v4) => {
-            v4.is_link_local() || v4.is_unspecified() || v4.octets() == [100, 100, 100, 200]
-        }
+        IpAddr::V4(v4) => ipv4_disekat(v4),
         IpAddr::V6(v6) => {
-            if let Some(v4) = v6.to_ipv4_mapped() {
-                return alamat_dalaman_disekat(&IpAddr::V4(v4));
-            }
             let seg = v6.segments();
             v6.is_unspecified()
                 || (seg[0] & 0xffc0) == 0xfe80
                 || seg == [0xfd00, 0x0ec2, 0, 0, 0, 0, 0, 0x0254]
+                || ipv4_terbenam(v6).iter().any(ipv4_disekat)
         }
     }
 }
@@ -3118,9 +3097,9 @@ pub fn builtin_matriks_softmax(args: &[Value], pos: LineCol) -> Result<Value, Me
             .into_iter()
             .map(|e| Value::Nombor(if sum > 0.0 { e / sum } else { 0.0 }))
             .collect();
-        out.push(Value::Senarai(Rc::new(RefCell::new(probs))));
+        out.push(Value::senarai(probs));
     }
-    Ok(Value::Senarai(Rc::new(RefCell::new(out))))
+    Ok(Value::senarai(out))
 }
 
 pub fn builtin_matriks_relu(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
@@ -3135,10 +3114,10 @@ pub fn builtin_matriks_relu(args: &[Value], pos: LineCol) -> Result<Value, Melay
                 .into_iter()
                 .map(|x| Value::Nombor(if x > 0.0 { x } else { 0.0 }))
                 .collect();
-            Value::Senarai(Rc::new(RefCell::new(r)))
+            Value::senarai(r)
         })
         .collect();
-    Ok(Value::Senarai(Rc::new(RefCell::new(out))))
+    Ok(Value::senarai(out))
 }
 
 pub fn builtin_ralat_entropi_silang(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
@@ -3207,7 +3186,7 @@ pub fn builtin_info_perkakas(args: &[Value], pos: LineCol) -> Result<Value, Mela
     );
     map.insert(
         "ketepatan_gpu".to_string(),
-        Value::Teks(if gpu_aktif { "FP32" } else { "tiada" }.to_string()),
+        Value::Teks(if gpu_aktif { crate::gpu::ketepatan() } else { "tiada" }.to_string()),
     );
     map.insert(
         "status_gpu".to_string(),
@@ -3224,13 +3203,22 @@ pub fn builtin_info_perkakas(args: &[Value], pos: LineCol) -> Result<Value, Mela
 pub const AKAL_ML_STDLIB: &str = include_str!("../std/akal.ml");
 pub const SELASIH_STDLIB: &str = include_str!("../std/selasih.ml");
 
+fn banding_nan_akhir(a: f64, b: f64) -> std::cmp::Ordering {
+    a.is_nan().cmp(&b.is_nan()).then(a.total_cmp(&b))
+}
+
 pub fn builtin_cari_pecahan_terbaik(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
     let ralat = |mesej: &str| {
         MelayuError::new("Alamak!", mesej, pos.line, pos.col).with_kind(ErrorKind::Runtime)
     };
-    if args.len() != 3 {
-        return Err(ralat("Fungsi 'cariPecahanTerbaik' memerlukan 3 hujah (X, y, senaraiCiri)."));
+    if args.len() != 3 && args.len() != 4 {
+        return Err(ralat("Fungsi 'cariPecahanTerbaik' memerlukan 3 atau 4 hujah (X, y, senaraiCiri, [maksCiri])."));
     }
+    let maks_ciri = match args.get(3) {
+        None | Some(Value::Kosong) => usize::MAX,
+        Some(Value::Nombor(n)) if *n >= 1.0 => *n as usize,
+        _ => return Err(ralat("maksCiri mestilah nombor bulat 1 atau lebih.")),
+    };
     let (Value::Senarai(x_rc), Value::Senarai(y_rc), Value::Senarai(ciri_rc)) = (&args[0], &args[1], &args[2]) else {
         return Err(ralat("Hujah 'cariPecahanTerbaik' mestilah senarai (X, y, senaraiCiri)."));
     };
@@ -3263,7 +3251,7 @@ pub fn builtin_cari_pecahan_terbaik(args: &[Value], pos: LineCol) -> Result<Valu
         jumlah[c] += 1;
     }
 
-    let baris: Vec<std::cell::Ref<Vec<Value>>> = x_senarai
+    let baris: Vec<std::cell::Ref<'_, SenaraiNilai>> = x_senarai
         .iter()
         .map(|b| match b {
             Value::Senarai(r) => Ok(r.borrow()),
@@ -3281,7 +3269,11 @@ pub fn builtin_cari_pecahan_terbaik(args: &[Value], pos: LineCol) -> Result<Valu
 
     let mut terbaik: Option<(f64, usize, f64)> = None;
     let mut pasangan: Vec<(f64, usize)> = Vec::with_capacity(n);
-    for c in ciri_rc.borrow().iter() {
+    let mut ada_ciri_berubah = false;
+    for (dilawati, c) in ciri_rc.borrow().iter().enumerate() {
+        if dilawati >= maks_ciri && ada_ciri_berubah {
+            break;
+        }
         let f = match c {
             Value::Nombor(f) if *f >= 0.0 && f.fract() == 0.0 => *f as usize,
             _ => return Err(ralat("senaraiCiri mestilah senarai indeks lajur (nombor bulat).")),
@@ -3289,11 +3281,17 @@ pub fn builtin_cari_pecahan_terbaik(args: &[Value], pos: LineCol) -> Result<Valu
         pasangan.clear();
         for (i, b) in baris.iter().enumerate() {
             match b.get(f) {
-                Some(Value::Nombor(v)) => pasangan.push((*v, indeks_label[i])),
+                Some(Value::Nombor(v)) => {
+                    pasangan.push((if v.is_nan() { f64::NAN } else { *v }, indeks_label[i]))
+                }
                 _ => return Err(ralat("Nilai ciri dalam X mestilah nombor.")),
             }
         }
-        pasangan.sort_by(|a, b| a.0.total_cmp(&b.0));
+        pasangan.sort_by(|a, b| banding_nan_akhir(a.0, b.0));
+        if pasangan[0].0 == pasangan[n - 1].0 || pasangan[0].0.is_nan() {
+            continue;
+        }
+        ada_ciri_berubah = true;
         let mut kiri = vec![0usize; k];
         let mut kanan = jumlah.clone();
         for i in 0..n - 1 {
@@ -3301,14 +3299,16 @@ pub fn builtin_cari_pecahan_terbaik(args: &[Value], pos: LineCol) -> Result<Valu
             kiri[c] += 1;
             kanan[c] -= 1;
             let v_seterusnya = pasangan[i + 1].0;
-            if v == v_seterusnya {
+            if v == v_seterusnya || v.is_nan() {
                 continue;
             }
+            let tengah = v / 2.0 + v_seterusnya / 2.0;
+            let ambang = if v <= tengah && tengah < v_seterusnya { tengah } else { v };
             let n_kiri = i + 1;
             let n_kanan = n - n_kiri;
             let skor = (n_kiri as f64 * gini(&kiri, n_kiri) + n_kanan as f64 * gini(&kanan, n_kanan)) / n as f64;
             if !matches!(terbaik, Some((s, _, _)) if s <= skor) {
-                terbaik = Some((skor, f, (v + v_seterusnya) / 2.0));
+                terbaik = Some((skor, f, ambang));
             }
         }
     }

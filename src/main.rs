@@ -30,16 +30,34 @@ fn ambil_pilihan_had_langkah(args: &mut Vec<String>) {
     env::set_var("MELAYU_HAD_LANGKAH", nilai);
 }
 
-const SAIZ_TINDANAN_UTAMA: usize = 256 * 1024 * 1024;
+const SAIZ_TINDANAN: [usize; 3] = [256 * 1024 * 1024, 64 * 1024 * 1024, 16 * 1024 * 1024];
 
 fn main() {
-    let utas = std::thread::Builder::new()
-        .name("melayu-utama".to_string())
-        .stack_size(SAIZ_TINDANAN_UTAMA)
-        .spawn(main_utama)
-        .expect("gagal memulakan utas utama");
-    if utas.join().is_err() {
-        process::exit(101);
+    for saiz in SAIZ_TINDANAN {
+        let utas = std::thread::Builder::new()
+            .name("melayu-utama".to_string())
+            .stack_size(saiz)
+            .spawn(move || {
+                melayu_core::tindanan::tetapkan_saiz(saiz);
+                main_utama();
+            });
+        if let Ok(utas) = utas {
+            if utas.join().is_err() {
+                process::exit(101);
+            }
+            return;
+        }
+    }
+    main_utama();
+}
+
+fn folder_sandbox(nilai: &str) -> std::path::PathBuf {
+    match std::path::Path::new(nilai).canonicalize() {
+        Ok(folder) if folder.is_dir() => folder,
+        _ => {
+            eprintln!("\x1b[1;31mAlamak! Folder sandbox '{}' tidak wujud.\x1b[0m", nilai);
+            process::exit(1);
+        }
     }
 }
 
@@ -56,28 +74,30 @@ fn ambil_pilihan_sandbox(args: &mut Vec<String>) -> Option<std::path::PathBuf> {
         }
     };
     args.remove(i);
-    let folder = std::path::PathBuf::from(&nilai);
-    if !folder.is_dir() {
-        eprintln!("\x1b[1;31mAlamak! Folder sandbox '{}' tidak wujud.\x1b[0m", nilai);
-        process::exit(1);
-    }
-    Some(folder)
+    Some(folder_sandbox(&nilai))
 }
 
-fn tentukan_akar_sandbox(pilihan: Option<std::path::PathBuf>, skrip: Option<&str>) -> Option<std::path::PathBuf> {
+fn tentukan_akar_sandbox(
+    pilihan: Option<std::path::PathBuf>,
+    skrip: Option<&str>,
+) -> Option<std::path::PathBuf> {
     if pilihan.is_some() {
         return pilihan;
     }
     if let Ok(v) = env::var("MELAYU_SANDBOX") {
         if !v.trim().is_empty() {
-            return Some(std::path::PathBuf::from(v));
+            return Some(folder_sandbox(v.trim()));
         }
     }
     let folder = std::path::Path::new(skrip?).canonicalize().ok()?.parent()?.to_path_buf();
+    let rumah = env::var_os("HOME")
+        .or_else(|| env::var_os("USERPROFILE"))
+        .and_then(|r| std::path::PathBuf::from(r).canonicalize().ok());
     let projek = folder
         .ancestors()
-        .find(|nenek| nenek.join("pakej.json").is_file())
-        .map(|p| p.to_path_buf());
+        .take_while(|f| f.parent().is_some() && Some(*f) != rumah.as_deref())
+        .find(|f| f.join("pakej.json").is_file())
+        .map(|f| f.to_path_buf());
     Some(projek.unwrap_or(folder))
 }
 
@@ -86,7 +106,7 @@ fn main_utama() {
     ambil_pilihan_had_langkah(&mut args);
     let pilihan_sandbox = ambil_pilihan_sandbox(&mut args);
     let skrip = match args.get(1).map(|s| s.as_str()) {
-        Some("jalankan" | "run" | "uji" | "test" | "tanda-aras" | "benchmark") => args.get(2).cloned(),
+        Some("jalankan" | "run" | "semak" | "check" | "uji" | "test" | "tanda-aras" | "benchmark") => args.get(2).cloned(),
         Some(fail) if fail.ends_with(".ml") => Some(fail.to_string()),
         _ => None,
     };
@@ -946,6 +966,8 @@ fn jalankan_taman_permainan(port: u16) {
                 .env_remove("MELAYU_HAD_LANGKAH")
                 .env_remove("MELAYU_SANDBOX")
                 .current_dir(&tmp_dir)
+                .arg("--sandbox")
+                .arg(&tmp_dir)
                 .arg(&tmp_path)
                 .stdout(process::Stdio::piped())
                 .stderr(process::Stdio::piped())

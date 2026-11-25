@@ -16,7 +16,9 @@ pub struct MelayuError {
     pub suggestion: Option<String>, // Cadangan cara betulkan
     pub line: usize,
     pub column: usize,
-    pub source_line: Option<String>,
+    pub source_line: Option<Box<str>>,
+    pub modul: Option<Box<String>>,
+    pub asal_ditanda: bool,
 }
 
 impl MelayuError {
@@ -29,6 +31,8 @@ impl MelayuError {
             line,
             column,
             source_line: None,
+            modul: None,
+            asal_ditanda: false,
         }
     }
 
@@ -43,7 +47,7 @@ impl MelayuError {
     }
 
     pub fn with_source(mut self, source_line: &str) -> Self {
-        self.source_line = Some(source_line.to_string());
+        self.source_line = Some(source_line.into());
         self
     }
 
@@ -60,6 +64,8 @@ impl MelayuError {
             line,
             column: col,
             source_line: None,
+            modul: None,
+            asal_ditanda: false,
         }
     }
 
@@ -75,6 +81,8 @@ impl MelayuError {
             line,
             column: col,
             source_line: None,
+            modul: None,
+            asal_ditanda: false,
         }
     }
 
@@ -93,6 +101,8 @@ impl MelayuError {
             line,
             column: col,
             source_line: None,
+            modul: None,
+            asal_ditanda: false,
         }
     }
 
@@ -111,6 +121,8 @@ impl MelayuError {
             line,
             column: col,
             source_line: None,
+            modul: None,
+            asal_ditanda: false,
         }
     }
 
@@ -123,6 +135,8 @@ impl MelayuError {
             line,
             column: col,
             source_line: None,
+            modul: None,
+            asal_ditanda: false,
         }
     }
 
@@ -138,6 +152,8 @@ impl MelayuError {
             line,
             column: col,
             source_line: None,
+            modul: None,
+            asal_ditanda: false,
         }
     }
 
@@ -155,7 +171,36 @@ impl MelayuError {
             line,
             column: col,
             source_line: None,
+            modul: None,
+            asal_ditanda: false,
         }
+    }
+
+    pub fn tandakan_asal(mut self, modul: Option<&str>, kandungan: &str) -> Self {
+        if self.asal_ditanda {
+            return self;
+        }
+        self.asal_ditanda = true;
+        if let Some(nama) = modul {
+            self.modul = Some(Box::new(nama.to_string()));
+            if self.source_line.is_none() {
+                self.source_line = kandungan
+                    .lines()
+                    .nth(self.line.saturating_sub(1))
+                    .map(|b| b.into());
+            }
+        }
+        self
+    }
+
+    pub fn tindanan_penuh(line: usize, col: usize) -> Self {
+        Self::new(
+            "Alamak!",
+            "Program terlalu dalam: ungkapan bersarang atau rekursi melebihi ruang tindanan yang selamat.",
+            line,
+            col,
+        )
+        .with_suggestion("Kurangkan kedalaman rekursi atau pecahkan ungkapan yang panjang.")
     }
 
     pub fn rekursi_berlebihan(had: usize, line: usize, col: usize) -> Self {
@@ -173,6 +218,8 @@ impl MelayuError {
             line,
             column: col,
             source_line: None,
+            modul: None,
+            asal_ditanda: false,
         }
     }
 
@@ -191,6 +238,8 @@ impl MelayuError {
             line,
             column: col,
             source_line: None,
+            modul: None,
+            asal_ditanda: false,
         }
     }
 
@@ -205,6 +254,8 @@ impl MelayuError {
             line,
             column: col,
             source_line: None,
+            modul: None,
+            asal_ditanda: false,
         }
     }
 
@@ -220,6 +271,8 @@ impl MelayuError {
             line,
             column: col,
             source_line: None,
+            modul: None,
+            asal_ditanda: false,
         }
     }
 
@@ -235,17 +288,26 @@ impl MelayuError {
             line,
             column: col,
             source_line: None,
+            modul: None,
+            asal_ditanda: false,
         }
     }
 }
 
 impl fmt::Display for MelayuError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(
-            f,
-            "{} Ada ralat di baris {}, lajur {}:",
-            self.title, self.line, self.column
-        )?;
+        match &self.modul {
+            Some(nama) => writeln!(
+                f,
+                "{} Ada ralat dalam modul '{}' di baris {}, lajur {}:",
+                self.title, nama, self.line, self.column
+            )?,
+            None => writeln!(
+                f,
+                "{} Ada ralat di baris {}, lajur {}:",
+                self.title, self.line, self.column
+            )?,
+        }
         if let Some(src) = &self.source_line {
             let aksara: Vec<char> = src.chars().collect();
             let lajur = self.column.max(1) - 1;
