@@ -74,6 +74,37 @@ pub enum Value {
     },
 }
 
+thread_local! {
+    static SEDANG_DIPAPAR: RefCell<std::collections::HashSet<usize>> = RefCell::new(std::collections::HashSet::new());
+    static SEDANG_DIBANDING: RefCell<std::collections::HashSet<(usize, usize)>> = RefCell::new(std::collections::HashSet::new());
+}
+
+fn papar_bekas(
+    f: &mut fmt::Formatter<'_>,
+    alamat: usize,
+    ganti: &str,
+    papar: impl FnOnce(&mut fmt::Formatter<'_>) -> fmt::Result,
+) -> fmt::Result {
+    if !SEDANG_DIPAPAR.with(|s| s.borrow_mut().insert(alamat)) {
+        return write!(f, "{}", ganti);
+    }
+    let hasil = papar(f);
+    SEDANG_DIPAPAR.with(|s| s.borrow_mut().remove(&alamat));
+    hasil
+}
+
+fn banding_bekas(a: usize, b: usize, banding: impl FnOnce() -> bool) -> bool {
+    if a == b {
+        return true;
+    }
+    if !SEDANG_DIBANDING.with(|s| s.borrow_mut().insert((a, b))) {
+        return true;
+    }
+    let hasil = banding();
+    SEDANG_DIBANDING.with(|s| s.borrow_mut().remove(&(a, b)));
+    hasil
+}
+
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -82,13 +113,26 @@ impl PartialEq for Value {
             (Value::Salah, Value::Salah) => true,
             (Value::Nombor(a), Value::Nombor(b)) => a == b,
             (Value::Teks(a), Value::Teks(b)) => a == b,
-            (Value::Senarai(a), Value::Senarai(b)) => *a.borrow() == *b.borrow(),
-            (Value::Kamus(a), Value::Kamus(b)) => *a.borrow() == *b.borrow(),
+            (Value::Senarai(a), Value::Senarai(b)) => banding_bekas(
+                Rc::as_ptr(a) as *const () as usize,
+                Rc::as_ptr(b) as *const () as usize,
+                || *a.borrow() == *b.borrow(),
+            ),
+            (Value::Kamus(a), Value::Kamus(b)) => banding_bekas(
+                Rc::as_ptr(a) as *const () as usize,
+                Rc::as_ptr(b) as *const () as usize,
+                || *a.borrow() == *b.borrow(),
+            ),
             (Value::Fungsi { nama: a, .. }, Value::Fungsi { nama: b, .. }) => a == b,
             (Value::Bawaan(a, _), Value::Bawaan(b, _)) => a == b,
             (Value::Kelas(a), Value::Kelas(b)) => a == b,
             (Value::Objek(a), Value::Objek(b)) => {
-                a.nama_kelas == b.nama_kelas && *a.sifat.borrow() == *b.sifat.borrow()
+                a.nama_kelas == b.nama_kelas
+                    && banding_bekas(
+                        Rc::as_ptr(&a.sifat) as *const () as usize,
+                        Rc::as_ptr(&b.sifat) as *const () as usize,
+                        || *a.sifat.borrow() == *b.sifat.borrow(),
+                    )
             }
             (Value::Induk(a), Value::Induk(b)) => a == b,
             (Value::Tensor { data: d1, shape: s1 }, Value::Tensor { data: d2, shape: s2 }) => {
@@ -136,7 +180,7 @@ impl fmt::Display for Value {
                 }
             }
             Value::Teks(s) => write!(f, "{}", s),
-            Value::Senarai(list) => {
+            Value::Senarai(list) => papar_bekas(f, Rc::as_ptr(list) as *const () as usize, "[...]", |f| {
                 write!(f, "[")?;
                 let borrowed = list.borrow();
                 for (i, v) in borrowed.iter().enumerate() {
@@ -150,8 +194,8 @@ impl fmt::Display for Value {
                     }
                 }
                 write!(f, "]")
-            }
-            Value::Kamus(map) => {
+            }),
+            Value::Kamus(map) => papar_bekas(f, Rc::as_ptr(map) as *const () as usize, "kamus {...}", |f| {
                 write!(f, "kamus {{")?;
                 let borrowed = map.borrow();
                 let mut first = true;
@@ -168,11 +212,11 @@ impl fmt::Display for Value {
                     }
                 }
                 write!(f, "}}")
-            }
+            }),
             Value::Fungsi { nama, .. } => write!(f, "<kerja: {}>", nama),
             Value::Bawaan(nama, _) => write!(f, "<kerja terbina-dalam: {}>", nama),
             Value::Kelas(k) => write!(f, "<kelas {}>", k.nama),
-            Value::Objek(o) => {
+            Value::Objek(o) => papar_bekas(f, Rc::as_ptr(&o.sifat) as *const () as usize, "<objek ...>", |f| {
                 write!(f, "<objek {}: {{", o.nama_kelas)?;
                 let borrowed = o.sifat.borrow();
                 let mut first = true;
@@ -184,7 +228,7 @@ impl fmt::Display for Value {
                     write!(f, "{}: {}", k, v)?;
                 }
                 write!(f, "}}>")
-            }
+            }),
             Value::Induk(i) => write!(f, "<induk: {}>", i.nama_induk),
             Value::Tensor { data, shape } => {
                 if shape.len() == 2 {

@@ -2,14 +2,21 @@ use crate::ast::*;
 use crate::errors::{ErrorKind, MelayuError};
 use crate::tokens::{Token, TokenKind};
 
+pub const HAD_KEDALAMAN_UNGKAPAN: usize = 5_000;
+
 pub struct Parser {
     tokens: Vec<Token>,
     cursor: usize,
+    kedalaman: usize,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, cursor: 0 }
+        Self {
+            tokens,
+            cursor: 0,
+            kedalaman: 0,
+        }
     }
 
     pub fn parse(&mut self) -> Result<Program, MelayuError> {
@@ -1135,10 +1142,33 @@ impl Parser {
     // ----------------------------------------------------
 
     pub fn parse_expression(&mut self) -> Result<Expr, MelayuError> {
-        self.parse_pipeline()
+        self.masuk()?;
+        let hasil = self.parse_pipeline();
+        self.kedalaman -= 1;
+        hasil
+    }
+
+    fn masuk(&mut self) -> Result<(), MelayuError> {
+        self.kedalaman += 1;
+        if self.kedalaman > HAD_KEDALAMAN_UNGKAPAN {
+            let cur = self.peek();
+            return Err(MelayuError::new(
+                "Alamak!",
+                &format!(
+                    "Ungkapan terlalu bersarang atau terlalu panjang (melebihi {} peringkat).",
+                    HAD_KEDALAMAN_UNGKAPAN
+                ),
+                cur.line,
+                cur.column,
+            )
+            .with_kind(ErrorKind::Parser)
+            .with_suggestion("Pecahkan ungkapan kepada beberapa pembolehubah yang lebih kecil."));
+        }
+        Ok(())
     }
 
     fn parse_pipeline(&mut self) -> Result<Expr, MelayuError> {
+        let asal = self.kedalaman;
         let mut left = self.parse_null_coalesce()?;
 
         loop {
@@ -1161,15 +1191,18 @@ impl Parser {
                     kanan: Box::new(right),
                     pos,
                 };
+                self.masuk()?;
             } else {
                 break;
             }
         }
 
+        self.kedalaman = asal;
         Ok(left)
     }
 
     fn parse_null_coalesce(&mut self) -> Result<Expr, MelayuError> {
+        let asal = self.kedalaman;
         let mut left = self.parse_logic_or()?;
 
         loop {
@@ -1192,15 +1225,18 @@ impl Parser {
                     kanan: Box::new(right),
                     pos,
                 };
+                self.masuk()?;
             } else {
                 break;
             }
         }
 
+        self.kedalaman = asal;
         Ok(left)
     }
 
     fn parse_logic_or(&mut self) -> Result<Expr, MelayuError> {
+        let asal = self.kedalaman;
         let mut left = self.parse_logic_and()?;
 
         while self.check(TokenKind::Atau) {
@@ -1213,12 +1249,15 @@ impl Parser {
                 right: Box::new(right),
                 pos,
             };
+            self.masuk()?;
         }
 
+        self.kedalaman = asal;
         Ok(left)
     }
 
     fn parse_logic_and(&mut self) -> Result<Expr, MelayuError> {
+        let asal = self.kedalaman;
         let mut left = self.parse_equality()?;
 
         while self.check(TokenKind::Dan) {
@@ -1231,12 +1270,15 @@ impl Parser {
                 right: Box::new(right),
                 pos,
             };
+            self.masuk()?;
         }
 
+        self.kedalaman = asal;
         Ok(left)
     }
 
     fn parse_equality(&mut self) -> Result<Expr, MelayuError> {
+        let asal = self.kedalaman;
         let mut left = self.parse_comparison()?;
 
         while self.check(TokenKind::SamaDengan) || self.check(TokenKind::TidakSama) {
@@ -1254,12 +1296,15 @@ impl Parser {
                 right: Box::new(right),
                 pos,
             };
+            self.masuk()?;
         }
 
+        self.kedalaman = asal;
         Ok(left)
     }
 
     fn parse_comparison(&mut self) -> Result<Expr, MelayuError> {
+        let asal = self.kedalaman;
         let mut left = self.parse_term()?;
 
         while self.check(TokenKind::Lebih)
@@ -1283,12 +1328,15 @@ impl Parser {
                 right: Box::new(right),
                 pos,
             };
+            self.masuk()?;
         }
 
+        self.kedalaman = asal;
         Ok(left)
     }
 
     fn parse_term(&mut self) -> Result<Expr, MelayuError> {
+        let asal = self.kedalaman;
         let mut left = self.parse_factor()?;
 
         while self.check(TokenKind::Tambah) || self.check(TokenKind::Tolak) {
@@ -1306,12 +1354,15 @@ impl Parser {
                 right: Box::new(right),
                 pos,
             };
+            self.masuk()?;
         }
 
+        self.kedalaman = asal;
         Ok(left)
     }
 
     fn parse_factor(&mut self) -> Result<Expr, MelayuError> {
+        let asal = self.kedalaman;
         let mut left = self.parse_unary()?;
 
         while self.check(TokenKind::Kali)
@@ -1335,8 +1386,10 @@ impl Parser {
                 right: Box::new(right),
                 pos,
             };
+            self.masuk()?;
         }
 
+        self.kedalaman = asal;
         Ok(left)
     }
 
@@ -1349,7 +1402,9 @@ impl Parser {
             } else {
                 UnaryOp::Bukan
             };
+            self.masuk()?;
             let expr = self.parse_unary()?;
+            self.kedalaman -= 1;
             return Ok(Expr::Unary {
                 op,
                 expr: Box::new(expr),
@@ -1361,6 +1416,7 @@ impl Parser {
     }
 
     fn parse_call_and_index(&mut self) -> Result<Expr, MelayuError> {
+        let asal = self.kedalaman;
         let mut expr = self.parse_primary()?;
 
         loop {
@@ -1531,8 +1587,10 @@ impl Parser {
             } else {
                 break;
             }
+            self.masuk()?;
         }
 
+        self.kedalaman = asal;
         Ok(expr)
     }
 
