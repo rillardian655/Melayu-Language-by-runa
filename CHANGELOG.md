@@ -35,6 +35,8 @@ Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut
 
 
 
+## [0.3.0] - 2026-11-23
+
 ### Ditambah (Added)
 - **Sistem Pengaturcaraan Berorientasikan Objek (OOP) Natif**:
   - `kelas <Nama> ... selesai`: Pengisytiharan struktur kelas.
