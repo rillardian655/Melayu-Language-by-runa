@@ -136,7 +136,7 @@ Bahasa MELAYU dilengkapi dengan benteng keselamatan aras enjin untuk melindungi 
    - Menyokong indeks negatif yang sah (contoh `senarai[-1]` untuk elemen terakhir).
 4. **Perlindungan 'Path Traversal'**: Operasi fail (`bacaFail`, `tulisFail`, `wujudFail`, `padamFail`) disekat daripada mengakses luar direktori kerja projek.
 5. **Had Saiz Fail**: Bacaan dan penulisan fail dihadkan kepada saiz maksimum 5 MB.
-6. **Sempadan sandbox fail ialah direktori kerja semasa** (tempat arahan `melayu` dijalankan), bukan folder fail `.ml`. Jalankan program dari folder projek.
+6. **Sempadan sandbox fail ialah folder projek**: folder terdekat yang mengandungi `pakej.json`, atau folder fail `.ml` jika tiada. Laluan relatif seperti `bacaFail("data/x.csv")` dan `ambil "modul.ml"` dibaca dari folder itu, jadi program berkelakuan sama walau dari mana ia dijalankan. Guna `--sandbox <folder>` atau `MELAYU_SANDBOX` untuk menukarnya. REPL masih menggunakan direktori kerja semasa.
 7. **Anti-SSRF**: `hantarPermintaanHTTP` menyemak alamat IP sebenar hos dan menyekat alamat link-local dan metadata awan. Localhost dan rangkaian peribadi dibenarkan untuk pembangunan tempatan. Hanya `http://` disokong (tiada TLS).
 
 ---

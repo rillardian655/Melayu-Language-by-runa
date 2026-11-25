@@ -4,7 +4,7 @@
 tunjuk "=== DEMO SISTEM MODUL & ALAT LANJUTAN MELAYU ==="
 
 # 1. Mengimport fungsi terpilih daripada modul luar
-ambil kiraDiskaun, adakahGenap, purata daripada "examples/matematik_modul.ml"
+ambil kiraDiskaun, adakahGenap, purata daripada "matematik_modul.ml"
 
 ada hargaAsal = 100000
 ada hargaDiskaun = kiraDiskaun(hargaAsal, 25)
@@ -17,7 +17,7 @@ ada senaraiGaji = [3500, 4200, 5000, 6100]
 tunjuk "   Purata gaji pekerja:", purata(senaraiGaji)
 
 # 2. Mengimport modul sebagai ruang nama (Kamus / Namespace)
-ambil "examples/matematik_modul.ml" sebagai ModulMatematik
+ambil "matematik_modul.ml" sebagai ModulMatematik
 tunjuk "2. Nilai PI daripada modul:", ModulMatematik["PI"]
 
 # 3. Manipulasi Teks & Koleksi Lanjutan

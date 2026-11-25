@@ -553,6 +553,12 @@ pub fn builtin_rawak(args: &[Value], pos: LineCol) -> Result<Value, MelayuError>
 pub const HAD_SAIZ_FAIL_MAKSIMUM: u64 = 5 * 1024 * 1024; // 5 MB
 pub const HAD_ELEMEN_TENSOR_MAKSIMUM: usize = 1_000_000; // 1 juta elemen (~8 MB)
 
+static AKAR_SANDBOX: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+pub fn tetapkan_akar_sandbox(akar: PathBuf) {
+    let _ = AKAR_SANDBOX.set(akar.canonicalize().unwrap_or(akar));
+}
+
 pub fn semak_laluan_selamat(
     laluan_str: &str,
     untuk_menulis: bool,
@@ -607,6 +613,8 @@ pub fn semak_laluan_selamat(
         )
     })?;
     let can_base = base.canonicalize().unwrap_or(base);
+    let akar = AKAR_SANDBOX.get().cloned().unwrap_or_else(|| can_base.clone());
+    let di_luar = format!("Laluan ini berada di luar sandbox projek ({}).", akar.display());
 
     if p.is_absolute() {
         if p.exists() {
@@ -618,10 +626,10 @@ pub fn semak_laluan_selamat(
                     pos.col,
                 )
             })?;
-            if !can_target.starts_with(&can_base) {
+            if !can_target.starts_with(&akar) {
                 return Err(MelayuError::akses_fail_disekat(
                     laluan_str,
-                    "Akses ke laluan fail di luar direktori kerja disekat.",
+                    &di_luar,
                     pos.line,
                     pos.col,
                 ));
@@ -636,10 +644,10 @@ pub fn semak_laluan_selamat(
                     pos.col,
                 ));
             }
-            if !p.starts_with(&can_base) {
+            if !p.starts_with(&akar) {
                 return Err(MelayuError::akses_fail_disekat(
                     laluan_str,
-                    "Laluan mutlak sasaran berada di luar direktori kerja.",
+                    &di_luar,
                     pos.line,
                     pos.col,
                 ));
@@ -647,7 +655,7 @@ pub fn semak_laluan_selamat(
             Ok(p.to_path_buf())
         }
     } else {
-        let combined = can_base.join(p);
+        let combined = akar.join(p);
         if combined.exists() {
             let can_target = combined.canonicalize().map_err(|e| {
                 MelayuError::akses_fail_disekat(
@@ -657,10 +665,10 @@ pub fn semak_laluan_selamat(
                     pos.col,
                 )
             })?;
-            if !can_target.starts_with(&can_base) {
+            if !can_target.starts_with(&akar) {
                 return Err(MelayuError::akses_fail_disekat(
                     laluan_str,
-                    "Laluan fail terkeluar daripada sandbox.",
+                    &di_luar,
                     pos.line,
                     pos.col,
                 ));
@@ -686,10 +694,10 @@ pub fn semak_laluan_selamat(
                                 pos.col,
                             )
                         })?;
-                        if !can_parent.starts_with(&can_base) {
+                        if !can_parent.starts_with(&akar) {
                             return Err(MelayuError::akses_fail_disekat(
                                 laluan_str,
-                                "Direktori sasaran di luar direktori kerja dibenarkan.",
+                                &di_luar,
                                 pos.line,
                                 pos.col,
                             ));

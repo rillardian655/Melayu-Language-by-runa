@@ -14,6 +14,7 @@ Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut
 - Kamus boleh memanggil fungsi yang disimpan di dalamnya (`Modul.fungsi()` selepas `ambil ... sebagai Modul`).
 
 ### Diubah (Changed)
+- **Perubahan tidak serasi:** sempadan sandbox fail kini folder projek (folder terdekat dengan `pakej.json`, atau folder fail `.ml`), bukan direktori kerja semasa, dan laluan relatif dibaca dari folder itu. Pilihan `--sandbox <folder>` dan `MELAYU_SANDBOX` ditambah untuk menukarnya.
 - `kamus` dan sifat objek kini mengekalkan susunan kunci mengikut urutan masuk; `tulisJSON` mengikut susunan yang sama.
 - Pendaraban matriks pada GPU kini FP32 (`sgemm`); `infoPerkakas()` memaparkan `ketepatan_gpu`.
 - `HutanRawak` menimbang `sqrt(bilangan ciri)` ciri rawak pada setiap pecahan.

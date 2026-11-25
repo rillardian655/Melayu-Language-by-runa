@@ -229,7 +229,7 @@ impl MelayuError {
             title: "Woy!".to_string(),
             message: format!("Akses fail keselamatan disekat untuk '{}': {}", laluan, sebab),
             suggestion: Some(
-                "Operasi fail dihadkan kepada direktori kerja semasa dan saiz fail maksimum 5 MB demi keselamatan."
+                "Operasi fail dihadkan kepada folder projek (folder yang mengandungi pakej.json, atau folder fail .ml) dan saiz maksimum 5 MB. Guna --sandbox <folder> untuk menukar sempadan ini."
                     .to_string(),
             ),
             line,
