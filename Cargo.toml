@@ -2,6 +2,7 @@
 name = "melayu"
 version = "0.4.1"
 edition = "2021"
+rust-version = "1.75"
 authors = ["xianly runa <rillardian655@gmail.com>", "Tim Bahasa Melayu"]
 description = "Bahasa pemrograman serumpun untuk serumpun developer (Indonesia, Malaysia, Brunei, Singapura)"
 license = "MIT"
@@ -12,11 +13,12 @@ categories = ["command-line-utilities", "development-tools"]
 
 [features]
 default = ["https"]
-https = ["dep:rustls", "dep:webpki-roots"]
+https = ["dep:rustls", "dep:webpki-roots", "dep:zeroize"]
 
 [dependencies]
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"], optional = true }
 webpki-roots = { version = "1.0.12", optional = true }
+zeroize = { version = ">=1.8, <1.9", default-features = false, optional = true }
 
 [[bin]]
 name = "melayu"
