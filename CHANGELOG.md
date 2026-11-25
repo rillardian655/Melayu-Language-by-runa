@@ -5,6 +5,7 @@ Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut
 ## [Belum Dikeluarkan]
 
 ### Ditambah (Added)
+- `hantarPermintaanHTTP` menyokong `https://` melalui rustls (ciri cargo `https`, aktif secara lalai). Sijil disahkan dengan senarai CA Mozilla.
 - Pilihan `--had-langkah <n>` dan pemboleh ubah persekitaran `MELAYU_HAD_LANGKAH` untuk menaikkan atau mematikan (`0`) had 10 juta langkah.
 - `benihRawak(n)` untuk keputusan `rawak()` dan `rawakTensor()` yang boleh diulang.
 - `cariPecahanTerbaik(X, y, senaraiCiri)`: carian pecahan Gini asli yang digunakan oleh `PokokKeputusan`.
@@ -21,6 +22,7 @@ Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut
 - `muatIris()` kini memulangkan kesemua 150 rekod dataset Iris (sebelum ini 30).
 
 ### Dibaiki (Fixed)
+- Respons HTTP dengan `Transfer-Encoding: chunked` kini dinyahkod; sebelum ini saiz cebisan (contoh `241`) muncul di dalam `badan`.
 - Proses tamat dengan stack overflow apabila memaparkan atau membandingkan senarai/kamus yang merujuk diri sendiri, atau apabila ungkapan sangat bersarang.
 - `tulisFail` melalui pautan simbolik rosak boleh menulis di luar direktori kerja.
 - Semakan anti-SSRF boleh dipintas dengan bentuk alamat lain (`2852039166`, `0xa9fea9fe`, `[::ffff:169.254.169.254]`).

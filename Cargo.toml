@@ -10,7 +10,13 @@ repository = "https://github.com/rillardian655/Melayu-Language-by-runa"
 keywords = ["programming-language", "interpreter", "melayu", "education", "bahasa-melayu"]
 categories = ["command-line-utilities", "development-tools"]
 
+[features]
+default = ["https"]
+https = ["dep:rustls", "dep:webpki-roots"]
+
 [dependencies]
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"], optional = true }
+webpki-roots = { version = "1.0.12", optional = true }
 
 [[bin]]
 name = "melayu"
