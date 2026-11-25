@@ -207,8 +207,12 @@ kelas PengelasKNN
             selesai
 
             ada n = panjang(jarak_senarai)
+            ada had_isih = diri.k
+            jika had_isih > n
+                had_isih = n
+            selesai
             ada a = 0
-            selagi a < n
+            selagi a < had_isih
                 ada min_idx = a
                 ada b = a + 1
                 selagi b < n
@@ -716,6 +720,34 @@ kelas PokokKeputusan
         selesai
         diri.kedalamanMaks = k
         diri.pokok = kosong
+        diri.maksCiri = kosong
+    selesai
+
+    kerja pilihCiri(n_ciri)
+        ada semua = []
+        ada i = 0
+        selagi i < n_ciri
+            semua.tambah(i)
+            i = i + 1
+        selesai
+        jika diri.maksCiri == kosong atau diri.maksCiri >= n_ciri
+            pulang semua
+        selesai
+        ada a = 0
+        selagi a < diri.maksCiri
+            ada b = rawak(a, n_ciri - 1)
+            ada sementara = semua[a]
+            semua[a] = semua[b]
+            semua[b] = sementara
+            a = a + 1
+        selesai
+        ada pilihan = []
+        ada c = 0
+        selagi c < diri.maksCiri
+            pilihan.tambah(semua[c])
+            c = c + 1
+        selesai
+        pulang pilihan
     selesai
 
     kerja kiraGini(y_label)
@@ -789,58 +821,27 @@ kelas PokokKeputusan
             pulang {"jenis": "daun", "kelas": maj}
         selesai
 
-        ada n_ciri = panjang(X[0])
-        ada skor_terbaik = 1000.0
-        ada ciri_terbaik = kosong
-        ada ambang_terbaik = kosong
+        ada pecahan = cariPecahanTerbaik(X, y, diri.pilihCiri(panjang(X[0])))
+        jika pecahan == kosong
+            pulang {"jenis": "daun", "kelas": maj}
+        selesai
+        ada ciri_terbaik = pecahan["ciri"]
+        ada ambang_terbaik = pecahan["ambang"]
+
         ada X_kiri_t = []
         ada y_kiri_t = []
         ada X_kanan_t = []
         ada y_kanan_t = []
-
-        ada f = 0
-        selagi f < n_ciri
-            ada s_idx = 0
-            selagi s_idx < n_sampel
-                ada ambang = X[s_idx][f]
-                ada X_kiri = []
-                ada y_kiri = []
-                ada X_kanan = []
-                ada y_kanan = []
-
-                ada i = 0
-                selagi i < n_sampel
-                    jika X[i][f] <= ambang
-                        X_kiri.tambah(X[i])
-                        y_kiri.tambah(y[i])
-                    jika tidak
-                        X_kanan.tambah(X[i])
-                        y_kanan.tambah(y[i])
-                    selesai
-                    i = i + 1
-                selesai
-
-                jika panjang(X_kiri) > 0 && panjang(X_kanan) > 0
-                    ada gini_kiri = diri.kiraGini(y_kiri)
-                    ada gini_kanan = diri.kiraGini(y_kanan)
-                    ada skor_pembahagian = (panjang(X_kiri) / n_sampel * gini_kiri) + (panjang(X_kanan) / n_sampel * gini_kanan)
-                    jika skor_pembahagian < skor_terbaik
-                        skor_terbaik = skor_pembahagian
-                        ciri_terbaik = f
-                        ambang_terbaik = ambang
-                        X_kiri_t = X_kiri
-                        y_kiri_t = y_kiri
-                        X_kanan_t = X_kanan
-                        y_kanan_t = y_kanan
-                    selesai
-                selesai
-                s_idx = s_idx + 1
+        ada i = 0
+        selagi i < n_sampel
+            jika X[i][ciri_terbaik] <= ambang_terbaik
+                X_kiri_t.tambah(X[i])
+                y_kiri_t.tambah(y[i])
+            jika tidak
+                X_kanan_t.tambah(X[i])
+                y_kanan_t.tambah(y[i])
             selesai
-            f = f + 1
-        selesai
-
-        jika ciri_terbaik == kosong
-            pulang {"jenis": "daun", "kelas": maj}
+            i = i + 1
         selesai
 
         ada cabang_kiri = diri.binaNod(X_kiri_t, y_kiri_t, kedalaman + 1)
@@ -1206,6 +1207,7 @@ kelas HutanRawak
             selesai
 
             ada pokok = PokokKeputusan(diri.kedalamanMaks)
+            pokok.maksCiri = maksimum(1, bundar(puncaKuasaDua(panjang(X[0]))))
             pokok.latih(X_boot, y_boot)
             diri.hutan.tambah(pokok)
             p = p + 1

@@ -76,6 +76,8 @@ pub fn daftar_fungsi_bawaan() -> Vec<(&'static str, BuiltinFn)> {
         ("sifarTensor", builtin_sifar_tensor),
         ("satuTensor", builtin_satu_tensor),
         ("rawakTensor", builtin_rawak_tensor),
+        ("benihRawak", builtin_benih_rawak),
+        ("cariPecahanTerbaik", builtin_cari_pecahan_terbaik),
         ("infoPerkakas", builtin_info_perkakas),
         // Kerangka Kerja Web & Rangkaian (Selasih)
         ("mulakanPelayanHTTP", builtin_mulakan_pelayan_http),
@@ -457,6 +459,24 @@ fn jana_nombor_rawak_u64() -> u64 {
     v = (v ^ (v >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
     v = (v ^ (v >> 27)).wrapping_mul(0x94d049bb133111eb);
     v ^ (v >> 31)
+}
+
+pub fn builtin_benih_rawak(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    let benih = match args {
+        [Value::Nombor(n)] if n.is_finite() => *n,
+        _ => {
+            return Err(MelayuError::new(
+                "Alamak!",
+                "Fungsi 'benihRawak' memerlukan 1 hujah nombor, contoh: benihRawak(42).",
+                pos.line,
+                pos.col,
+            )
+            .with_kind(ErrorKind::Runtime))
+        }
+    };
+    let keadaan = (benih as i64 as u64) ^ 0x5851_f42d_4c95_7f2d;
+    PRNG_STATE.store(if keadaan == 0 { 0x853c_49e6_748f_ea9b } else { keadaan }, Ordering::Relaxed);
+    Ok(Value::Kosong)
 }
 
 pub fn builtin_rawak(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
@@ -3062,14 +3082,9 @@ pub fn builtin_rawak_tensor(args: &[Value], pos: LineCol) -> Result<Value, Melay
     }
     let shape = ekstrak_bentuk_tensor(&args[0], pos)?;
     let total: usize = shape.iter().product();
-    let mut seed: u64 = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos() as u64;
     let mut data = Vec::with_capacity(total);
     for _ in 0..total {
-        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-        let u = ((seed >> 11) as f64) / ((1u64 << 53) as f64);
+        let u = ((jana_nombor_rawak_u64() >> 11) as f64) / ((1u64 << 53) as f64);
         data.push(u * 2.0 - 1.0); // julat [-1.0, 1.0]
     }
     Ok(Value::Tensor { data: Rc::new(data), shape })
@@ -3194,3 +3209,104 @@ pub fn builtin_info_perkakas(args: &[Value], pos: LineCol) -> Result<Value, Mela
 
 pub const AKAL_ML_STDLIB: &str = include_str!("../std/akal.ml");
 pub const SELASIH_STDLIB: &str = include_str!("../std/selasih.ml");
+
+pub fn builtin_cari_pecahan_terbaik(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    let ralat = |mesej: &str| {
+        MelayuError::new("Alamak!", mesej, pos.line, pos.col).with_kind(ErrorKind::Runtime)
+    };
+    if args.len() != 3 {
+        return Err(ralat("Fungsi 'cariPecahanTerbaik' memerlukan 3 hujah (X, y, senaraiCiri)."));
+    }
+    let (Value::Senarai(x_rc), Value::Senarai(y_rc), Value::Senarai(ciri_rc)) = (&args[0], &args[1], &args[2]) else {
+        return Err(ralat("Hujah 'cariPecahanTerbaik' mestilah senarai (X, y, senaraiCiri)."));
+    };
+    let x_senarai = x_rc.borrow();
+    let y_senarai = y_rc.borrow();
+    let n = x_senarai.len();
+    if n != y_senarai.len() {
+        return Err(ralat("Bilangan baris X dan y mestilah sama."));
+    }
+    if n < 2 {
+        return Ok(Value::Kosong);
+    }
+
+    let mut label_unik: Vec<String> = Vec::new();
+    let mut indeks_label = Vec::with_capacity(n);
+    for v in y_senarai.iter() {
+        let teks_label = v.to_string();
+        let i = match label_unik.iter().position(|l| *l == teks_label) {
+            Some(i) => i,
+            None => {
+                label_unik.push(teks_label);
+                label_unik.len() - 1
+            }
+        };
+        indeks_label.push(i);
+    }
+    let k = label_unik.len();
+    let mut jumlah = vec![0usize; k];
+    for &c in &indeks_label {
+        jumlah[c] += 1;
+    }
+
+    let baris: Vec<std::cell::Ref<Vec<Value>>> = x_senarai
+        .iter()
+        .map(|b| match b {
+            Value::Senarai(r) => Ok(r.borrow()),
+            _ => Err(ralat("Setiap baris X mestilah senarai nombor.")),
+        })
+        .collect::<Result<_, _>>()?;
+
+    let gini = |kiraan: &[usize], jumlah_n: usize| -> f64 {
+        if jumlah_n == 0 {
+            return 0.0;
+        }
+        let nf = jumlah_n as f64;
+        1.0 - kiraan.iter().map(|&c| (c as f64 / nf).powi(2)).sum::<f64>()
+    };
+
+    let mut terbaik: Option<(f64, usize, f64)> = None;
+    let mut pasangan: Vec<(f64, usize)> = Vec::with_capacity(n);
+    for c in ciri_rc.borrow().iter() {
+        let f = match c {
+            Value::Nombor(f) if *f >= 0.0 && f.fract() == 0.0 => *f as usize,
+            _ => return Err(ralat("senaraiCiri mestilah senarai indeks lajur (nombor bulat).")),
+        };
+        pasangan.clear();
+        for (i, b) in baris.iter().enumerate() {
+            match b.get(f) {
+                Some(Value::Nombor(v)) => pasangan.push((*v, indeks_label[i])),
+                _ => return Err(ralat("Nilai ciri dalam X mestilah nombor.")),
+            }
+        }
+        pasangan.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let mut kiri = vec![0usize; k];
+        let mut kanan = jumlah.clone();
+        for i in 0..n - 1 {
+            let (v, c) = pasangan[i];
+            kiri[c] += 1;
+            kanan[c] -= 1;
+            let v_seterusnya = pasangan[i + 1].0;
+            if v == v_seterusnya {
+                continue;
+            }
+            let n_kiri = i + 1;
+            let n_kanan = n - n_kiri;
+            let skor = (n_kiri as f64 * gini(&kiri, n_kiri) + n_kanan as f64 * gini(&kanan, n_kanan)) / n as f64;
+            if !matches!(terbaik, Some((s, _, _)) if s <= skor) {
+                terbaik = Some((skor, f, (v + v_seterusnya) / 2.0));
+            }
+        }
+    }
+
+    Ok(match terbaik {
+        Some((skor, ciri, ambang)) => {
+            let mut peta = PetaNilai::new();
+            peta.insert("ciri".to_string(), Value::Nombor(ciri as f64));
+            peta.insert("ambang".to_string(), Value::Nombor(ambang));
+            peta.insert("skor".to_string(), Value::Nombor(skor));
+            Value::Kamus(Rc::new(RefCell::new(peta)))
+        }
+        None => Value::Kosong,
+    })
+}
