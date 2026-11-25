@@ -2108,7 +2108,13 @@ pub fn builtin_bahagi_latih_uji(args: &[Value], pos: LineCol) -> Result<Value, M
     let mut y_train = Vec::with_capacity(train_size);
     let mut y_test = Vec::with_capacity(test_size);
 
-    for (i, (x_val, y_val)) in x_list.into_iter().zip(y_list.into_iter()).enumerate() {
+    let mut pasangan: Vec<(Value, Value)> = x_list.into_iter().zip(y_list).collect();
+    for i in (1..pasangan.len()).rev() {
+        let j = (jana_nombor_rawak_u64() % (i as u64 + 1)) as usize;
+        pasangan.swap(i, j);
+    }
+
+    for (i, (x_val, y_val)) in pasangan.into_iter().enumerate() {
         if i < train_size {
             x_train.push(x_val);
             y_train.push(y_val);

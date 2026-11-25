@@ -18,6 +18,7 @@ Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut
 - Pendaraban matriks pada GPU kini FP32 (`sgemm`); `infoPerkakas()` memaparkan `ketepatan_gpu`.
 - `HutanRawak` menimbang `sqrt(bilangan ciri)` ciri rawak pada setiap pecahan.
 - `.isih()` menolak senarai yang mengandungi jenis bercampur.
+- `muatIris()` kini memulangkan kesemua 150 rekod dataset Iris (sebelum ini 30).
 
 ### Dibaiki (Fixed)
 - Proses tamat dengan stack overflow apabila memaparkan atau membandingkan senarai/kamus yang merujuk diri sendiri, atau apabila ungkapan sangat bersarang.
@@ -25,6 +26,7 @@ Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut
 - Semakan anti-SSRF boleh dipintas dengan bentuk alamat lain (`2852039166`, `0xa9fea9fe`, `[::ffff:169.254.169.254]`).
 - Panik semasa memaparkan ralat pada baris yang sangat panjang.
 - Templat `melayu mula --mvc` gagal dijalankan.
+- `bahagiLatihUji` dan `pengesahanSilang` tidak mengocok data, jadi pada dataset yang tersusun mengikut kelas (seperti Iris) set ujian hanya mengandungi satu kelas dan skor K-Fold menjadi 0.
 - Prestasi: badan fungsi dan data tensor tidak lagi disalin pada setiap bacaan (fib(30) kira-kira 2.7x lebih pantas).
 
 
