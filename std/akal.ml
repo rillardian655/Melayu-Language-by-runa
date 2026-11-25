@@ -1165,3 +1165,416 @@ fungsi janaDataSintetik(bilangan_sampel, bilangan_ciri)
         "sasaran": y
     }
 selesai
+
+# ==============================================================================
+# ENSEMBLE LEARNING: HUTAN RAWAK (Random Forest Classifier)
+# ==============================================================================
+
+kelas HutanRawak
+    bina(bilanganPokok, kedalamanMaks)
+        ada bp = bilanganPokok
+        jika bp == kosong
+            bp = 5
+        selesai
+        ada km = kedalamanMaks
+        jika km == kosong
+            km = 4
+        selesai
+        diri.bilanganPokok = bp
+        diri.kedalamanMaks = km
+        diri.hutan = []
+    selesai
+
+    kerja latih(X, y)
+        ada n_sampel = panjang(X)
+        jika n_sampel == 0
+            baling "Dataset latih HutanRawak kosong!"
+        selesai
+
+        diri.hutan = []
+        ada p = 0
+        selagi p < diri.bilanganPokok
+            # Pensampelan Bootstrap (Bagging)
+            ada X_boot = []
+            ada y_boot = []
+            ada i = 0
+            selagi i < n_sampel
+                ada idx = rawak(0, n_sampel - 1)
+                X_boot.tambah(X[idx])
+                y_boot.tambah(y[idx])
+                i = i + 1
+            selesai
+
+            ada pokok = PokokKeputusan(diri.kedalamanMaks)
+            pokok.latih(X_boot, y_boot)
+            diri.hutan.tambah(pokok)
+            p = p + 1
+        selesai
+    selesai
+
+    kerja ramal(X_baru)
+        jika panjang(diri.hutan) == 0
+            baling "Model HutanRawak belum dilatih! Sila panggil .latih(X, y) dahulu."
+        selesai
+
+        ada hasil = []
+        ada i = 0
+        selagi i < panjang(X_baru)
+            ada titik = X_baru[i]
+            ada undi = {}
+
+            ada p = 0
+            selagi p < panjang(diri.hutan)
+                ada pokok = diri.hutan[p]
+                ada ramal_pokok = pokok.ramalSatu(titik, pokok.pokok)
+                ada kunci_str = teks(ramal_pokok)
+                jika undi.adaKunci(kunci_str)
+                    undi[kunci_str] = undi[kunci_str] + 1
+                jika tidak
+                    undi[kunci_str] = 1
+                selesai
+                p = p + 1
+            selesai
+
+            # Undian majoriti
+            ada undi_maks = -1
+            ada pemenang = kosong
+            ada senarai_kunci = undi.kunci()
+            ada k_idx = 0
+            selagi k_idx < panjang(senarai_kunci)
+                ada k = senarai_kunci[k_idx]
+                jika undi[k] > undi_maks
+                    undi_maks = undi[k]
+                    pemenang = k
+                selesai
+                k_idx = k_idx + 1
+            selesai
+
+            hasil.tambah(nombor(pemenang))
+            i = i + 1
+        selesai
+        pulang hasil
+    selesai
+
+    kerja skor(X_uji, y_uji)
+        ada y_ramal = diri.ramal(X_uji)
+        pulang skorAkurasi(y_uji, y_ramal)
+    selesai
+
+    kerja simpan(laluan)
+        ada pokok_senarai = []
+        ada p = 0
+        selagi p < panjang(diri.hutan)
+            pokok_senarai.tambah(diri.hutan[p].pokok)
+            p = p + 1
+        selesai
+        ada data = {
+            "tipe": "HutanRawak",
+            "bilanganPokok": diri.bilanganPokok,
+            "kedalamanMaks": diri.kedalamanMaks,
+            "pokok_senarai": pokok_senarai
+        }
+        ada json_str = tulisJSON(data, betul)
+        tulisFail(laluan, json_str)
+    selesai
+
+    kerja muat(laluan)
+        ada kandungan = bacaFail(laluan)
+        ada data = bacaJSON(kandungan)
+        diri.bilanganPokok = data["bilanganPokok"]
+        diri.kedalamanMaks = data["kedalamanMaks"]
+        diri.hutan = []
+        ada senarai_nod = data["pokok_senarai"]
+        ada p = 0
+        selagi p < panjang(senarai_nod)
+            ada pokok = PokokKeputusan(diri.kedalamanMaks)
+            pokok.pokok = senarai_nod[p]
+            diri.hutan.tambah(pokok)
+            p = p + 1
+        selesai
+    selesai
+selesai
+
+# ==============================================================================
+# PENGKODAN KATEGORI (LabelEncoder & OneHotEncoder)
+# ==============================================================================
+
+kelas PengkodLabel
+    bina()
+        diri.peta_ke_nombor = {}
+        diri.peta_ke_teks = {}
+        diri.kelas_unik = []
+    selesai
+
+    kerja latih(senarai_label)
+        diri.peta_ke_nombor = {}
+        diri.peta_ke_teks = {}
+        diri.kelas_unik = []
+        ada kaunter = 0
+        ada i = 0
+        selagi i < panjang(senarai_label)
+            ada lbl = teks(senarai_label[i])
+            jika bukan diri.peta_ke_nombor.adaKunci(lbl)
+                diri.peta_ke_nombor[lbl] = kaunter
+                diri.peta_ke_teks[teks(kaunter)] = lbl
+                diri.kelas_unik.tambah(lbl)
+                kaunter = kaunter + 1
+            selesai
+            i = i + 1
+        selesai
+    selesai
+
+    kerja transformasi(senarai_label)
+        ada hasil = []
+        ada i = 0
+        selagi i < panjang(senarai_label)
+            ada lbl = teks(senarai_label[i])
+            jika bukan diri.peta_ke_nombor.adaKunci(lbl)
+                baling "Label tidak dikenali dalam PengkodLabel: " + lbl
+            selesai
+            hasil.tambah(diri.peta_ke_nombor[lbl])
+            i = i + 1
+        selesai
+        pulang hasil
+    selesai
+
+    kerja latihTransformasi(senarai_label)
+        diri.latih(senarai_label)
+        pulang diri.transformasi(senarai_label)
+    selesai
+
+    kerja songsang(senarai_nombor)
+        ada hasil = []
+        ada i = 0
+        selagi i < panjang(senarai_nombor)
+            ada k = teks(senarai_nombor[i])
+            jika bukan diri.peta_ke_teks.adaKunci(k)
+                baling "Indeks kod tidak wujud dalam PengkodLabel: " + k
+            selesai
+            hasil.tambah(diri.peta_ke_teks[k])
+            i = i + 1
+        selesai
+        pulang hasil
+    selesai
+selesai
+
+kelas PengkodSatuPanas
+    bina()
+        diri.kelas_unik = []
+        diri.peta_indeks = {}
+    selesai
+
+    kerja latih(senarai_label)
+        diri.kelas_unik = []
+        diri.peta_indeks = {}
+        ada kaunter = 0
+        ada i = 0
+        selagi i < panjang(senarai_label)
+            ada lbl = teks(senarai_label[i])
+            jika bukan diri.peta_indeks.adaKunci(lbl)
+                diri.peta_indeks[lbl] = kaunter
+                diri.kelas_unik.tambah(lbl)
+                kaunter = kaunter + 1
+            selesai
+            i = i + 1
+        selesai
+    selesai
+
+    kerja transformasi(senarai_label)
+        ada n_kelas = panjang(diri.kelas_unik)
+        ada hasil = []
+        ada i = 0
+        selagi i < panjang(senarai_label)
+            ada lbl = teks(senarai_label[i])
+            jika bukan diri.peta_indeks.adaKunci(lbl)
+                baling "Kategori tidak dikenali dalam PengkodSatuPanas: " + lbl
+            selesai
+            ada idx_aktif = diri.peta_indeks[lbl]
+            ada vektor = []
+            ada j = 0
+            selagi j < n_kelas
+                jika j == idx_aktif
+                    vektor.tambah(1.0)
+                jika tidak
+                    vektor.tambah(0.0)
+                selesai
+                j = j + 1
+            selesai
+            hasil.tambah(vektor)
+            i = i + 1
+        selesai
+        pulang hasil
+    selesai
+
+    kerja latihTransformasi(senarai_label)
+        diri.latih(senarai_label)
+        pulang diri.transformasi(senarai_label)
+    selesai
+selesai
+
+# ==============================================================================
+# PENGOLAHAN DATA TABULAR: JADUAL DATA (DataFrame ala Pandas)
+# ==============================================================================
+
+kelas JadualData
+    bina(tajuk, baris)
+        diri.tajuk = tajuk
+        diri.baris = baris
+    selesai
+
+    kerja bilanganBaris()
+        pulang panjang(diri.baris)
+    selesai
+
+    kerja bilanganLajur()
+        pulang panjang(diri.tajuk)
+    selesai
+
+    kerja cariIndeksLajur(nama_lajur)
+        ada i = 0
+        selagi i < panjang(diri.tajuk)
+            jika diri.tajuk[i] == nama_lajur
+                pulang i
+            selesai
+            i = i + 1
+        selesai
+        baling "Lajur '" + nama_lajur + "' tidak wujud dalam JadualData!"
+    selesai
+
+    kerja dapatkanLajur(nama_lajur)
+        ada idx = diri.cariIndeksLajur(nama_lajur)
+        ada hasil = []
+        ada i = 0
+        selagi i < panjang(diri.baris)
+            hasil.tambah(diri.baris[i][idx])
+            i = i + 1
+        selesai
+        pulang hasil
+    selesai
+
+    kerja pilihLajur(senarai_nama)
+        ada indeks_pilihan = []
+        ada tajuk_baharu = []
+        ada j = 0
+        selagi j < panjang(senarai_nama)
+            ada nama = senarai_nama[j]
+            indeks_pilihan.tambah(diri.cariIndeksLajur(nama))
+            tajuk_baharu.tambah(nama)
+            j = j + 1
+        selesai
+
+        ada baris_baharu = []
+        ada i = 0
+        selagi i < panjang(diri.baris)
+            ada b = []
+            ada k = 0
+            selagi k < panjang(indeks_pilihan)
+                b.tambah(diri.baris[i][indeks_pilihan[k]])
+                k = k + 1
+            selesai
+            baris_baharu.tambah(b)
+            i = i + 1
+        selesai
+
+        pulang JadualData(tajuk_baharu, baris_baharu)
+    selesai
+
+    kerja tapis(nama_lajur, nilai_padan)
+        ada idx = diri.cariIndeksLajur(nama_lajur)
+        ada baris_baharu = []
+        ada i = 0
+        selagi i < panjang(diri.baris)
+            jika diri.baris[i][idx] == nilai_padan
+                baris_baharu.tambah(diri.baris[i])
+            selesai
+            i = i + 1
+        selesai
+        pulang JadualData(diri.tajuk, baris_baharu)
+    selesai
+
+    kerja isiKosong(nama_lajur, nilai_lalai)
+        ada idx = diri.cariIndeksLajur(nama_lajur)
+        ada i = 0
+        selagi i < panjang(diri.baris)
+            ada v = diri.baris[i][idx]
+            jika v == kosong || v == ""
+                diri.baris[i][idx] = nilai_lalai
+            selesai
+            i = i + 1
+        selesai
+        pulang diri
+    selesai
+
+    kerja keMatriks()
+        ada matriks = []
+        ada i = 0
+        selagi i < panjang(diri.baris)
+            ada baris_num = []
+            ada j = 0
+            selagi j < panjang(diri.baris[i])
+                ada v = diri.baris[i][j]
+                jika jenis(v) == "nombor"
+                    baris_num.tambah(v)
+                jika tidak
+                    baris_num.tambah(nombor(v))
+                selesai
+                j = j + 1
+            selesai
+            matriks.tambah(baris_num)
+            i = i + 1
+        selesai
+        pulang matriks
+    selesai
+
+    kerja ringkasan()
+        ada statistik = {}
+        ada j = 0
+        selagi j < panjang(diri.tajuk)
+            ada nama = diri.tajuk[j]
+            ada nilai_num = []
+            ada i = 0
+            selagi i < panjang(diri.baris)
+                ada v = diri.baris[i][j]
+                jika jenis(v) == "nombor"
+                    nilai_num.tambah(v)
+                selesai
+                i = i + 1
+            selesai
+
+            jika panjang(nilai_num) > 0
+                ada min_v = nilai_num[0]
+                ada maks_v = nilai_num[0]
+                ada jumlah = 0.0
+                ada k = 0
+                selagi k < panjang(nilai_num)
+                    ada val = nilai_num[k]
+                    jika val < min_v
+                        min_v = val
+                    selesai
+                    jika val > maks_v
+                        maks_v = val
+                    selesai
+                    jumlah = jumlah + val
+                    k = k + 1
+                selesai
+                statistik[nama] = {
+                    "bilangan": panjang(nilai_num),
+                    "min": min_v,
+                    "maks": maks_v,
+                    "purata": jumlah / panjang(nilai_num)
+                }
+            selesai
+            j = j + 1
+        selesai
+        pulang {
+            "bilangan_baris": panjang(diri.baris),
+            "bilangan_lajur": panjang(diri.tajuk),
+            "lajur": statistik
+        }
+    selesai
+selesai
+
+fungsi bacaJadual(laluan)
+    ada csv = bacaCSV(laluan, betul)
+    pulang JadualData(csv["lajur"], csv["data"])
+selesai

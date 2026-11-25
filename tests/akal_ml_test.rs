@@ -317,3 +317,62 @@ semak ramalan_muat[0] == 1, "Model dimuatkan mesti ramal 1"
     let _ = fs::remove_file("target/test_model_dt.json");
     assert!(res.is_ok(), "Ralat: {:?}", res);
 }
+
+#[test]
+fn test_akal_ml_hutan_rawak_jadual_dan_pengkod() {
+    let code = r#"
+ambil "akal"
+
+# 1. Uji JadualData (DataFrame ala Pandas)
+ada jadual = JadualData(
+    ["umur", "gaji", "bandar", "status"],
+    [
+        [25.0, 5.0, "KL", "Tolak"],
+        [40.0, 18.0, "Jakarta", "Lulus"],
+        [22.0, kosong, "KL", "Tolak"],
+        [38.0, 16.0, "Singapura", "Lulus"],
+        [45.0, 22.0, "Jakarta", "Lulus"],
+        [23.0, 4.5, "KL", "Tolak"]
+    ]
+)
+
+semak jadual.bilanganBaris() == 6, "Bilangan baris mestilah 6"
+semak jadual.bilanganLajur() == 4, "Bilangan lajur mestilah 4"
+
+jadual.isiKosong("gaji", 4.0)
+ada ringkas = jadual.ringkasan()
+semak ringkas["lajur"]["gaji"]["min"] == 4.0, "Imputasi nilai kosong sepatutnya menjadikan min = 4.0"
+
+ada X_jadual = jadual.pilihLajur(["umur", "gaji"]).keMatriks()
+semak panjang(X_jadual) == 6, "Matriks mestilah mempunyai 6 baris"
+semak X_jadual[2][1] == 4.0, "Nilai terimputasi mestilah 4.0"
+
+# 2. Uji PengkodLabel & PengkodSatuPanas
+ada pengkod = PengkodLabel()
+ada y_kod = pengkod.latihTransformasi(jadual.dapatkanLajur("status"))
+semak y_kod[0] == 0, "Tolak mestilah kod 0"
+semak y_kod[1] == 1, "Lulus mestilah kod 1"
+semak pengkod.songsang([1, 0])[0] == "Lulus", "Songsangan kod 1 mestilah Lulus"
+
+ada ohe = PengkodSatuPanas()
+ada bandar_ohe = ohe.latihTransformasi(jadual.dapatkanLajur("bandar"))
+semak panjang(bandar_ohe[0]) == 3, "Terdapat 3 bandar unik jadi vektor One-Hot panjang 3"
+
+# 3. Uji HutanRawak (Random Forest) + Simpan & Muat
+ada hutan = HutanRawak(7, 3)
+hutan.latih(X_jadual, y_kod)
+
+ada ramal = hutan.ramal([[42.0, 20.0], [21.0, 4.0]])
+semak ramal[0] == 1, "Profil gaji tinggi sepatutnya diramal Lulus (1)"
+semak ramal[1] == 0, "Profil gaji rendah sepatutnya diramal Tolak (0)"
+
+hutan.simpan("target/test_model_hutan.json")
+ada hutan_muat = HutanRawak(7, 3)
+hutan_muat.muat("target/test_model_hutan.json")
+ada ramal_muat = hutan_muat.ramal([[42.0, 20.0]])
+semak ramal_muat[0] == 1, "HutanRawak dimuatkan semula mesti mengekalkan ramalan tepat"
+"#;
+    let res = laksana_kod(code);
+    let _ = fs::remove_file("target/test_model_hutan.json");
+    assert!(res.is_ok(), "Ralat: {:?}", res);
+}

@@ -365,17 +365,20 @@ Bahasa Melayu menyertakan kerangka kerja Machine Learning native serumpun bernam
 
 * **Aljabar Linear & Kalkulus Native**: Operasi `darabMatriks`, `transposisiMatriks`, `songsangMatriks` (Gauss-Jordan), `jarakEuclidean`, `titikDarab`, `matriksTambah`, `matriksTolak`, `matriksSkala`, `darabHadamard`, `matriksJumlahLajur`, `matriksSigmoid`, `matriksDerivatifSigmoid`, `eksponen`, dan `logaritmaAsli`.
 * **Model Sedia Guna Asas & Pertengahan**: `RegresiLinear` (Ordinary Least Squares), `PengelasKNN` (K-Nearest Neighbors), `PengelompokanKMeans` (Unsupervised Clustering), dan `PokokKeputusan` (Decision Tree Classifier berasaskan Ketulenan Gini).
-* **Model Tingkat Menengah-Tinggi (Mid-High)**:
+* **Model Tingkat Menengah-Tinggi (Mid-High) & Ensemble**:
+  * **`HutanRawak` (Random Forest Classifier)**: Pengelas ensemble berasaskan pensampelan *bootstrap* (bagging) dan undian majoriti berbilang pokok keputusan untuk ketepatan tinggi pada data jadual.
   * **`JaringanSaraf` (Multi-Layer Perceptron / Deep Neural Network)**: Rangkaian saraf tiruan berlapis dengan perambatan ke belakang (*backpropagation*), penurunan kecerunan (*gradient descent*), dan sokongan pengelasan tak-linear (seperti XOR) hingga 100% akurasi.
   * **`PengelasBayesNaif` (Gaussian Naive Bayes)**: Pengelas kebarangkalian berbilang ciri berasaskan taburan normal Gaussian.
-* **Prapemprosesan, Dataset & Metrik Penilaian Lengkap**:
-  * Penyekalaan Ciri: `SkalaMinMaks` (MinMaxScaler) dan `PenyelarasanPiawai` (StandardScaler) dengan kaedah `latih()`, `transformasi()`, `latihTransformasi()`, dan `songsang()`.
-  * Dataset Terbina-Dalam: `muatIris()` (Dataset Bunga Fisher Iris), `muatKredit()` (Dataset Penilaian Kelayakan Kredit), dan `janaDataSintetik(sampel, ciri)` (Penjana data rawak terkawal).
+* **Prapemprosesan, DataFrame & Metrik Penilaian Lengkap**:
+  * **Pengolahan Data Tabular (`JadualData` / DataFrame ala Pandas)**: `bacaJadual(laluan)`, `.pilihLajur()`, `.tapis()`, `.isiKosong()` (imputasi nilai hilang), `.ringkasan()`, dan `.keMatriks()`.
+  * **Pengkodan Kategori**: `PengkodLabel` (LabelEncoder dengan `.songsang()`) dan `PengkodSatuPanas` (OneHotEncoder).
+  * **Penyekalaan Ciri**: `SkalaMinMaks` (MinMaxScaler) dan `PenyelarasanPiawai` (StandardScaler) dengan kaedah `latih()`, `transformasi()`, `latihTransformasi()`, dan `songsang()`.
+  * **Dataset Terbina-Dalam**: `muatIris()` (Dataset Bunga Fisher Iris), `muatKredit()` (Dataset Penilaian Kelayakan Kredit), dan `janaDataSintetik(sampel, ciri)` (Penjana data rawak terkawal).
   * Pembaca CSV pantas (`bacaCSV`), pembahagi data latihan dan ujian (`bahagiLatihUji`).
   * Metrik penilaian model: `matriksKekeliruan` (Confusion Matrix TP/FP/TN/FN), `kejituan` (Precision), `kepekaan` (Recall), `skorF1` (F1-Score), `skorR2`, `skorMSE`, dan `skorAkurasi`.
 * **Penstoran Model ke Cakera (Model Persistence)**:
   * Simpan struktur dan parameter model terus ke format JSON: `model.simpan("laluan/model.json")`.
-  * Muat semula model bila-bila masa untuk inferens masa nyata tanpa latihan semula: `model.muat("laluan/model.json")`. Tersedia untuk `JaringanSaraf`, `RegresiLinear`, `PengelasBayesNaif`, dan `PokokKeputusan`.
+  * Muat semula model bila-bila masa untuk inferens masa nyata tanpa latihan semula: `model.muat("laluan/model.json")`. Tersedia untuk `JaringanSaraf`, `HutanRawak`, `RegresiLinear`, `PengelasBayesNaif`, dan `PokokKeputusan`.
 
 Contoh Jaringan Saraf Tiruan (Deep Learning):
 ```melayu
