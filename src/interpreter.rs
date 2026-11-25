@@ -14,7 +14,7 @@ pub struct KaedahKelas {
     pub nama: String,
     pub parameter: Vec<(String, Option<String>)>,
     pub jenis_pulangan: Option<String>,
-    pub badan: Vec<Stmt>,
+    pub badan: Rc<Vec<Stmt>>,
     pub closure: Rc<RefCell<Environment>>,
 }
 
@@ -63,7 +63,7 @@ pub enum Value {
     Fungsi {
         nama: String,
         parameter: Vec<(String, Option<String>)>,
-        badan: Vec<Stmt>,
+        badan: Rc<Vec<Stmt>>,
         closure: Rc<RefCell<Environment>>,
     },
     Bawaan(String, fn(&[Value], LineCol) -> Result<Value, MelayuError>),
@@ -71,7 +71,7 @@ pub enum Value {
     Objek(Rc<ObjekData>),
     Induk(Rc<IndukData>),
     Tensor {
-        data: Vec<f64>,
+        data: Rc<Vec<f64>>,
         shape: Vec<usize>,
     },
 }
@@ -560,7 +560,7 @@ impl Interpreter {
 
                 self.kedalaman_panggilan += 1;
                 let mut hasil = Ok(Value::Kosong);
-                for s in badan {
+                for s in badan.iter() {
                     match self.execute_stmt(s, &call_env) {
                         Ok(Flow::Lanjut) => {}
                         Ok(Flow::Pulang(v)) => {
@@ -643,7 +643,7 @@ impl Interpreter {
 
                     self.kedalaman_panggilan += 1;
                     let hasil = (|| -> Result<(), MelayuError> {
-                        for s in &ctor.badan {
+                        for s in ctor.badan.iter() {
                             match self.execute_stmt(s, &call_env)? {
                                 Flow::Lanjut => {}
                                 Flow::Pulang(_) => return Ok(()),
@@ -1297,21 +1297,21 @@ impl Interpreter {
                         }
                     }
                     Ok(Value::Tensor {
-                        data: out,
+                        data: Rc::new(out),
                         shape: vec![cols, rows],
                     })
                 }
                 "sigmoid" => {
                     let out: Vec<f64> = data.iter().map(|&x| 1.0 / (1.0 + (-x).exp())).collect();
                     Ok(Value::Tensor {
-                        data: out,
+                        data: Rc::new(out),
                         shape: shape.clone(),
                     })
                 }
                 "relu" => {
                     let out: Vec<f64> = data.iter().map(|&x| if x > 0.0 { x } else { 0.0 }).collect();
                     Ok(Value::Tensor {
-                        data: out,
+                        data: Rc::new(out),
                         shape: shape.clone(),
                     })
                 }
@@ -1449,7 +1449,7 @@ impl Interpreter {
 
                     self.kedalaman_panggilan += 1;
                     let hasil = (|| -> Result<Value, MelayuError> {
-                        for s in &method.badan {
+                        for s in method.badan.iter() {
                             match self.execute_stmt(s, &call_env)? {
                                 Flow::Lanjut => {}
                                 Flow::Pulang(v) => return Ok(v),
@@ -1539,7 +1539,7 @@ impl Interpreter {
 
                             self.kedalaman_panggilan += 1;
                             let hasil = (|| -> Result<Value, MelayuError> {
-                                for s in &method.badan {
+                                for s in method.badan.iter() {
                                     match self.execute_stmt(s, &call_env)? {
                                         Flow::Lanjut => {}
                                         Flow::Pulang(v) => return Ok(v),
@@ -1908,7 +1908,7 @@ impl Interpreter {
                 let func_val = Value::Fungsi {
                     nama: nama.clone(),
                     parameter: parameter.clone(),
-                    badan: badan.clone(),
+                    badan: Rc::new(badan.clone()),
                     closure: Rc::clone(env),
                 };
                 env.borrow_mut().define(nama, func_val, true);
@@ -2141,7 +2141,7 @@ impl Interpreter {
                         nama: "bina".to_string(),
                         parameter: pembina_ast.parameter.clone(),
                         jenis_pulangan: None,
-                        badan: pembina_ast.badan.clone(),
+                        badan: Rc::new(pembina_ast.badan.clone()),
                         closure: Rc::clone(env),
                     });
                 }
@@ -2153,7 +2153,7 @@ impl Interpreter {
                             nama: k_ast.nama.clone(),
                             parameter: k_ast.parameter.clone(),
                             jenis_pulangan: k_ast.jenis_pulangan.clone(),
-                            badan: k_ast.badan.clone(),
+                            badan: Rc::new(k_ast.badan.clone()),
                             closure: Rc::clone(env),
                         },
                     );
@@ -2694,7 +2694,7 @@ impl Interpreter {
                         }
                         (Value::Tensor { data: d, shape: s }, Value::Nombor(n))
                         | (Value::Nombor(n), Value::Tensor { data: d, shape: s }) => Ok(Value::Tensor {
-                            data: d.iter().map(|&x| x + n).collect(),
+                            data: Rc::new(d.iter().map(|&x| x + n).collect()),
                             shape: s.clone(),
                         }),
                         _ => Err(MelayuError::jenis_salah(
@@ -2710,11 +2710,11 @@ impl Interpreter {
                             tensor_binary_op(d1, s1, d2, s2, |a, b| a - b, pos)
                         }
                         (Value::Tensor { data: d, shape: s }, Value::Nombor(n)) => Ok(Value::Tensor {
-                            data: d.iter().map(|&x| x - n).collect(),
+                            data: Rc::new(d.iter().map(|&x| x - n).collect()),
                             shape: s.clone(),
                         }),
                         (Value::Nombor(n), Value::Tensor { data: d, shape: s }) => Ok(Value::Tensor {
-                            data: d.iter().map(|&x| n - x).collect(),
+                            data: Rc::new(d.iter().map(|&x| n - x).collect()),
                             shape: s.clone(),
                         }),
                         _ => Err(MelayuError::jenis_salah(
@@ -2731,7 +2731,7 @@ impl Interpreter {
                         }
                         (Value::Tensor { data: d, shape: s }, Value::Nombor(n))
                         | (Value::Nombor(n), Value::Tensor { data: d, shape: s }) => Ok(Value::Tensor {
-                            data: d.iter().map(|&x| x * n).collect(),
+                            data: Rc::new(d.iter().map(|&x| x * n).collect()),
                             shape: s.clone(),
                         }),
                         _ => Err(MelayuError::jenis_salah(
@@ -2759,7 +2759,7 @@ impl Interpreter {
                                 return Err(MelayuError::bahagi_kosong(pos.line, pos.col));
                             }
                             Ok(Value::Tensor {
-                                data: d.iter().map(|&x| x / n).collect(),
+                                data: Rc::new(d.iter().map(|&x| x / n).collect()),
                                 shape: s.clone(),
                             })
                         }
@@ -2880,7 +2880,7 @@ where
     if s1 == s2 {
         let out: Vec<f64> = d1.iter().zip(d2.iter()).map(|(&a, &b)| op(a, b)).collect();
         return Ok(Value::Tensor {
-            data: out,
+            data: Rc::new(out),
             shape: s1.to_vec(),
         });
     }
@@ -2894,7 +2894,7 @@ where
             }
         }
         return Ok(Value::Tensor {
-            data: out,
+            data: Rc::new(out),
             shape: s1.to_vec(),
         });
     }
@@ -2908,7 +2908,7 @@ where
             }
         }
         return Ok(Value::Tensor {
-            data: out,
+            data: Rc::new(out),
             shape: s1.to_vec(),
         });
     }
@@ -2943,7 +2943,7 @@ fn tensor_matmul(
         if m * k1 * n >= 262_144 {
             if let Some(gpu_out) = crate::gpu::gpu_matmul(d1, d2, m, k1, n) {
                 return Ok(Value::Tensor {
-                    data: gpu_out,
+                    data: Rc::new(gpu_out),
                     shape: vec![m, n],
                 });
             }
@@ -2989,7 +2989,7 @@ fn tensor_matmul(
             }
         }
         Ok(Value::Tensor {
-            data: out,
+            data: Rc::new(out),
             shape: vec![m, n],
         })
     } else if s1.len() == 2 && s2.len() == 1 {
@@ -3013,7 +3013,7 @@ fn tensor_matmul(
             out[i] = sum;
         }
         Ok(Value::Tensor {
-            data: out,
+            data: Rc::new(out),
             shape: vec![m],
         })
     } else if s1.len() == 1 && s2.len() == 1 {

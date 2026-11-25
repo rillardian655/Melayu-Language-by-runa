@@ -2942,7 +2942,7 @@ pub fn builtin_tensor(args: &[Value], pos: LineCol) -> Result<Value, MelayuError
             let borrowed = rc.borrow();
             if borrowed.is_empty() {
                 return Ok(Value::Tensor {
-                    data: vec![],
+                    data: Rc::new(vec![]),
                     shape: vec![0],
                 });
             }
@@ -2992,7 +2992,7 @@ pub fn builtin_tensor(args: &[Value], pos: LineCol) -> Result<Value, MelayuError
                     }
                 }
                 Ok(Value::Tensor {
-                    data,
+                    data: Rc::new(data),
                     shape: vec![rows, cols.unwrap_or(0)],
                 })
             } else {
@@ -3013,7 +3013,7 @@ pub fn builtin_tensor(args: &[Value], pos: LineCol) -> Result<Value, MelayuError
                 }
                 let len = data.len();
                 Ok(Value::Tensor {
-                    data,
+                    data: Rc::new(data),
                     shape: vec![len],
                 })
             }
@@ -3039,7 +3039,7 @@ pub fn builtin_sifar_tensor(args: &[Value], pos: LineCol) -> Result<Value, Melay
     let shape = ekstrak_bentuk_tensor(&args[0], pos)?;
     let total: usize = shape.iter().product();
     Ok(Value::Tensor {
-        data: vec![0.0; total],
+        data: Rc::new(vec![0.0; total]),
         shape,
     })
 }
@@ -3051,7 +3051,7 @@ pub fn builtin_satu_tensor(args: &[Value], pos: LineCol) -> Result<Value, Melayu
     let shape = ekstrak_bentuk_tensor(&args[0], pos)?;
     let total: usize = shape.iter().product();
     Ok(Value::Tensor {
-        data: vec![1.0; total],
+        data: Rc::new(vec![1.0; total]),
         shape,
     })
 }
@@ -3072,7 +3072,7 @@ pub fn builtin_rawak_tensor(args: &[Value], pos: LineCol) -> Result<Value, Melay
         let u = ((seed >> 11) as f64) / ((1u64 << 53) as f64);
         data.push(u * 2.0 - 1.0); // julat [-1.0, 1.0]
     }
-    Ok(Value::Tensor { data, shape })
+    Ok(Value::Tensor { data: Rc::new(data), shape })
 }
 
 pub fn builtin_matriks_softmax(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
