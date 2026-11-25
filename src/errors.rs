@@ -247,13 +247,15 @@ impl fmt::Display for MelayuError {
             self.title, self.line, self.column
         )?;
         if let Some(src) = &self.source_line {
-            writeln!(f, "  {}", src)?;
-            let pointer = if self.column > 1 {
-                format!("{:>width$}^", "", width = self.column - 1)
-            } else {
-                "^".to_string()
-            };
-            writeln!(f, "  {}", pointer)?;
+            let aksara: Vec<char> = src.chars().collect();
+            let lajur = self.column.max(1) - 1;
+            let mula = lajur.saturating_sub(60);
+            let tamat = (lajur + 60).min(aksara.len());
+            let awalan = if mula > 0 { "..." } else { "" };
+            let akhiran = if tamat < aksara.len() { "..." } else { "" };
+            let petikan: String = aksara[mula.min(tamat)..tamat].iter().collect();
+            writeln!(f, "  {}{}{}", awalan, petikan, akhiran)?;
+            writeln!(f, "  {}^", " ".repeat(awalan.len() + lajur - mula))?;
         }
         writeln!(f, "  {}", self.message)?;
         if let Some(sug) = &self.suggestion {

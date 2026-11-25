@@ -448,6 +448,24 @@ impl Lexer {
             }
         }
 
+        if !self.is_at_end() && (self.peek() == 'e' || self.peek() == 'E') {
+            let selepas = self.peek_offset(1);
+            let ada_tanda = matches!(selepas, Some('+') | Some('-'));
+            let digit = if ada_tanda { self.peek_offset(2) } else { selepas };
+            if digit.is_some_and(|c| c.is_ascii_digit()) {
+                s.push(self.peek());
+                self.advance();
+                if ada_tanda {
+                    s.push(self.peek());
+                    self.advance();
+                }
+                while !self.is_at_end() && self.peek().is_ascii_digit() {
+                    s.push(self.peek());
+                    self.advance();
+                }
+            }
+        }
+
         let num: f64 = s.parse().unwrap_or(0.0);
         (num, s)
     }
