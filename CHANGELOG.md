@@ -2,7 +2,32 @@
 
 Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut format [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [0.3.0] - 2026-11-23
+## [Belum Dikeluarkan]
+
+### Ditambah (Added)
+- Pilihan `--had-langkah <n>` dan pemboleh ubah persekitaran `MELAYU_HAD_LANGKAH` untuk menaikkan atau mematikan (`0`) had 10 juta langkah.
+- `benihRawak(n)` untuk keputusan `rawak()` dan `rawakTensor()` yang boleh diulang.
+- `cariPecahanTerbaik(X, y, senaraiCiri)`: carian pecahan Gini asli yang digunakan oleh `PokokKeputusan`.
+- `MELAYU_GPU=0` memaksa pendaraban matriks menggunakan CPU.
+- Nombor dalam notasi saintifik (`1e21`, `5.9e-05`).
+- Ungkapan boleh disambung ke baris seterusnya selepas operator (`+`, `dan`, `==`, dll.).
+- Kamus boleh memanggil fungsi yang disimpan di dalamnya (`Modul.fungsi()` selepas `ambil ... sebagai Modul`).
+
+### Diubah (Changed)
+- `kamus` dan sifat objek kini mengekalkan susunan kunci mengikut urutan masuk; `tulisJSON` mengikut susunan yang sama.
+- Pendaraban matriks pada GPU kini FP32 (`sgemm`); `infoPerkakas()` memaparkan `ketepatan_gpu`.
+- `HutanRawak` menimbang `sqrt(bilangan ciri)` ciri rawak pada setiap pecahan.
+- `.isih()` menolak senarai yang mengandungi jenis bercampur.
+
+### Dibaiki (Fixed)
+- Proses tamat dengan stack overflow apabila memaparkan atau membandingkan senarai/kamus yang merujuk diri sendiri, atau apabila ungkapan sangat bersarang.
+- `tulisFail` melalui pautan simbolik rosak boleh menulis di luar direktori kerja.
+- Semakan anti-SSRF boleh dipintas dengan bentuk alamat lain (`2852039166`, `0xa9fea9fe`, `[::ffff:169.254.169.254]`).
+- Panik semasa memaparkan ralat pada baris yang sangat panjang.
+- Templat `melayu mula --mvc` gagal dijalankan.
+- Prestasi: badan fungsi dan data tensor tidak lagi disalin pada setiap bacaan (fib(30) kira-kira 2.7x lebih pantas).
+
+
 
 ### Ditambah (Added)
 - **Sistem Pengaturcaraan Berorientasikan Objek (OOP) Natif**:
