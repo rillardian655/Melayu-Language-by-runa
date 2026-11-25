@@ -4,7 +4,9 @@
 //! secara dinamik pada masa larian tanpa kebergantungan luar. Sekiranya tiada GPU disokong,
 //! pengiraan akan jatuh balik (fallback) ke CPU selari multi-teras secara automatik.
 
+#[cfg(target_os = "linux")]
 use std::ffi::c_void;
+#[cfg(target_os = "linux")]
 use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
