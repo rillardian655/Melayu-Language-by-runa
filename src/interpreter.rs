@@ -2887,11 +2887,41 @@ fn tensor_matmul(
             .with_kind(ErrorKind::Runtime));
         }
         let mut out = vec![0.0; m * n];
-        for i in 0..m {
-            for k in 0..k1 {
-                let a = d1[i * k1 + k];
-                for j in 0..n {
-                    out[i * n + j] += a * d2[k * n + j];
+        let num_threads = std::thread::available_parallelism()
+            .map(|t| t.get())
+            .unwrap_or(1)
+            .min(m);
+
+        if m * k1 * n >= 32_768 && num_threads > 1 {
+            let chunk_rows = m.div_ceil(num_threads);
+            std::thread::scope(|scope| {
+                for (t_idx, out_chunk) in out.chunks_mut(chunk_rows * n).enumerate() {
+                    let row_start = t_idx * chunk_rows;
+                    let rows_in_chunk = out_chunk.len() / n;
+                    scope.spawn(move || {
+                        for local_r in 0..rows_in_chunk {
+                            let i = row_start + local_r;
+                            let out_row = &mut out_chunk[local_r * n..(local_r + 1) * n];
+                            for k in 0..k1 {
+                                let a = d1[i * k1 + k];
+                                let b_row = &d2[k * n..(k + 1) * n];
+                                for j in 0..n {
+                                    out_row[j] += a * b_row[j];
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        } else {
+            for i in 0..m {
+                let out_row = &mut out[i * n..(i + 1) * n];
+                for k in 0..k1 {
+                    let a = d1[i * k1 + k];
+                    let b_row = &d2[k * n..(k + 1) * n];
+                    for j in 0..n {
+                        out_row[j] += a * b_row[j];
+                    }
                 }
             }
         }

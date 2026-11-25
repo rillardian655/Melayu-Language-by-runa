@@ -77,6 +77,7 @@ pub fn daftar_fungsi_bawaan() -> Vec<(&'static str, BuiltinFn)> {
         ("sifarTensor", builtin_sifar_tensor),
         ("satuTensor", builtin_satu_tensor),
         ("rawakTensor", builtin_rawak_tensor),
+        ("infoPerkakas", builtin_info_perkakas),
         // Kerangka Kerja Web & Rangkaian (Selasih)
         ("mulakanPelayanHTTP", builtin_mulakan_pelayan_http),
         ("hantarPermintaanHTTP", builtin_hantar_permintaan_http),
@@ -1724,11 +1725,39 @@ pub fn builtin_darab_matriks(args: &[Value], pos: LineCol) -> Result<Value, Mela
         ).with_kind(ErrorKind::Runtime));
     }
     let mut c = vec![vec![0.0; n]; m];
-    for i in 0..m {
-        for p in 0..k {
-            let a_ip = a[i][p];
-            for j in 0..n {
-                c[i][j] += a_ip * b[p][j];
+    let num_threads = std::thread::available_parallelism()
+        .map(|t| t.get())
+        .unwrap_or(1)
+        .min(m);
+
+    if m * k * n >= 32_768 && num_threads > 1 {
+        let chunk_rows = m.div_ceil(num_threads);
+        let a_ref = &a;
+        let b_ref = &b;
+        std::thread::scope(|scope| {
+            for (t_idx, c_chunk) in c.chunks_mut(chunk_rows).enumerate() {
+                let row_start = t_idx * chunk_rows;
+                scope.spawn(move || {
+                    for (local_r, c_row) in c_chunk.iter_mut().enumerate() {
+                        let i = row_start + local_r;
+                        for p in 0..k {
+                            let a_ip = a_ref[i][p];
+                            let b_row = &b_ref[p];
+                            for j in 0..n {
+                                c_row[j] += a_ip * b_row[j];
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    } else {
+        for i in 0..m {
+            for p in 0..k {
+                let a_ip = a[i][p];
+                for j in 0..n {
+                    c[i][j] += a_ip * b[p][j];
+                }
             }
         }
     }
@@ -2906,6 +2935,45 @@ pub fn builtin_ralat_entropi_silang(args: &[Value], pos: LineCol) -> Result<Valu
         }
     }
     Ok(Value::Nombor(total_loss / (y_true.len() as f64)))
+}
+
+pub fn builtin_info_perkakas(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    if !args.is_empty() {
+        return Err(MelayuError::new(
+            "Alamak!",
+            "Fungsi 'infoPerkakas' tidak memerlukan sebarang hujah.",
+            pos.line,
+            pos.col,
+        )
+        .with_kind(ErrorKind::Runtime));
+    }
+    let teras_cpu = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1);
+    let ada_cuda = std::path::Path::new("/usr/local/cuda").exists()
+        || std::path::Path::new("/dev/nvidia0").exists();
+    let ada_rocm = std::path::Path::new("/opt/rocm").exists();
+
+    let mut map = HashMap::new();
+    map.insert("teras_cpu".to_string(), Value::Nombor(teras_cpu as f64));
+    map.insert(
+        "enjin_matriks".to_string(),
+        Value::Teks("CPU Selari Multi-Teras (Rust std::thread::scope)".to_string()),
+    );
+    map.insert(
+        "gpu_cuda_dikesan".to_string(),
+        if ada_cuda { Value::Betul } else { Value::Salah },
+    );
+    map.insert(
+        "gpu_rocm_dikesan".to_string(),
+        if ada_rocm { Value::Betul } else { Value::Salah },
+    );
+    map.insert(
+        "status_gpu".to_string(),
+        Value::Teks("Belum aktif (komputasi kini dipecut pada CPU selari multi-teras)".to_string()),
+    );
+
+    Ok(Value::Kamus(Rc::new(RefCell::new(map))))
 }
 
 pub const AKAL_ML_STDLIB: &str = include_str!("../std/akal.ml");

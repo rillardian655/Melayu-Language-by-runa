@@ -439,3 +439,27 @@ semak kfold["purata_skor"] >= 0.0, "Purata skor K-Fold mesti sah"
     let res = laksana_kod(code);
     assert!(res.is_ok(), "Ralat: {:?}", res);
 }
+
+#[test]
+fn test_akal_ml_matriks_selari_dan_info_perkakas() {
+    let code = r#"
+# 1. Uji infoPerkakas()
+ada info = infoPerkakas()
+semak info["teras_cpu"] >= 1, "Bilangan teras CPU mestilah sekurang-kurangnya 1"
+semak info.adaKunci("enjin_matriks"), "Mesti ada kunci enjin_matriks"
+semak info.adaKunci("gpu_cuda_dikesan"), "Mesti ada kunci gpu_cuda_dikesan"
+semak info.adaKunci("gpu_rocm_dikesan"), "Mesti ada kunci gpu_rocm_dikesan"
+
+# 2. Uji pendaraban matriks Tensor selari multi-teras (64x64 @ 64x64)
+ada A = satuTensor([64, 64])
+ada B = satuTensor([64, 64])
+ada C = A @ B
+semak C.bentuk() == [64, 64], "Bentuk hasil selari mestilah [64, 64]"
+ada c_list = C.keSenarai()
+semak c_list[0][0] == 64.0, "Elemen [0][0] mestilah 64.0"
+semak c_list[63][63] == 64.0, "Elemen [63][63] mestilah 64.0"
+semak C.jumlah() == 262144.0, "Jumlah semua elemen (64*64*64) mestilah 262144.0"
+"#;
+    let res = laksana_kod(code);
+    assert!(res.is_ok(), "Ralat: {:?}", res);
+}

@@ -88,7 +88,7 @@
       "patterns": [
         {
           "name": "support.function.builtin.melayu",
-          "match": "\\b(tunjuk|baca|panjang|jenis|hurufBesar|hurufKecil|puncaKuasaDua|rawak|bacaFail|tulisFail|wujudFail|padamFail|bundar|lantai|siling|mutlak|maksimum|minimum|bacaJSON|dariJSON|tulisJSON|keJSON|capMasa|masaKini|tarikhKini|tensor|sifarTensor|satuTensor|rawakTensor|darabMatriks|transposisiMatriks|songsangMatriks|matriksSoftmax|matriksReLU|ralatEntropiSilang|bacaCSV|bahagiLatihUji|matriksKekeliruan|skorF1|kejituan|kepekaan|skorAkurasi|skorR2|skorMSE|muatIris|muatKredit|janaDataSintetik|bacaJadual|pengesahanSilang|kesamaanCosine|balasJSON|balasHTML|balasTeks|balasCORS|pengantaraLogger|hantarPermintaanHTTP|mulakanPelayanHTTP)\\b"
+          "match": "\\b(tunjuk|baca|panjang|jenis|hurufBesar|hurufKecil|puncaKuasaDua|rawak|bacaFail|tulisFail|wujudFail|padamFail|bundar|lantai|siling|mutlak|maksimum|minimum|bacaJSON|dariJSON|tulisJSON|keJSON|capMasa|masaKini|tarikhKini|tensor|sifarTensor|satuTensor|rawakTensor|infoPerkakas|darabMatriks|transposisiMatriks|songsangMatriks|matriksSoftmax|matriksReLU|ralatEntropiSilang|bacaCSV|bahagiLatihUji|matriksKekeliruan|skorF1|kejituan|kepekaan|skorAkurasi|skorR2|skorMSE|muatIris|muatKredit|janaDataSintetik|bacaJadual|pengesahanSilang|kesamaanCosine|balasJSON|balasHTML|balasTeks|balasCORS|pengantaraLogger|hantarPermintaanHTTP|mulakanPelayanHTTP)\\b"
         },
         {
           "name": "support.class.melayu",
