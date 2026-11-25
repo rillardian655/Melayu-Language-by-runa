@@ -73,6 +73,10 @@ fn main() {
         "pakej" | "packages" | "senarai-pakej" => {
             senarai_pakej();
         }
+        "taman" | "playground" => {
+            let port: u16 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(7878);
+            jalankan_taman_permainan(port);
+        }
         "bantuan" | "--help" | "-h" => {
             cetak_bantuan();
         }
@@ -337,6 +341,7 @@ fn cetak_bantuan() {
     println!("  melayu mula [nama_projek] [--mvc]  Cipta struktur projek Melayu (asas atau MVC)");
     println!("  melayu pasang [nama_atau_fail]     Pasang modul ke modul_melayu/");
     println!("  melayu pakej                       Senarai pakej dan framework tersedia");
+    println!("  melayu taman [port]                Buka Web Playground interaktif (lalai: 7878)");
     println!("  melayu bantuan                     Papar bantuan ini");
     println!("  melayu versi                       Papar versi semasa");
     println!();
@@ -729,4 +734,124 @@ fn senarai_pakej() {
         println!("  (Folder modul_melayu/ belum wujud)");
     }
     println!("{}", "-".repeat(50));
+}
+
+fn jalankan_taman_permainan(port: u16) {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+
+    const HTML_PLAYGROUND: &str = include_str!("../playground/index.html");
+    let addr = format!("127.0.0.1:{}", port);
+    let listener = match TcpListener::bind(&addr) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("\x1b[1;31mAlamak! Gagal membuka Taman Permainan pada {}: {}\x1b[0m", addr, e);
+            process::exit(1);
+        }
+    };
+
+    println!("\x1b[1;36m==========================================================\x1b[0m");
+    println!("\x1b[1;32m  Taman Permainan Web MELAYU & AkalML sedia!\x1b[0m");
+    println!("  Buka di pelayar web: \x1b[1;33mhttp://{}\x1b[0m", addr);
+    println!("\x1b[1;36m==========================================================\x1b[0m");
+    println!("Tekan Ctrl+C untuk menutup pelayan.");
+
+    for stream_res in listener.incoming() {
+        let mut stream = match stream_res {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let mut buf = vec![0u8; 65536];
+        let n = match stream.read(&mut buf) {
+            Ok(n) if n > 0 => n,
+            _ => continue,
+        };
+        let raw = String::from_utf8_lossy(&buf[..n]);
+        let mut parts = raw.splitn(2, "\r\n\r\n");
+        let headers = parts.next().unwrap_or("");
+        let body = parts.next().unwrap_or("");
+        let first_line = headers.lines().next().unwrap_or("");
+        let mut tokens = first_line.split_whitespace();
+        let method = tokens.next().unwrap_or("GET");
+        let path = tokens.next().unwrap_or("/");
+
+        if method == "GET" && path == "/" {
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                HTML_PLAYGROUND.len(),
+                HTML_PLAYGROUND
+            );
+            let _ = stream.write_all(resp.as_bytes());
+        } else if method == "POST" && path == "/api/jalankan" {
+            let dummy_pos = melayu_core::ast::LineCol::new(1, 1);
+            let kod_src = match melayu_core::builtins::builtin_baca_json(
+                &[melayu_core::interpreter::Value::Teks(body.to_string())],
+                dummy_pos,
+            ) {
+                Ok(melayu_core::interpreter::Value::Kamus(map)) => {
+                    match map.borrow().get("kod") {
+                        Some(melayu_core::interpreter::Value::Teks(s)) => s.clone(),
+                        _ => String::new(),
+                    }
+                }
+                _ => String::new(),
+            };
+
+            let tmp_path = std::env::temp_dir().join(format!("melayu_pg_{}.ml", process::id()));
+            let _ = fs::write(&tmp_path, &kod_src);
+
+            let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("melayu"));
+            let out = process::Command::new(exe).arg(&tmp_path).output();
+            let _ = fs::remove_file(&tmp_path);
+
+            let (ok, text) = match out {
+                Ok(o) if o.status.success() => {
+                    (true, String::from_utf8_lossy(&o.stdout).to_string())
+                }
+                Ok(o) => {
+                    let err_txt = String::from_utf8_lossy(&o.stderr).to_string();
+                    let out_txt = String::from_utf8_lossy(&o.stdout).to_string();
+                    (false, format!("{}{}", out_txt, err_txt))
+                }
+                Err(e) => (false, format!("Gagal menjalankan proses: {}", e)),
+            };
+
+            let mut resp_map = std::collections::HashMap::new();
+            resp_map.insert(
+                "kejayaan".to_string(),
+                if ok {
+                    melayu_core::interpreter::Value::Betul
+                } else {
+                    melayu_core::interpreter::Value::Salah
+                },
+            );
+            resp_map.insert(
+                if ok { "keluaran" } else { "ralat" }.to_string(),
+                melayu_core::interpreter::Value::Teks(text),
+            );
+            let json_res = melayu_core::builtins::nilai_ke_json_string(
+                &melayu_core::interpreter::Value::Kamus(std::rc::Rc::new(std::cell::RefCell::new(resp_map))),
+                false,
+                0,
+                dummy_pos,
+            )
+            .unwrap_or_else(|_| "{\"kejayaan\":false,\"ralat\":\"Ralat JSON\"}".to_string());
+
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                json_res.len(),
+                json_res
+            );
+            let _ = stream.write_all(resp.as_bytes());
+        } else {
+            let msg = "404 Tidak Dijumpai";
+            let resp = format!(
+                "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                msg.len(),
+                msg
+            );
+            let _ = stream.write_all(resp.as_bytes());
+        }
+        let _ = stream.flush();
+    }
 }

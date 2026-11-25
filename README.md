@@ -363,18 +363,21 @@ selesai
 
 Bahasa Melayu menyertakan kerangka kerja Machine Learning native serumpun bernama **AkalML**. Dikuasakan oleh enjin matriks dan aljabar linear berprestasi tinggi dalam Rust, AkalML membolehkan analisis data, ramalan numerik, dan pengelasan pintar tanpa kebergantungan luar.
 
-* **Aljabar Linear & Kalkulus Native**: Operasi `darabMatriks`, `transposisiMatriks`, `songsangMatriks` (Gauss-Jordan), `jarakEuclidean`, `titikDarab`, `matriksTambah`, `matriksTolak`, `matriksSkala`, `darabHadamard`, `matriksJumlahLajur`, `matriksSigmoid`, `matriksDerivatifSigmoid`, `eksponen`, dan `logaritmaAsli`.
+* **Aljabar Linear, Tensor Native & Kalkulus**:
+  * **Primitif `tensor` & Operator `@`**: `tensor([[1, 2], [3, 4]])`, `sifarTensor([2, 3])`, `satuTensor([2, 3])`, `rawakTensor([2, 3])`, pendaraban matriks `A @ B`, *broadcasting* `+`, `-`, `*`, `/`, serta kaedah `.bentuk()`, `.transposisi()`, `.jumlah()`, `.purata()`, `.sigmoid()`, `.relu()`, `.ubahBentuk()`, dan `.keSenarai()`.
+  * Operasi matriks & pengaktifan: `darabMatriks`, `transposisiMatriks`, `songsangMatriks` (Gauss-Jordan), `jarakEuclidean`, `titikDarab`, `matriksTambah`, `matriksTolak`, `matriksSkala`, `darabHadamard`, `matriksJumlahLajur`, `matriksSigmoid`, `matriksDerivatifSigmoid`, `matriksReLU`, `matriksSoftmax`, `ralatEntropiSilang`, `eksponen`, dan `logaritmaAsli`.
 * **Model Sedia Guna Asas & Pertengahan**: `RegresiLinear` (Ordinary Least Squares), `PengelasKNN` (K-Nearest Neighbors), `PengelompokanKMeans` (Unsupervised Clustering), dan `PokokKeputusan` (Decision Tree Classifier berasaskan Ketulenan Gini).
 * **Model Tingkat Menengah-Tinggi (Mid-High) & Ensemble**:
   * **`HutanRawak` (Random Forest Classifier)**: Pengelas ensemble berasaskan pensampelan *bootstrap* (bagging) dan undian majoriti berbilang pokok keputusan untuk ketepatan tinggi pada data jadual.
-  * **`JaringanSaraf` (Multi-Layer Perceptron / Deep Neural Network)**: Rangkaian saraf tiruan berlapis dengan perambatan ke belakang (*backpropagation*), penurunan kecerunan (*gradient descent*), dan sokongan pengelasan tak-linear (seperti XOR) hingga 100% akurasi.
+  * **`JaringanSaraf` (Multi-Layer Perceptron / Deep Neural Network)** & **`LapisanLinear`**: Rangkaian saraf tiruan berlapis dengan perambatan ke belakang (*backpropagation*), penurunan kecerunan (*gradient descent*), dan sokongan `Tensor` native (`@`).
   * **`PengelasBayesNaif` (Gaussian Naive Bayes)**: Pengelas kebarangkalian berbilang ciri berasaskan taburan normal Gaussian.
+* **Pemprosesan Bahasa Tabii (NLP)**: `PengiraTFIDF` (pengektrakan vektor teks) dan `kesamaanCosine(v1, v2)`.
 * **Prapemprosesan, DataFrame & Metrik Penilaian Lengkap**:
   * **Pengolahan Data Tabular (`JadualData` / DataFrame ala Pandas)**: `bacaJadual(laluan)`, `.pilihLajur()`, `.tapis()`, `.isiKosong()` (imputasi nilai hilang), `.ringkasan()`, dan `.keMatriks()`.
   * **Pengkodan Kategori**: `PengkodLabel` (LabelEncoder dengan `.songsang()`) dan `PengkodSatuPanas` (OneHotEncoder).
   * **Penyekalaan Ciri**: `SkalaMinMaks` (MinMaxScaler) dan `PenyelarasanPiawai` (StandardScaler) dengan kaedah `latih()`, `transformasi()`, `latihTransformasi()`, dan `songsang()`.
   * **Dataset Terbina-Dalam**: `muatIris()` (Dataset Bunga Fisher Iris), `muatKredit()` (Dataset Penilaian Kelayakan Kredit), dan `janaDataSintetik(sampel, ciri)` (Penjana data rawak terkawal).
-  * Pembaca CSV pantas (`bacaCSV`), pembahagi data latihan dan ujian (`bahagiLatihUji`).
+  * **Validasi Silang & Pembahagian**: `pengesahanSilang(kilangModel, X, y, k)` (K-Fold Cross Validation), `bacaCSV`, dan `bahagiLatihUji`.
   * Metrik penilaian model: `matriksKekeliruan` (Confusion Matrix TP/FP/TN/FN), `kejituan` (Precision), `kepekaan` (Recall), `skorF1` (F1-Score), `skorR2`, `skorMSE`, dan `skorAkurasi`.
 * **Penstoran Model ke Cakera (Model Persistence)**:
   * Simpan struktur dan parameter model terus ke format JSON: `model.simpan("laluan/model.json")`.

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Taman Permainan MELAYU & AkalML</title>
+  <style>
+    :root {
+      --bg: #070b14;
+      --panel: #0f172a;
+      --border: #1e293b;
+      --accent: #27f2ff;
+      --accent-dark: #0072ff;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --success: #34d399;
+      --error: #f87171;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+    }
+    .brand span {
+      font-size: 0.78rem;
+      color: var(--accent);
+      background: rgba(39, 242, 255, 0.1);
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(39, 242, 255, 0.25);
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    select, button {
+      font-family: inherit;
+      font-size: 0.9rem;
+      border-radius: 8px;
+      padding: 8px 14px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+    }
+    select {
+      background: var(--bg);
+      color: var(--text);
+    }
+    button.run-btn {
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+      color: #04101d;
+      font-weight: 700;
+      border: none;
+      transition: opacity 0.15s;
+    }
+    button.run-btn:hover { opacity: 0.9; }
+    button.run-btn:disabled { opacity: 0.5; cursor: wait; }
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      padding: 16px 24px;
+    }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+    }
+    .pane {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 460px;
+    }
+    .pane-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      display: flex;
+      justify-content: space-between;
+    }
+    textarea {
+      flex: 1;
+      width: 100%;
+      background: transparent;
+      color: #f8fafc;
+      border: none;
+      outline: none;
+      padding: 16px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.92rem;
+      line-height: 1.55;
+      resize: none;
+      tab-size: 4;
+    }
+    pre#output {
+      flex: 1;
+      padding: 16px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.9rem;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-y: auto;
+      color: var(--success);
+    }
+    pre#output.err { color: var(--error); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M 2.0 4.24 L 4.04 4.24 L 5.0 4.68 L 6.92 7.11 L 7.05 7.43 L 7.81 8.33 L 8.84 9.86 L 9.09 10.05 L 9.22 10.37 L 9.48 10.56 L 9.6 10.88 L 9.86 10.75 L 13.44 5.77 L 14.4 4.81 L 15.74 4.24 L 19.0 4.24 L 18.93 16.7 L 17.65 16.7 L 17.46 16.5 L 17.46 5.77 L 15.93 5.77 L 15.29 6.09 L 14.84 6.47 L 14.33 7.3 L 14.08 7.5 L 13.95 7.81 L 9.67 13.5 L 7.18 10.18 L 7.05 9.86 L 5.51 7.94 L 5.39 7.62 L 4.81 6.98 L 4.68 6.66 L 4.43 6.47 L 4.3 6.15 L 3.98 5.83 L 3.6 5.77 L 3.6 19.76 L 2.0 19.76 Z" fill="#27F2FF"/>
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M 15.8 7.75 L 15.87 16.63 L 16.12 17.4 L 16.5 17.85 L 17.34 18.23 L 22.0 18.23 L 22.0 18.36 L 21.87 18.42 L 21.17 19.76 L 17.08 19.76 L 16.12 19.44 L 15.55 19.06 L 14.78 18.17 L 14.4 17.21 L 14.33 12.48 L 11.33 16.44 L 10.63 17.4 L 9.99 17.65 L 9.35 17.65 L 8.96 17.53 L 8.39 17.02 L 8.26 16.7 L 7.11 15.29 L 6.98 14.97 L 5.51 13.12 L 5.39 12.8 L 5.13 12.61 L 5.13 9.99 L 9.6 16.06 L 9.73 16.06 Z" fill="#27F2FF"/>
+      </svg>
+      <h1>Taman Permainan MELAYU</h1>
+      <span>AkalML v1.1 + Tensor</span>
+    </div>
+    <div class="controls">
+      <select id="preset" onchange="loadPreset()">
+        <option value="tensor">1. Tensor Native & Operator @</option>
+        <option value="hutan">2. AkalML: HutanRawak & JadualData</option>
+        <option value="tfidf">3. AkalML: NLP TF-IDF</option>
+        <option value="nn">4. AkalML: Jaringan Saraf (XOR)</option>
+      </select>
+      <button class="run-btn" id="runBtn" onclick="runCode()">Jalankan Kod</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="pane">
+      <div class="pane-header">
+        <span>Kod Sumber (.ml)</span>
+        <span>Ctrl+Enter untuk jalan</span>
+      </div>
+      <textarea id="editor" spellcheck="false"></textarea>
+    </section>
+    <section class="pane">
+      <div class="pane-header">
+        <span>Keluaran Konsol</span>
+        <span id="execTime">Sedia</span>
+      </div>
+      <pre id="output">Tekan "Jalankan Kod" untuk melihat hasil pelaksanaan...</pre>
+    </section>
+  </main>
+
+  <script>
+    const PRESETS = {
+      tensor: `# Primitif Tensor Native & Operator @\nada X = tensor([[1.0, 2.0], [3.0, 4.0]])\nada W = tensor([[0.5, 1.0], [1.5, 2.0]])\nada b = tensor([0.1, 0.2])\n\nada Z = ((X @ W) + b).relu()\ntunjuk "Bentuk Z:", Z.bentuk()\ntunjuk "Hasil Z :", Z\ntunjuk "Purata  :", Z.purata()`,
+      hutan: `ambil "akal"\n\nada jadual = JadualData(\n    ["umur", "gaji", "status"],\n    [[22.0, 4.0, "Tolak"], [40.0, 18.0, "Lulus"], [24.0, 5.0, "Tolak"], [45.0, 22.0, "Lulus"]]\n)\nada pengkod = PengkodLabel()\nada y = pengkod.latihTransformasi(jadual.dapatkanLajur("status"))\nada X = jadual.pilihLajur(["umur", "gaji"]).keMatriks()\n\nada hutan = HutanRawak(5, 3)\nhutan.latih(X, y)\nada ramal = hutan.ramal([[42.0, 20.0], [21.0, 3.5]])\ntunjuk "Ramalan:", pengkod.songsang(ramal)`,
+      tfidf: `ambil "akal"\n\nada dokumen = [\n    "saya suka belajar bahasa melayu dan kecerdasan buatan",\n    "pembelajaran mesin dengan akalml sangat laju",\n    "bahasa melayu menyokong pembelajaran mesin"\n]\nada pengira = PengiraTFIDF()\nada vektor = pengira.latihTransformasi(dokumen)\ntunjuk "Kosakata:", panjang(pengira.senarai_kata), "perkataan"\ntunjuk "Kesamaan Dok 1 & 3:", kesamaanCosine(vektor[0], vektor[2])`,
+      nn: `ambil "akal"\n\nada X = [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]]\nada y = [[0.0], [1.0], [1.0], [0.0]]\n\nada nn = JaringanSaraf([2, 4, 1], 0.8)\nnn.latih(X, y, 1200, salah)\ntunjuk "Akurasi XOR:", nn.skor(X, [0, 1, 1, 0]) * 100, "%"`
+    };
+
+    const editor = document.getElementById('editor');
+    const output = document.getElementById('output');
+    const runBtn = document.getElementById('runBtn');
+    const execTime = document.getElementById('execTime');
+
+    function loadPreset() {
+      const key = document.getElementById('preset').value;
+      editor.value = PRESETS[key] || '';
+    }
+
+    async function runCode() {
+      runBtn.disabled = true;
+      execTime.textContent = 'Menjalankan...';
+      output.className = '';
+      output.textContent = '';
+
+      const t0 = performance.now();
+      try {
+        const res = await fetch('/api/jalankan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kod: editor.value })
+        });
+        const data = await res.json();
+        const ms = (performance.now() - t0).toFixed(1);
+        execTime.textContent = `${ms} ms`;
+
+        if (data.kejayaan) {
+          output.textContent = data.keluaran || '(Tiada keluaran tunjuk)';
+        } else {
+          output.className = 'err';
+          output.textContent = data.ralat || 'Ralat pelaksanaan.';
+        }
+      } catch (err) {
+        output.className = 'err';
+        output.textContent = 'Gagal berhubung dengan pelayan tempatan: ' + err.message;
+      } finally {
+        runBtn.disabled = false;
+      }
+    }
+
+    editor.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        runCode();
+      }
+    });
+
+    loadPreset();
+  </script>
+</body>
+</html>
+
