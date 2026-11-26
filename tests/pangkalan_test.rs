@@ -60,3 +60,39 @@ semak db2.bilang("pelanggan") == 1, "Baki rekod mestilah 1"
     assert!(res.is_ok(), "Ralat pangkalan: {:?}", res);
 }
 
+#[test]
+fn test_pangkalan_kes_tepi_dan_jadual() {
+    let db_file = "target/test_pangkalan_edge.json";
+    let _ = fs::remove_file(db_file);
+
+    let code = r#"
+ambil "pangkalan"
+
+ada db = Pangkalan("target/test_pangkalan_edge.json")
+semak panjang(db.cariSemua("tiada")) == 0, "Jadual tiada mesti pulang senarai kosong"
+semak db.bilang("tiada") == 0, "Bilangan jadual tiada mesti 0"
+semak db.padam("tiada", {"id": 1}) == 0, "Padam jadual tiada mesti pulang 0"
+semak db.kemaskini("tiada", {"id": 1}, {"x": 2}) == 0, "Kemaskini jadual tiada mesti pulang 0"
+
+db.ciptaJadual("produk")
+db.ciptaJadual("pesanan")
+ada senarai = db.senaraiJadual()
+semak panjang(senarai) == 2, "Mesti ada 2 jadual"
+
+ada p1 = db.sisip("produk", {"nama": "Kopi", "harga": 15000})
+ada p2 = db.sisip("produk", {"nama": "Teh", "harga": 10000})
+# Pastikan _id tidak boleh diubah oleh kemaskini
+db.kemaskini("produk", {"nama": "Kopi"}, {"_id": 999, "harga": 18000})
+ada kopi = db.cariSatu("produk", {"nama": "Kopi"})
+semak kopi["_id"] == p1["_id"], "_id rekod mesti kekal tidak berubah"
+semak kopi["harga"] == 18000, "Harga Kopi mesti dikemaskini ke 18000"
+
+semak db.padamJadual("pesanan") == betul, "Padam jadual wujud mesti pulang betul"
+semak db.padamJadual("pesanan") == salah, "Padam jadual sudah tiada mesti pulang salah"
+"#;
+
+    let res = laksana_kod(code);
+    let _ = fs::remove_file(db_file);
+    assert!(res.is_ok(), "Ralat kes tepi pangkalan: {:?}", res);
+}
+
