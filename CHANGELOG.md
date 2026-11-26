@@ -37,6 +37,12 @@ Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut
 - Templat `melayu mula --mvc` gagal dijalankan.
 - `bahagiLatihUji` dan `pengesahanSilang` tidak mengocok data, jadi pada dataset yang tersusun mengikut kelas (seperti Iris) set ujian hanya mengandungi satu kelas dan skor K-Fold menjadi 0.
 - Prestasi: badan fungsi dan data tensor tidak lagi disalin pada setiap bacaan (fib(30) kira-kira 2.7x lebih pantas).
+- Satu permintaan HTTP dengan aksara berbilang bait boleh meranapkan pelayan Selasih.
+- Klien perlahan menyekat semua klien lain; sambungan kini dibaca dan ditulis dalam utas sendiri.
+- Memanggil fungsi yang disimpan dalam sifat objek meranapkan proses jika fungsi itu mengubah objek.
+- Memapar atau menukar ke JSON nilai yang dikongsi berulang kali kini memberi ralat selepas 64 MB.
+- Pautan simbolik yang ditukar selepas semakan sandbox tidak lagi diikuti (Linux dan macOS). FIFO ditolak.
+- Prestasi: fib(30) kira-kira 4.6x lebih pantas daripada v0.4.1.
 
 
 

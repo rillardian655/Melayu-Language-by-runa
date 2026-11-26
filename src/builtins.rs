@@ -1,14 +1,16 @@
 use crate::ast::LineCol;
 use crate::errors::{ErrorKind, MelayuError};
-use crate::interpreter::{Interpreter, PetaNilai, SenaraiNilai, Value};
+use crate::fail_selamat;
+use crate::interpreter::{Interpreter, PetaNilai, SenaraiNilai, Value, HAD_PAPARAN};
 use std::cell::RefCell;
 use std::fs;
 use std::io::{self, BufRead, Read, Write};
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{mpsc, Arc};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 pub type BuiltinFn = fn(&[Value], LineCol) -> Result<Value, MelayuError>;
 
@@ -382,7 +384,7 @@ pub fn builtin_ke_teks(args: &[Value], pos: LineCol) -> Result<Value, MelayuErro
         )
         .with_kind(ErrorKind::Runtime));
     }
-    Ok(Value::Teks(args[0].to_string()))
+    args[0].ke_teks(pos).map(Value::Teks)
 }
 
 pub fn builtin_ke_nombor(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
@@ -636,17 +638,10 @@ pub fn semak_laluan_selamat(laluan_str: &str, pos: LineCol) -> Result<PathBuf, M
 
 fn baca_teks_terhad(laluan: &Path, nama: &str, pos: LineCol) -> Result<String, MelayuError> {
     let ralat = |sebab: String| MelayuError::akses_fail_disekat(nama, &sebab, pos.line, pos.col);
-    let meta = fs::metadata(laluan).map_err(|e| ralat(format!("Gagal membaca metadata fail: {}", e)))?;
-    if !meta.is_file() {
-        return Err(ralat("Laluan ini bukan fail biasa.".to_string()));
-    }
-    if meta.len() > HAD_SAIZ_FAIL_MAKSIMUM {
-        return Err(ralat(format!(
-            "Saiz fail ({} bait) melebihi had keselamatan 5 MB.",
-            meta.len()
-        )));
-    }
-    fs::read_to_string(laluan).map_err(|e| ralat(format!("Gagal membaca fail: {}", e)))
+    let isi = akar_sandbox()
+        .and_then(|akar| fail_selamat::baca(&akar, laluan, HAD_SAIZ_FAIL_MAKSIMUM))
+        .map_err(|e| ralat(format!("Gagal membaca fail: {}", e)))?;
+    String::from_utf8(isi).map_err(|_| ralat("Kandungan fail bukan teks UTF-8 yang sah.".to_string()))
 }
 
 fn modul_terbina(nama: &str) -> Option<&'static str> {
@@ -783,14 +778,16 @@ pub fn builtin_tulis_fail(args: &[Value], pos: LineCol) -> Result<Value, MelayuE
 
     let safe_path = semak_laluan_selamat(laluan_str, pos)?;
 
-    fs::write(&safe_path, kandungan).map_err(|e| {
-        MelayuError::akses_fail_disekat(
-            laluan_str,
-            &format!("Gagal menulis ke fail: {}", e),
-            pos.line,
-            pos.col,
-        )
-    })?;
+    akar_sandbox()
+        .and_then(|akar| fail_selamat::tulis(&akar, &safe_path, kandungan.as_bytes()))
+        .map_err(|e| {
+            MelayuError::akses_fail_disekat(
+                laluan_str,
+                &format!("Gagal menulis ke fail: {}", e),
+                pos.line,
+                pos.col,
+            )
+        })?;
 
     Ok(Value::Betul)
 }
@@ -821,7 +818,7 @@ pub fn builtin_wujud_fail(args: &[Value], pos: LineCol) -> Result<Value, MelayuE
     };
 
     let safe_path = semak_laluan_selamat(laluan_str, pos)?;
-    Ok(if safe_path.exists() {
+    Ok(if akar_sandbox().is_ok_and(|akar| fail_selamat::wujud(&akar, &safe_path)) {
         Value::Betul
     } else {
         Value::Salah
@@ -854,8 +851,11 @@ pub fn builtin_padam_fail(args: &[Value], pos: LineCol) -> Result<Value, MelayuE
     };
 
     let safe_path = semak_laluan_selamat(laluan_str, pos)?;
-    if safe_path.exists() {
-        fs::remove_file(&safe_path).map_err(|e| {
+    let akar = akar_sandbox().map_err(|e| {
+        MelayuError::akses_fail_disekat(laluan_str, &format!("Gagal mencari folder sandbox: {}", e), pos.line, pos.col)
+    })?;
+    if fail_selamat::wujud(&akar, &safe_path) {
+        fail_selamat::padam(&akar, &safe_path).map_err(|e| {
             MelayuError::akses_fail_disekat(
                 laluan_str,
                 &format!("Gagal memadam fail: {}", e),
@@ -1307,6 +1307,61 @@ pub fn nilai_ke_json_string(
     kedalaman: usize,
     pos: LineCol,
 ) -> Result<String, MelayuError> {
+    let mut keluar = String::new();
+    tulis_json(val, cantik, kedalaman, pos, &mut keluar)?;
+    Ok(keluar)
+}
+
+fn nombor_json(n: f64) -> String {
+    if !n.is_finite() {
+        "null".to_string()
+    } else if n.fract() == 0.0 && n.abs() < 9_007_199_254_740_992.0 {
+        (n as i64).to_string()
+    } else {
+        n.to_string()
+    }
+}
+
+fn baris_json(keluar: &mut String, cantik: bool, kedalaman: usize) {
+    if cantik {
+        keluar.push('\n');
+        keluar.push_str(&"  ".repeat(kedalaman));
+    }
+}
+
+fn peta_json(
+    peta: &PetaNilai,
+    cantik: bool,
+    kedalaman: usize,
+    pos: LineCol,
+    keluar: &mut String,
+) -> Result<(), MelayuError> {
+    if peta.is_empty() {
+        keluar.push_str("{}");
+        return Ok(());
+    }
+    keluar.push('{');
+    for (i, (k, v)) in peta.iter().enumerate() {
+        if i > 0 {
+            keluar.push(',');
+        }
+        baris_json(keluar, cantik, kedalaman + 1);
+        keluar.push_str(&escape_json_string(k));
+        keluar.push_str(if cantik { ": " } else { ":" });
+        tulis_json(v, cantik, kedalaman + 1, pos, keluar)?;
+    }
+    baris_json(keluar, cantik, kedalaman);
+    keluar.push('}');
+    Ok(())
+}
+
+fn tulis_json(
+    val: &Value,
+    cantik: bool,
+    kedalaman: usize,
+    pos: LineCol,
+    keluar: &mut String,
+) -> Result<(), MelayuError> {
     if kedalaman > 500 {
         return Err(MelayuError::had_memori_terlampau(
             "Kedalaman struktur penukaran ke JSON melebihi had keselamatan (500)",
@@ -1314,146 +1369,71 @@ pub fn nilai_ke_json_string(
             pos.col,
         ));
     }
-
-    match val {
-        Value::Kosong => Ok("null".to_string()),
-        Value::Betul => Ok("true".to_string()),
-        Value::Salah => Ok("false".to_string()),
-        Value::Nombor(n) => {
-            if n.is_nan() || n.is_infinite() {
-                Ok("null".to_string())
-            } else if n.fract() == 0.0 && n.abs() < 9_007_199_254_740_992.0 {
-                Ok((*n as i64).to_string())
-            } else {
-                Ok(n.to_string())
-            }
-        }
-        Value::Teks(s) => Ok(escape_json_string(s)),
-        Value::Senarai(list) => {
-            let borrowed = list.borrow();
-            if borrowed.is_empty() {
-                return Ok("[]".to_string());
-            }
-
-            if cantik {
-                let indent_item = "  ".repeat(kedalaman + 1);
-                let indent_close = "  ".repeat(kedalaman);
-                let mut parts = Vec::new();
-                for item in borrowed.iter() {
-                    let s = nilai_ke_json_string(item, true, kedalaman + 1, pos)?;
-                    parts.push(format!("{}{}", indent_item, s));
-                }
-                Ok(format!("[\n{}\n{}]", parts.join(",\n"), indent_close))
-            } else {
-                let mut parts = Vec::new();
-                for item in borrowed.iter() {
-                    parts.push(nilai_ke_json_string(item, false, kedalaman + 1, pos)?);
-                }
-                Ok(format!("[{}]", parts.join(",")))
-            }
-        }
-        Value::Kamus(map) => {
-            let borrowed = map.borrow();
-            if borrowed.is_empty() {
-                return Ok("{}".to_string());
-            }
-
-            let keys: Vec<&String> = borrowed.keys().collect();
-
-            if cantik {
-                let indent_item = "  ".repeat(kedalaman + 1);
-                let indent_close = "  ".repeat(kedalaman);
-                let mut parts = Vec::new();
-                for k in keys {
-                    let v = borrowed.get(k).unwrap();
-                    let v_str = nilai_ke_json_string(v, true, kedalaman + 1, pos)?;
-                    let k_escaped = escape_json_string(k);
-                    parts.push(format!("{}{}: {}", indent_item, k_escaped, v_str));
-                }
-                Ok(format!("{{\n{}\n{}}}", parts.join(",\n"), indent_close))
-            } else {
-                let mut parts = Vec::new();
-                for k in keys {
-                    let v = borrowed.get(k).unwrap();
-                    let v_str = nilai_ke_json_string(v, false, kedalaman + 1, pos)?;
-                    let k_escaped = escape_json_string(k);
-                    parts.push(format!("{}:{}", k_escaped, v_str));
-                }
-                Ok(format!("{{{}}}", parts.join(",")))
-            }
-        }
-        Value::Objek(o) => {
-            let borrowed = o.sifat.borrow();
-            if borrowed.is_empty() {
-                return Ok("{}".to_string());
-            }
-
-            let keys: Vec<&String> = borrowed.keys().collect();
-
-            if cantik {
-                let indent_item = "  ".repeat(kedalaman + 1);
-                let indent_close = "  ".repeat(kedalaman);
-                let mut parts = Vec::new();
-                for k in keys {
-                    let v = borrowed.get(k).unwrap();
-                    let v_str = nilai_ke_json_string(v, true, kedalaman + 1, pos)?;
-                    let k_escaped = escape_json_string(k);
-                    parts.push(format!("{}{}: {}", indent_item, k_escaped, v_str));
-                }
-                Ok(format!("{{\n{}\n{}}}", parts.join(",\n"), indent_close))
-            } else {
-                let mut parts = Vec::new();
-                for k in keys {
-                    let v = borrowed.get(k).unwrap();
-                    let v_str = nilai_ke_json_string(v, false, kedalaman + 1, pos)?;
-                    let k_escaped = escape_json_string(k);
-                    parts.push(format!("{}:{}", k_escaped, v_str));
-                }
-                Ok(format!("{{{}}}", parts.join(",")))
-            }
-        }
-        Value::Tensor { data, shape } => {
-            if shape.len() == 2 {
-                let (rows, cols) = (shape[0], shape[1]);
-                let mut row_strs = Vec::with_capacity(rows);
-                for r in 0..rows {
-                    let col_strs: Vec<String> = (0..cols)
-                        .map(|c| {
-                            let v = data[r * cols + c];
-                            if v.fract() == 0.0 && v.is_finite() {
-                                format!("{:.0}", v)
-                            } else {
-                                format!("{}", v)
-                            }
-                        })
-                        .collect();
-                    row_strs.push(format!("[{}]", col_strs.join(",")));
-                }
-                Ok(format!("[{}]", row_strs.join(",")))
-            } else {
-                let strs: Vec<String> = data
-                    .iter()
-                    .map(|&v| {
-                        if v.fract() == 0.0 && v.is_finite() {
-                            format!("{:.0}", v)
-                        } else {
-                            format!("{}", v)
-                        }
-                    })
-                    .collect();
-                Ok(format!("[{}]", strs.join(",")))
-            }
-        }
-        other => Err(MelayuError::new(
-            "Alamak!",
-            &format!(
-                "Jenis '{}' tidak boleh ditukar ke format JSON.",
-                other.jenis()
-            ),
+    if keluar.len() > HAD_PAPARAN {
+        return Err(MelayuError::had_memori_terlampau(
+            "Teks JSON melebihi 64 MB",
             pos.line,
             pos.col,
-        )
-        .with_kind(ErrorKind::Runtime)),
+        ));
+    }
+
+    match val {
+        Value::Kosong => keluar.push_str("null"),
+        Value::Betul => keluar.push_str("true"),
+        Value::Salah => keluar.push_str("false"),
+        Value::Nombor(n) => keluar.push_str(&nombor_json(*n)),
+        Value::Teks(s) => keluar.push_str(&escape_json_string(s)),
+        Value::Senarai(list) => {
+            let list = list.borrow();
+            if list.is_empty() {
+                keluar.push_str("[]");
+                return Ok(());
+            }
+            keluar.push('[');
+            for (i, item) in list.iter().enumerate() {
+                if i > 0 {
+                    keluar.push(',');
+                }
+                baris_json(keluar, cantik, kedalaman + 1);
+                tulis_json(item, cantik, kedalaman + 1, pos, keluar)?;
+            }
+            baris_json(keluar, cantik, kedalaman);
+            keluar.push(']');
+        }
+        Value::Kamus(map) => peta_json(&map.borrow(), cantik, kedalaman, pos, keluar)?,
+        Value::Objek(o) => peta_json(&o.sifat.borrow(), cantik, kedalaman, pos, keluar)?,
+        Value::Tensor { data, shape } => {
+            let lajur = if shape.len() == 2 { shape[1].max(1) } else { data.len().max(1) };
+            let baris: Vec<String> = data
+                .chunks(lajur)
+                .map(|b| format!("[{}]", b.iter().map(|&v| tensor_json(v)).collect::<Vec<_>>().join(",")))
+                .collect();
+            if shape.len() == 2 {
+                keluar.push_str(&format!("[{}]", baris.join(",")));
+            } else {
+                keluar.push_str(baris.first().map_or("[]", |b| b));
+            }
+        }
+        other => {
+            return Err(MelayuError::new(
+                "Alamak!",
+                &format!("Jenis '{}' tidak boleh ditukar ke format JSON.", other.jenis()),
+                pos.line,
+                pos.col,
+            )
+            .with_kind(ErrorKind::Runtime))
+        }
+    }
+    Ok(())
+}
+
+fn tensor_json(v: f64) -> String {
+    if !v.is_finite() {
+        "null".to_string()
+    } else if v.fract() == 0.0 {
+        format!("{:.0}", v)
+    } else {
+        v.to_string()
     }
 }
 
@@ -2447,222 +2427,281 @@ pub fn builtin_skor_f1(args: &[Value], pos: LineCol) -> Result<Value, MelayuErro
     Ok(Value::Nombor(2.0 * p * r / (p + r)))
 }
 
-pub fn builtin_mulakan_pelayan_http(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
-    if args.len() < 2 || args.len() > 3 {
-        return Err(MelayuError::new(
-            "Alamak!",
-            "Fungsi 'mulakanPelayanHTTP' memerlukan 2 atau 3 hujah (port, fungsiPengendali, [hadPermintaan]).",
-            pos.line,
-            pos.col,
-        ).with_kind(ErrorKind::Runtime));
-    }
+const MAKS_SAMBUNGAN: usize = 128;
+const HAD_PENGEPALA: usize = 16_384;
+const HAD_BADAN: usize = 1_048_576;
+const MASA_BACA: Duration = Duration::from_secs(10);
 
-    let port = match &args[0] {
-        Value::Nombor(n) => *n as u16,
-        _ => return Err(MelayuError::new("Alamak!", "Port mestilah nombor bulat.", pos.line, pos.col).with_kind(ErrorKind::Runtime)),
+struct PermintaanMentah {
+    kaedah: String,
+    laluan: String,
+    pengepala: Vec<(String, String)>,
+    badan: String,
+}
+
+fn bina_respons(status: u16, jenis: &str, badan: &str) -> String {
+    let mesej = match status {
+        200 => "OK",
+        201 => "Created",
+        204 => "No Content",
+        400 => "Bad Request",
+        401 => "Unauthorized",
+        403 => "Forbidden",
+        404 => "Not Found",
+        408 => "Request Timeout",
+        413 => "Payload Too Large",
+        431 => "Request Header Fields Too Large",
+        500 => "Internal Server Error",
+        503 => "Service Unavailable",
+        _ => "Response",
     };
+    format!(
+        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nX-XSS-Protection: 1; mode=block\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, Authorization\r\nConnection: close\r\n\r\n{}",
+        status,
+        mesej,
+        jenis.replace(['\r', '\n'], ""),
+        badan.len(),
+        badan
+    )
+}
 
-    let handler_val = args[1].clone();
+fn respons_ralat(status: u16, mesej: &str) -> String {
+    bina_respons(status, "application/json", &format!("{{\"ralat\": \"{}\"}}", mesej))
+}
 
-    let had_permintaan = if args.len() == 3 {
-        match &args[2] {
-            Value::Nombor(n) => *n as usize,
-            _ => 0,
-        }
-    } else {
-        0
-    };
-
-    let listener = match TcpListener::bind(("127.0.0.1", port)) {
-        Ok(l) => l,
-        Err(e) => return Err(MelayuError::new(
-            "Alamak!",
-            &format!("Gagal memulakan pelayan HTTP pada port {}: {}", port, e),
-            pos.line,
-            pos.col,
-        ).with_kind(ErrorKind::Runtime)),
-    };
-
-    let mut count = 0;
-
-    for stream in listener.incoming() {
-        let mut stream = match stream {
-            Ok(s) => s,
-            Err(_) => continue,
-        };
-
-        let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
-        let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
-
-        // Baca pengepala dan badan secara berperingkat sehingga Content-Length (had 1 MB)
-        let mut raw_bytes = Vec::with_capacity(4096);
-        let mut temp_buf = [0u8; 4096];
-        let mut header_end_idx: Option<usize> = None;
-        let mut expected_content_len: usize = 0;
-
-        loop {
-            match stream.read(&mut temp_buf) {
-                Ok(0) => break,
-                Ok(n) => {
-                    raw_bytes.extend_from_slice(&temp_buf[..n]);
-                    if header_end_idx.is_none() {
-                        if let Some(pos_hdr) = raw_bytes.windows(4).position(|w| w == b"\r\n\r\n") {
-                            header_end_idx = Some(pos_hdr + 4);
-                            let hdr_str = String::from_utf8_lossy(&raw_bytes[..pos_hdr]);
-                            for hl in hdr_str.lines().skip(1) {
-                                if let Some((k, v)) = hl.split_once(':') {
-                                    if k.trim().eq_ignore_ascii_case("content-length") {
-                                        expected_content_len = v.trim().parse().unwrap_or(0);
-                                    }
-                                }
-                            }
-                            if expected_content_len > 1_048_576 {
-                                break;
-                            }
-                        } else if raw_bytes.len() > 16_384 {
-                            break; // Had saiz pengepala 16 KB
-                        }
-                    }
-                    if let Some(hdr_end) = header_end_idx {
-                        if raw_bytes.len() >= hdr_end + expected_content_len {
-                            break;
-                        }
-                    }
-                    if raw_bytes.len() > 1_064_960 {
-                        break;
-                    }
-                }
-                Err(_) => break,
-            }
-        }
-
-        if raw_bytes.is_empty() {
-            continue;
-        }
-
-        let req_text = String::from_utf8_lossy(&raw_bytes);
-        let mut lines = req_text.lines();
-        let first_line = lines.next().unwrap_or("");
-        let mut first_parts = first_line.split_whitespace();
-        let method = first_parts.next().unwrap_or("GET");
-        let path_full = first_parts.next().unwrap_or("/");
-
-        let mut headers_map = PetaNilai::new();
-        let mut content_length: usize = 0;
-
-        for line in lines.by_ref() {
-            if line.is_empty() || line == "\r" {
+fn baca_permintaan(aliran: &mut TcpStream) -> Result<Option<PermintaanMentah>, String> {
+    let tamat = Instant::now() + MASA_BACA;
+    let mut data: Vec<u8> = Vec::with_capacity(4096);
+    let mut penimbal = [0u8; 4096];
+    let mut hujung_pengepala = None;
+    let mut panjang_badan = 0usize;
+    loop {
+        if let Some(hujung) = hujung_pengepala {
+            if data.len() >= hujung + panjang_badan {
                 break;
             }
-            if let Some((k, v)) = line.split_once(':') {
-                let k_trim = k.trim().to_lowercase();
-                let v_trim = v.trim().to_string();
-                if k_trim == "content-length" {
-                    content_length = v_trim.parse().unwrap_or(0);
+        }
+        let baki = tamat.saturating_duration_since(Instant::now());
+        if baki.is_zero() || aliran.set_read_timeout(Some(baki)).is_err() {
+            return Err(respons_ralat(408, "Permintaan terlalu perlahan."));
+        }
+        match aliran.read(&mut penimbal) {
+            Ok(0) if data.is_empty() => return Ok(None),
+            Ok(0) => return Err(respons_ralat(400, "Permintaan tidak lengkap.")),
+            Ok(n) => data.extend_from_slice(&penimbal[..n]),
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(_) if data.is_empty() => return Ok(None),
+            Err(_) => return Err(respons_ralat(408, "Permintaan terlalu perlahan.")),
+        }
+        if hujung_pengepala.is_none() {
+            match data.windows(4).position(|w| w == b"\r\n\r\n") {
+                Some(i) if i <= HAD_PENGEPALA => {
+                    hujung_pengepala = Some(i + 4);
+                    let teks = String::from_utf8_lossy(&data[..i]);
+                    panjang_badan = teks
+                        .lines()
+                        .skip(1)
+                        .filter_map(|b| b.split_once(':'))
+                        .filter(|(k, _)| k.trim().eq_ignore_ascii_case("content-length"))
+                        .map(|(_, v)| {
+                            let v = v.trim();
+                            let digit = !v.is_empty() && v.bytes().all(|b| b.is_ascii_digit());
+                            v.parse().unwrap_or(if digit { usize::MAX } else { 0 })
+                        })
+                        .last()
+                        .unwrap_or(0);
+                    if panjang_badan > HAD_BADAN {
+                        return Err(respons_ralat(413, "Saiz muatan melebihi had keselamatan (1 MB)"));
+                    }
                 }
-                headers_map.insert(k_trim, Value::Teks(v_trim));
+                None if data.len() <= HAD_PENGEPALA => {}
+                _ => return Err(respons_ralat(431, "Pengepala permintaan terlalu besar.")),
             }
         }
+    }
 
-        if content_length > 1_048_576 {
-            let err_body = "{\"ralat\": \"Saiz muatan melebihi had keselamatan (1 MB)\"}";
-            let resp = format!(
-                "HTTP/1.1 413 Payload Too Large\r\nContent-Type: application/json\r\nContent-Length: {}\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n{}",
-                err_body.len(),
-                err_body
-            );
-            let _ = stream.write_all(resp.as_bytes());
-            let _ = stream.flush();
+    let hujung = hujung_pengepala.unwrap_or(data.len());
+    let teks = String::from_utf8_lossy(&data[..hujung]);
+    let mut baris = teks.lines();
+    let mut pertama = baris.next().unwrap_or("").split_whitespace();
+    let kaedah = pertama.next().unwrap_or("GET").to_string();
+    let laluan = pertama.next().unwrap_or("/").to_string();
+    let pengepala = baris
+        .filter_map(|b| b.split_once(':'))
+        .map(|(k, v)| (k.trim().to_lowercase(), v.trim().to_string()))
+        .collect();
+    let akhir = if panjang_badan > 0 { hujung + panjang_badan } else { data.len() };
+    Ok(Some(PermintaanMentah {
+        kaedah,
+        laluan,
+        pengepala,
+        badan: String::from_utf8_lossy(&data[hujung..akhir]).to_string(),
+    }))
+}
+
+fn kendali_permintaan(pengendali: &Value, permintaan: PermintaanMentah, pos: LineCol) -> String {
+    let mut pengepala = PetaNilai::new();
+    for (k, v) in permintaan.pengepala {
+        pengepala.insert(k, Value::Teks(v));
+    }
+    let mut kamus = PetaNilai::new();
+    kamus.insert("kaedah".to_string(), Value::Teks(permintaan.kaedah));
+    kamus.insert("laluan".to_string(), Value::Teks(permintaan.laluan));
+    kamus.insert("badan".to_string(), Value::Teks(permintaan.badan));
+    kamus.insert("pengepala".to_string(), Value::Kamus(Rc::new(RefCell::new(pengepala))));
+    let hujah = [Value::Kamus(Rc::new(RefCell::new(kamus)))];
+
+    let mut interp = Interpreter::new();
+    let hasil = match pengendali {
+        Value::Objek(o) => {
+            let nama = if o.kaedah.contains_key("kendaliPermintaan")
+                || o.sifat.borrow().contains_key("kendaliPermintaan")
+            {
+                "kendaliPermintaan"
+            } else {
+                "kendali"
+            };
+            interp.panggil_kaedah(pengendali.clone(), nama, &hujah, pos)
+        }
+        _ => interp.panggil_nilai(pengendali, &hujah, pos),
+    };
+
+    let ke_json = |v: &Value| nilai_ke_json_string(v, false, 0, pos).unwrap_or_else(|_| "{}".to_string());
+    match hasil {
+        Ok(Value::Kamus(rc)) => {
+            let m = rc.borrow();
+            let status = match m.get("status") {
+                Some(Value::Nombor(n)) => *n as u16,
+                _ => 200,
+            };
+            let jenis = match m.get("jenisKandungan") {
+                Some(Value::Teks(s)) => s.clone(),
+                _ => "application/json".to_string(),
+            };
+            let badan = match m.get("badan") {
+                Some(Value::Teks(s)) => s.clone(),
+                Some(lain) => ke_json(lain),
+                None => String::new(),
+            };
+            bina_respons(status, &jenis, &badan)
+        }
+        Ok(Value::Teks(s)) => bina_respons(200, "text/plain", &s),
+        Ok(lain) => bina_respons(200, "application/json", &ke_json(&lain)),
+        Err(e) => {
+            eprintln!("[Selasih Ralat Dalaman] {}", e.message);
+            respons_ralat(500, "Ralat dalaman pelayan.")
+        }
+    }
+}
+
+fn layan_sambungan(
+    mut aliran: TcpStream,
+    hantar: &mpsc::Sender<(PermintaanMentah, mpsc::Sender<String>)>,
+    sedang_tulis: &AtomicUsize,
+) {
+    let _ = aliran.set_write_timeout(Some(Duration::from_secs(5)));
+    match baca_permintaan(&mut aliran) {
+        Ok(None) => {}
+        Err(respons) => {
+            let _ = aliran.write_all(respons.as_bytes());
+        }
+        Ok(Some(permintaan)) => {
+            let (balas, terima) = mpsc::channel();
+            if hantar.send((permintaan, balas)).is_ok() {
+                if let Ok(respons) = terima.recv() {
+                    let _ = aliran.write_all(respons.as_bytes());
+                    let _ = aliran.flush();
+                    let _ = aliran.shutdown(Shutdown::Write);
+                    sedang_tulis.fetch_sub(1, Ordering::SeqCst);
+                }
+            }
+        }
+    }
+}
+
+fn terima_sambungan(
+    pendengar: TcpListener,
+    hantar: mpsc::Sender<(PermintaanMentah, mpsc::Sender<String>)>,
+    berhenti: Arc<AtomicBool>,
+    sedang_tulis: Arc<AtomicUsize>,
+) {
+    let aktif = Arc::new(AtomicUsize::new(0));
+    for aliran in pendengar.incoming() {
+        if berhenti.load(Ordering::SeqCst) {
+            break;
+        }
+        let Ok(mut aliran) = aliran else {
+            std::thread::sleep(Duration::from_millis(10));
+            continue;
+        };
+        if aktif.load(Ordering::SeqCst) >= MAKS_SAMBUNGAN {
+            let _ = aliran.set_write_timeout(Some(Duration::from_millis(100)));
+            let _ = aliran.write_all(respons_ralat(503, "Pelayan sibuk.").as_bytes());
             continue;
         }
+        aktif.fetch_add(1, Ordering::SeqCst);
+        let (hantar, kiraan, tulis) = (hantar.clone(), aktif.clone(), sedang_tulis.clone());
+        let utas = std::thread::Builder::new().stack_size(256 * 1024).spawn(move || {
+            layan_sambungan(aliran, &hantar, &tulis);
+            kiraan.fetch_sub(1, Ordering::SeqCst);
+        });
+        if utas.is_err() {
+            aktif.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+}
 
-        let body = if let Some(idx) = req_text.find("\r\n\r\n") {
-            let body_part = &req_text[idx + 4..];
-            if content_length > 0 && body_part.len() > content_length {
-                &body_part[..content_length]
-            } else {
-                body_part
-            }
-        } else {
-            ""
-        };
+pub fn builtin_mulakan_pelayan_http(args: &[Value], pos: LineCol) -> Result<Value, MelayuError> {
+    let ralat = |mesej: &str| {
+        MelayuError::new("Alamak!", mesej, pos.line, pos.col).with_kind(ErrorKind::Runtime)
+    };
+    if args.len() < 2 || args.len() > 3 {
+        return Err(ralat("Fungsi 'mulakanPelayanHTTP' memerlukan 2 atau 3 hujah (port, fungsiPengendali, [hadPermintaan])."));
+    }
+    let port = match &args[0] {
+        Value::Nombor(n) if n.fract() == 0.0 && (0.0..=65535.0).contains(n) => *n as u16,
+        _ => return Err(ralat("Port mestilah nombor bulat antara 0 dan 65535.")),
+    };
+    let had = match args.get(2) {
+        Some(Value::Nombor(n)) => *n as usize,
+        _ => 0,
+    };
+    let pendengar = TcpListener::bind(("127.0.0.1", port)).map_err(|e| {
+        ralat(&format!("Gagal memulakan pelayan HTTP pada port {}: {}", port, e))
+    })?;
+    let alamat = pendengar
+        .local_addr()
+        .map_err(|e| ralat(&format!("Gagal membaca alamat pelayan: {}", e)))?;
 
-        let mut req_kamus = PetaNilai::new();
-        req_kamus.insert("kaedah".to_string(), Value::Teks(method.to_string()));
-        req_kamus.insert("laluan".to_string(), Value::Teks(path_full.to_string()));
-        req_kamus.insert("badan".to_string(), Value::Teks(body.to_string()));
-        req_kamus.insert("pengepala".to_string(), Value::Kamus(Rc::new(RefCell::new(headers_map))));
+    let (hantar, terima) = mpsc::channel::<(PermintaanMentah, mpsc::Sender<String>)>();
+    let berhenti = Arc::new(AtomicBool::new(false));
+    let sedang_tulis = Arc::new(AtomicUsize::new(0));
+    let (b, t) = (berhenti.clone(), sedang_tulis.clone());
+    let penerima = std::thread::Builder::new()
+        .spawn(move || terima_sambungan(pendengar, hantar, b, t))
+        .map_err(|e| ralat(&format!("Gagal memulakan utas pelayan: {}", e)))?;
 
-        let req_val = Value::Kamus(Rc::new(RefCell::new(req_kamus)));
-
-        let mut interp = Interpreter::new();
-        let res_val = match &handler_val {
-            Value::Objek(_) => {
-                interp.panggil_kaedah(handler_val.clone(), "kendaliPermintaan", &[req_val.clone()], pos)
-                    .or_else(|_| interp.panggil_kaedah(handler_val.clone(), "kendali", &[req_val], pos))
-            }
-            _ => interp.panggil_nilai(&handler_val, &[req_val], pos),
-        };
-
-        let (status_code, content_type, res_body) = match res_val {
-            Ok(Value::Kamus(rc)) => {
-                let m = rc.borrow();
-                let status = match m.get("status") {
-                    Some(Value::Nombor(n)) => *n as u16,
-                    _ => 200,
-                };
-                let c_type = match m.get("jenisKandungan") {
-                    Some(Value::Teks(s)) => s.clone(),
-                    _ => "application/json".to_string(),
-                };
-                let b_str = match m.get("badan") {
-                    Some(Value::Teks(s)) => s.clone(),
-                    Some(other) => nilai_ke_json_string(other, false, 0, pos).unwrap_or_else(|_| "{}".to_string()),
-                    None => "".to_string(),
-                };
-                (status, c_type, b_str)
-            }
-            Ok(Value::Teks(s)) => (200, "text/plain".to_string(), s),
-            Ok(other) => {
-                let json = nilai_ke_json_string(&other, false, 0, pos).unwrap_or_else(|_| "{}".to_string());
-                (200, "application/json".to_string(), json)
-            }
-            Err(e) => {
-                eprintln!("[Selasih Ralat Dalaman] {}", e.message);
-                let err_json = "{\"ralat\": \"Ralat dalaman pelayan.\"}".to_string();
-                (500, "application/json".to_string(), err_json)
-            }
-        };
-
-        let safe_content_type = content_type.replace(['\r', '\n'], "");
-        let status_msg = match status_code {
-            200 => "OK",
-            201 => "Created",
-            204 => "No Content",
-            400 => "Bad Request",
-            401 => "Unauthorized",
-            403 => "Forbidden",
-            404 => "Not Found",
-            413 => "Payload Too Large",
-            500 => "Internal Server Error",
-            _ => "Response",
-        };
-
-        let response = format!(
-            "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nX-XSS-Protection: 1; mode=block\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, Authorization\r\nConnection: close\r\n\r\n{}",
-            status_code, status_msg, safe_content_type, res_body.len(), res_body
-        );
-
-        let _ = stream.write_all(response.as_bytes());
-        let _ = stream.flush();
-
-        count += 1;
-        if had_permintaan > 0 && count >= had_permintaan {
+    let mut kiraan = 0usize;
+    while let Ok((permintaan, balas)) = terima.recv() {
+        let respons = kendali_permintaan(&args[1], permintaan, pos);
+        sedang_tulis.fetch_add(1, Ordering::SeqCst);
+        if balas.send(respons).is_err() {
+            sedang_tulis.fetch_sub(1, Ordering::SeqCst);
+        }
+        kiraan += 1;
+        if had > 0 && kiraan >= had {
             break;
         }
     }
 
-    Ok(Value::Nombor(count as f64))
+    berhenti.store(true, Ordering::SeqCst);
+    let _ = TcpStream::connect_timeout(&alamat, Duration::from_secs(1));
+    let _ = penerima.join();
+    let tamat = Instant::now() + Duration::from_secs(6);
+    while sedang_tulis.load(Ordering::SeqCst) > 0 && Instant::now() < tamat {
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    Ok(Value::Nombor(kiraan as f64))
 }
 
 fn nyahkod_cebisan(badan: &[u8]) -> Option<Vec<u8>> {
@@ -3335,11 +3374,11 @@ pub fn builtin_info_perkakas(args: &[Value], pos: LineCol) -> Result<Value, Mela
     );
     map.insert(
         "gpu_cuda_dikesan".to_string(),
-        if ada_cuda { Value::Betul } else { Value::Salah },
+        if ada_cuda || gpu_kind == crate::gpu::GpuKind::Cuda { Value::Betul } else { Value::Salah },
     );
     map.insert(
         "gpu_rocm_dikesan".to_string(),
-        if ada_rocm { Value::Betul } else { Value::Salah },
+        if ada_rocm || gpu_kind == crate::gpu::GpuKind::Rocm { Value::Betul } else { Value::Salah },
     );
     map.insert(
         "gpu_aktif".to_string(),
@@ -3396,7 +3435,7 @@ pub fn builtin_cari_pecahan_terbaik(args: &[Value], pos: LineCol) -> Result<Valu
     let mut label_unik: Vec<String> = Vec::new();
     let mut indeks_label = Vec::with_capacity(n);
     for v in y_senarai.iter() {
-        let teks_label = v.to_string();
+        let teks_label = v.ke_teks(pos)?;
         let i = match label_unik.iter().position(|l| *l == teks_label) {
             Some(i) => i,
             None => {
