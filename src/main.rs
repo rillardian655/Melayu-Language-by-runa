@@ -137,6 +137,18 @@ fn main_utama() {
             }
             semak_fail(&args[2]);
         }
+        "format" | "fmt" => {
+            let mod_semak = args.iter().skip(2).any(|a| a == "--semak" || a == "--check");
+            let fail_path = args.iter().skip(2).find(|a| !a.starts_with('-'));
+            match fail_path {
+                Some(p) => format_fail(p, mod_semak),
+                None => {
+                    eprintln!("\x1b[1;31mAlamak! Sila nyatakan fail .ml untuk diformatkan.\x1b[0m");
+                    eprintln!("Contoh: melayu format program.ml [--semak]");
+                    process::exit(1);
+                }
+            }
+        }
         "uji" | "test" => {
             if args.len() < 3 {
                 eprintln!("\x1b[1;31mAlamak! Sila nyatakan fail .ml untuk diuji.\x1b[0m");
@@ -440,6 +452,7 @@ fn cetak_bantuan() {
     println!("  melayu jalankan <fail.ml>          Jalankan fail atur cara Melayu");
     println!("  melayu <fail.ml>                   Jalankan fail secara terus");
     println!("  melayu semak <fail.ml>             Semak sintaks dan semantik fail");
+    println!("  melayu format <fail.ml> [--semak]  Rapikan indentasi dan format kod (.ml)");
     println!("  melayu uji <fail.ml>               Jalankan suite ujian unit");
     println!("  melayu tanda-aras <fail.ml> [n]    Jalankan penanda aras masa (benchmark)");
     println!("  melayu mula [nama_projek] [--mvc]  Cipta struktur projek Melayu (asas atau MVC)");
@@ -1051,4 +1064,164 @@ fn jalankan_taman_permainan(port: u16) {
         }
         let _ = stream.flush();
     }
+}
+
+fn format_fail(path: &str, mod_semak: bool) {
+    let source = match fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("\x1b[1;31mAlamak! Gagal membaca '{}': {}\x1b[0m", path, e);
+            process::exit(1);
+        }
+    };
+
+    let formatted = format_kod_melayu(&source);
+    if formatted == source {
+        println!("\x1b[1;32mFail '{}' sudah kemas dan terformat!\x1b[0m", path);
+        return;
+    }
+
+    if mod_semak {
+        eprintln!("\x1b[1;33mFail '{}' memerlukan pemformatan. Jalankan 'melayu format {}'.\x1b[0m", path, path);
+        process::exit(1);
+    }
+
+    if let Err(e) = fs::write(path, &formatted) {
+        eprintln!("\x1b[1;31mAlamak! Gagal menulis '{}': {}\x1b[0m", path, e);
+        process::exit(1);
+    }
+    println!("\x1b[1;32mFail '{}' berjaya diformatkan dengan rapi!\x1b[0m", path);
+}
+
+fn format_kod_melayu(source: &str) -> String {
+    let mut out_lines: Vec<String> = Vec::new();
+    let mut indent_blok: usize = 0;
+    let mut indent_kurung: usize = 0;
+    let mut in_multiline_comment = false;
+    let mut blank_streak = 0;
+
+    for raw_line in source.lines() {
+        let trimmed = raw_line.trim();
+        if trimmed.is_empty() {
+            blank_streak += 1;
+            if blank_streak <= 1 && !out_lines.is_empty() {
+                out_lines.push(String::new());
+            }
+            continue;
+        }
+        blank_streak = 0;
+
+        if in_multiline_comment {
+            out_lines.push(raw_line.trim_end().to_string());
+            if trimmed.contains("]#") {
+                in_multiline_comment = false;
+            }
+            continue;
+        }
+        if trimmed.starts_with("#[") && !trimmed.contains("]#") {
+            out_lines.push(format!("{}{}", "    ".repeat(indent_blok + indent_kurung), trimmed));
+            in_multiline_comment = true;
+            continue;
+        }
+        if trimmed.starts_with('#') {
+            out_lines.push(format!("{}{}", "    ".repeat(indent_blok + indent_kurung), trimmed));
+            continue;
+        }
+
+        // Buang komen hujung baris untuk mengira kata kunci & kurung dengan tepat
+        let code_part = strip_string_and_comment(trimmed);
+        let code_trim = code_part.trim();
+
+        let is_closer = code_trim == "selesai";
+        let is_mid_branch = code_trim == "jika tidak"
+            || code_trim.starts_with("jika tidak jika ")
+            || code_trim == "tangkap"
+            || code_trim.starts_with("tangkap ")
+            || code_trim == "akhirnya"
+            || code_trim.starts_with("bila ")
+            || code_trim.starts_with("lain ")
+            || code_trim.starts_with("lain=>");
+
+        let leading_closes = code_trim
+            .chars()
+            .take_while(|&c| c == ']' || c == '}' || c == ')')
+            .count();
+
+        if is_closer || is_mid_branch {
+            indent_blok = indent_blok.saturating_sub(1);
+        }
+        let line_kurung = indent_kurung.saturating_sub(leading_closes);
+
+        out_lines.push(format!(
+            "{}{}",
+            "    ".repeat(indent_blok + line_kurung),
+            trimmed
+        ));
+
+        let is_opener = code_trim.starts_with("jika ")
+            || code_trim.starts_with("jika tidak")
+            || code_trim.starts_with("selagi ")
+            || code_trim.starts_with("untuk ")
+            || code_trim.starts_with("kerja ")
+            || code_trim.starts_with("kelas ")
+            || code_trim.starts_with("bina(")
+            || code_trim.starts_with("bina (")
+            || code_trim == "cuba"
+            || code_trim.starts_with("tangkap")
+            || code_trim == "akhirnya"
+            || code_trim.starts_with("padan ")
+            || code_trim.starts_with("uji ");
+
+        if is_opener && !is_closer {
+            indent_blok += 1;
+        }
+        if code_trim.starts_with("bila ") || code_trim.starts_with("lain ") || code_trim.starts_with("lain=>") {
+            indent_blok += 1;
+        }
+
+        for ch in code_part.chars() {
+            match ch {
+                '[' | '{' | '(' => indent_kurung += 1,
+                ']' | '}' | ')' => indent_kurung = indent_kurung.saturating_sub(1),
+                _ => {}
+            }
+        }
+    }
+
+    while out_lines.last().is_some_and(|l| l.is_empty()) {
+        out_lines.pop();
+    }
+    let mut res = out_lines.join("\n");
+    res.push('\n');
+    res
+}
+
+fn strip_string_and_comment(line: &str) -> String {
+    let mut out = String::new();
+    let mut in_str = false;
+    let mut escape = false;
+    for ch in line.chars() {
+        if escape {
+            escape = false;
+            continue;
+        }
+        if in_str {
+            if ch == '\\' {
+                escape = true;
+            } else if ch == '"' {
+                in_str = false;
+                out.push('"');
+            }
+            continue;
+        }
+        if ch == '"' {
+            in_str = true;
+            out.push('"');
+        } else if ch == '#' {
+            break;
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }

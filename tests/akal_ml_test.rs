@@ -474,6 +474,36 @@ semak g_list[127][127] == 128.0, "Elemen [127][127] mestilah 128.0"
 }
 
 #[test]
+fn test_akal_ml_rangkaian_adam() {
+    let code = r#"
+ambil "akal"
+benihRawak(42)
+
+# 1. Uji RangkaianAdam pada XOR (ReLU + Sigmoid + Adam)
+ada X = [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]]
+ada y = [0, 1, 1, 0]
+
+ada nn = RangkaianAdam([2, 8, 1], 0.05)
+nn.latih(X, y, 400, salah)
+ada skor_xor = nn.skor(X, y)
+semak skor_xor == 1.0, "RangkaianAdam mesti capai akurasi 100% pada XOR"
+
+# 2. Uji RangkaianAdam multi-kelas (Softmax + Cross-Entropy) pada Iris
+ada iris = muatIris()
+ada scaler = SkalaMinMaks()
+ada X_skala = scaler.latihTransformasi(iris["ciri"])
+ada pecah = bahagiLatihUji(X_skala, iris["sasaran"], 0.2)
+
+ada nn_iris = RangkaianAdam([4, 10, 3], 0.05)
+nn_iris.latih(pecah[0], pecah[2], 250, salah)
+ada akurasi = nn_iris.skor(pecah[1], pecah[3])
+semak akurasi >= 0.85, "RangkaianAdam multi-kelas mesti capai akurasi >= 85% pada Iris"
+"#;
+    let res = laksana_kod(code);
+    assert!(res.is_ok(), "Ralat RangkaianAdam: {:?}", res);
+}
+
+#[test]
 fn test_jaringan_saraf_kecerunan_tidak_bergantung_pada_saiz_dataset() {
     let code = r#"
 ambil "akal"

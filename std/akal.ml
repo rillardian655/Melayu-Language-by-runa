@@ -1844,3 +1844,296 @@ fungsi pengesahanSilang(kilangModel, X, y, k_lipatan)
         "purata_skor": jumlah_skor / k
     }
 selesai
+
+# ==============================================================================
+# RANGKAIAN SARAF MODEN (ReLU + Softmax/Sigmoid + Pengoptimum ADAM)
+# ==============================================================================
+
+kelas RangkaianAdam
+    bina(lapisan, kadarBelajar)
+        diri.lapisan = lapisan
+        diri.kadarBelajar = kadarBelajar
+        jika diri.kadarBelajar == kosong
+            diri.kadarBelajar = 0.01
+        selesai
+        diri.wajaran = []
+        diri.pincang = []
+        diri.m_w = []
+        diri.v_w = []
+        diri.m_b = []
+        diri.v_b = []
+        diri.masa_adam = 0
+
+        ada l = 0
+        ada n_lapisan = panjang(lapisan)
+        selagi l < n_lapisan - 1
+            ada n_in = lapisan[l]
+            ada n_out = lapisan[l + 1]
+            ada skala = puncaKuasaDua(2.0 / (n_in + n_out))
+
+            ada w = []
+            ada mw = []
+            ada vw = []
+            ada i = 0
+            selagi i < n_in
+                ada baris = []
+                ada baris_m = []
+                ada baris_v = []
+                ada j = 0
+                selagi j < n_out
+                    baris.tambah((rawak() - 0.5) * 2.0 * skala)
+                    baris_m.tambah(0.0)
+                    baris_v.tambah(0.0)
+                    j = j + 1
+                selesai
+                w.tambah(baris)
+                mw.tambah(baris_m)
+                vw.tambah(baris_v)
+                i = i + 1
+            selesai
+
+            ada b = []
+            ada mb = []
+            ada vb = []
+            ada k = 0
+            selagi k < n_out
+                b.tambah(0.0)
+                mb.tambah(0.0)
+                vb.tambah(0.0)
+                k = k + 1
+            selesai
+
+            diri.wajaran.tambah(w)
+            diri.pincang.tambah([b])
+            diri.m_w.tambah(mw)
+            diri.v_w.tambah(vw)
+            diri.m_b.tambah([mb])
+            diri.v_b.tambah([vb])
+            l = l + 1
+        selesai
+    selesai
+
+    kerja ramalKebarangkalian(X)
+        ada a = X
+        ada n_tahap = panjang(diri.wajaran)
+        ada l = 0
+        selagi l < n_tahap
+            ada z = darabMatriks(a, diri.wajaran[l])
+            z = matriksTambah(z, diri.pincang[l])
+            jika l < n_tahap - 1
+                a = matriksReLU(z)
+            jika tidak
+                ada n_out = diri.lapisan[panjang(diri.lapisan) - 1]
+                jika n_out > 1
+                    a = matriksSoftmax(z)
+                jika tidak
+                    a = matriksSigmoid(z)
+                selesai
+            selesai
+            l = l + 1
+        selesai
+        pulang a
+    selesai
+
+    kerja latih(X, Y, zaman, tunjukProgres)
+        ada n_sampel = panjang(X)
+        ada n_out = diri.lapisan[panjang(diri.lapisan) - 1]
+
+        # Tukar sasaran kelas kepada one-hot jika multi-kelas (n_out > 1)
+        ada Y_mat = Y
+        jika n_sampel > 0 && bukan (jenis(Y[0]) == "senarai")
+            Y_mat = []
+            ada i = 0
+            selagi i < n_sampel
+                jika n_out == 1
+                    Y_mat.tambah([Y[i]])
+                jika tidak
+                    ada vektor = []
+                    ada c = 0
+                    selagi c < n_out
+                        jika c == Y[i]
+                            vektor.tambah(1.0)
+                        jika tidak
+                            vektor.tambah(0.0)
+                        selesai
+                        c = c + 1
+                    selesai
+                    Y_mat.tambah(vektor)
+                selesai
+                i = i + 1
+            selesai
+        selesai
+
+        ada n_tahap = panjang(diri.wajaran)
+        ada beta1 = 0.9
+        ada beta2 = 0.999
+        ada eps = 0.00000001
+        ada b1_pow = 1.0
+        ada b2_pow = 1.0
+
+        ada p = 1
+        selagi p <= zaman
+            # 1. Suapan ke hadapan (simpan semua z dan a)
+            ada senarai_a = [X]
+            ada senarai_z = []
+            ada a_semasa = X
+            ada l = 0
+            selagi l < n_tahap
+                ada z = darabMatriks(a_semasa, diri.wajaran[l])
+                z = matriksTambah(z, diri.pincang[l])
+                senarai_z.tambah(z)
+                jika l < n_tahap - 1
+                    a_semasa = matriksReLU(z)
+                jika tidak
+                    jika n_out > 1
+                        a_semasa = matriksSoftmax(z)
+                    jika tidak
+                        a_semasa = matriksSigmoid(z)
+                    selesai
+                selesai
+                senarai_a.tambah(a_semasa)
+                l = l + 1
+            selesai
+
+            # 2. Perambatan ke belakang (Softmax+CE / Sigmoid+BCE: dz = (y_hat - y) / N)
+            ada ralat_z = matriksTolak(a_semasa, Y_mat)
+            ada skala_n = 1.0 / n_sampel
+            ada delta = matriksSkala(ralat_z, skala_n)
+
+            diri.masa_adam = diri.masa_adam + 1
+            b1_pow = b1_pow * beta1
+            b2_pow = b2_pow * beta2
+            ada corr1 = 1.0 - b1_pow
+            ada corr2 = 1.0 - b2_pow
+
+            ada idx = n_tahap - 1
+            selagi idx >= 0
+                ada a_sebelum = senarai_a[idx]
+                ada a_trans = transposisiMatriks(a_sebelum)
+                ada grad_w = darabMatriks(a_trans, delta)
+                ada grad_b = matriksJumlahLajur(delta)
+
+                # Sebar ralat ke lapisan sebelumnya jika bukan lapisan pertama
+                ada delta_seterusnya = kosong
+                jika idx > 0
+                    ada w_trans = transposisiMatriks(diri.wajaran[idx])
+                    ada ralat_prev = darabMatriks(delta, w_trans)
+                    ada z_prev = senarai_z[idx - 1]
+                    # Derivatif ReLU: 1 jika z > 0, selainnya 0
+                    ada n_r = panjang(z_prev)
+                    ada n_c = panjang(z_prev[0])
+                    ada r_i = 0
+                    selagi r_i < n_r
+                        ada c_j = 0
+                        selagi c_j < n_c
+                            jika z_prev[r_i][c_j] <= 0.0
+                                ralat_prev[r_i][c_j] = 0.0
+                            selesai
+                            c_j = c_j + 1
+                        selesai
+                        r_i = r_i + 1
+                    selesai
+                    delta_seterusnya = ralat_prev
+                selesai
+
+                # Kemas kini Adam untuk wajaran
+                ada n_wi = panjang(diri.wajaran[idx])
+                ada n_wj = panjang(diri.wajaran[idx][0])
+                ada wi = 0
+                selagi wi < n_wi
+                    ada wj = 0
+                    selagi wj < n_wj
+                        ada g = grad_w[wi][wj]
+                        ada m_val = (beta1 * diri.m_w[idx][wi][wj]) + ((1.0 - beta1) * g)
+                        ada v_val = (beta2 * diri.v_w[idx][wi][wj]) + ((1.0 - beta2) * g * g)
+                        diri.m_w[idx][wi][wj] = m_val
+                        diri.v_w[idx][wi][wj] = v_val
+                        ada m_hat = m_val / corr1
+                        ada v_hat = v_val / corr2
+                        diri.wajaran[idx][wi][wj] = diri.wajaran[idx][wi][wj] - (diri.kadarBelajar * m_hat / (puncaKuasaDua(v_hat) + eps))
+                        wj = wj + 1
+                    selesai
+                    wi = wi + 1
+                selesai
+
+                # Kemas kini Adam untuk pincang (bias)
+                ada bj = 0
+                selagi bj < n_wj
+                    ada gb = grad_b[0][bj]
+                    ada mb_val = (beta1 * diri.m_b[idx][0][bj]) + ((1.0 - beta1) * gb)
+                    ada vb_val = (beta2 * diri.v_b[idx][0][bj]) + ((1.0 - beta2) * gb * gb)
+                    diri.m_b[idx][0][bj] = mb_val
+                    diri.v_b[idx][0][bj] = vb_val
+                    ada mb_hat = mb_val / corr1
+                    ada vb_hat = vb_val / corr2
+                    diri.pincang[idx][0][bj] = diri.pincang[idx][0][bj] - (diri.kadarBelajar * mb_hat / (puncaKuasaDua(vb_hat) + eps))
+                    bj = bj + 1
+                selesai
+
+                delta = delta_seterusnya
+                idx = idx - 1
+            selesai
+
+            jika tunjukProgres && (p == 1 || p % 100 == 0 || p == zaman)
+                ada ralat_papar = ralatEntropiSilang(Y_mat, a_semasa)
+                tunjuk "Zaman " + teks(p) + "/" + teks(zaman) + " -> Entropi Silang: " + teks(ralat_papar)
+            selesai
+            p = p + 1
+        selesai
+    selesai
+
+    kerja ramal(X_baru)
+        ada probs = diri.ramalKebarangkalian(X_baru)
+        ada n_out = diri.lapisan[panjang(diri.lapisan) - 1]
+        ada hasil = []
+        ada i = 0
+        selagi i < panjang(probs)
+            ada baris = probs[i]
+            jika n_out == 1
+                jika baris[0] >= 0.5
+                    hasil.tambah(1)
+                jika tidak
+                    hasil.tambah(0)
+                selesai
+            jika tidak
+                ada idx_maks = 0
+                ada val_maks = baris[0]
+                ada c = 1
+                selagi c < panjang(baris)
+                    jika baris[c] > val_maks
+                        val_maks = baris[c]
+                        idx_maks = c
+                    selesai
+                    c = c + 1
+                selesai
+                hasil.tambah(idx_maks)
+            selesai
+            i = i + 1
+        selesai
+        pulang hasil
+    selesai
+
+    kerja skor(X_uji, y_uji)
+        ada y_ramal = diri.ramal(X_uji)
+        pulang skorAkurasi(y_uji, y_ramal)
+    selesai
+
+    kerja simpan(laluan)
+        ada data = {
+            "tipe": "RangkaianAdam",
+            "lapisan": diri.lapisan,
+            "kadarBelajar": diri.kadarBelajar,
+            "wajaran": diri.wajaran,
+            "pincang": diri.pincang
+        }
+        tulisFail(laluan, tulisJSON(data, betul))
+    selesai
+
+    kerja muat(laluan)
+        ada data = bacaJSON(bacaFail(laluan))
+        diri.lapisan = data["lapisan"]
+        diri.kadarBelajar = data["kadarBelajar"]
+        diri.wajaran = data["wajaran"]
+        diri.pincang = data["pincang"]
+    selesai
+selesai

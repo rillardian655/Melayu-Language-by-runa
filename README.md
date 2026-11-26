@@ -369,7 +369,8 @@ Bahasa Melayu menyertakan kerangka kerja Machine Learning native serumpun bernam
 * **Model Sedia Guna Asas & Pertengahan**: `RegresiLinear` (Ordinary Least Squares), `PengelasKNN` (K-Nearest Neighbors), `PengelompokanKMeans` (Unsupervised Clustering), dan `PokokKeputusan` (Decision Tree Classifier berasaskan Ketulenan Gini).
 * **Model Tingkat Menengah-Tinggi (Mid-High) & Ensemble**:
   * **`HutanRawak` (Random Forest Classifier)**: Pengelas ensemble berasaskan pensampelan *bootstrap* (bagging) dan undian majoriti berbilang pokok keputusan untuk ketepatan tinggi pada data jadual.
-  * **`JaringanSaraf` (Multi-Layer Perceptron / Deep Neural Network)** & **`LapisanLinear`**: Rangkaian saraf tiruan berlapis dengan perambatan ke belakang (*backpropagation*), penurunan kecerunan (*gradient descent*), dan sokongan `Tensor` native (`@`).
+  * **`JaringanSaraf`** & **`RangkaianAdam`**: Rangkaian saraf tiruan berlapis dengan sokongan `Tensor` native (`@`), pengaktifan **ReLU**, **Softmax**, **Cross-Entropy**, serta pengoptimum **Adam** (`RangkaianAdam`) untuk latihan berbilang kelas yang pantas dan stabil.
+  * **Pecutan Perkakasan & Kebolehulangan**: `infoPerkakas()`, `benihRawak(n)` untuk eksperimen boleh diulang, serta pilihan GPU `MELAYU_GPU=fp32` (AMD ROCm / NVIDIA CUDA).
   * **`PengelasBayesNaif` (Gaussian Naive Bayes)**: Pengelas kebarangkalian berbilang ciri berasaskan taburan normal Gaussian.
 * **Pemprosesan Bahasa Tabii (NLP)**: `PengiraTFIDF` (pengektrakan vektor teks) dan `kesamaanCosine(v1, v2)`.
 * **Prapemprosesan, DataFrame & Metrik Penilaian Lengkap**:
@@ -435,7 +436,18 @@ Bahasa Melayu kini dilengkapi kerangka kerja pelayan HTTP native bernama **Selas
 * **Sokongan CORS Automatik**: Pengendalian permintaan pra-penerbangan `OPTIONS` secara native dengan fungsi pembantu `balasCORS(status)`.
 * **Fungsi Pembantu Respons Terbina**: `balasJSON(data, status)`, `balasHTML(kandungan, status)`, dan `balasTeks(mesej, status)`.
 * **Objek Permintaan Pintar**: Penguraian kaedah HTTP (`req.kaedah`), laluan URL (`req.laluan`), kepala permintaan (`req.kepala`), teks badan (`req.badan`), dan penukar JSON segera (`req.json()`).
-* **Klien HTTP Standard**: Fungsi `hantarPermintaanHTTP(kaedah, url, kepala, badan)` untuk komunikasi antara servis mikro.
+* **Klien HTTP & HTTPS Standard**: Fungsi `hantarPermintaanHTTP(kaedah, url, kepala, badan)` dengan sokongan TLS (`https://` melalui `rustls`) dan anti-SSRF.
+
+#### Pangkalan: Pangkalan Data Terbenam (`ambil "pangkalan"`)
+
+Menyediakan storan jadual dan dokumen JSON berstruktur yang patuh sepenuhnya kepada sandbox keselamatan Bahasa Melayu:
+* `Pangkalan(laluan_fail)`: `.ciptaJadual()`, `.sisip()`, `.cari()`, `.cariSatu()`, `.cariSemua()`, `.kemaskini()`, `.padam()`, dan `.bilang()`.
+
+#### Pengurus Pakej & Utiliti CLI (`melayu mula`, `format`, `taman`)
+
+* **`melayu format <fail.ml> [--semak]`**: Merapikan indentasi (4 ruang) dan susunan kod Bahasa Melayu secara automatik.
+* **`melayu taman [port]`**: Membuka taman permainan web interaktif di pelayar tempatan.
+* **`--had-langkah <n>` / `MELAYU_HAD_LANGKAH`**: Mengawal atau mematikan (`0`) had langkah untuk latihan dataset ML bersaiz besar.
 
 Contoh Pelayan Web Selasih:
 ```melayu

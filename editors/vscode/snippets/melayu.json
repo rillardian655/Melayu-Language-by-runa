@@ -312,6 +312,31 @@
       "app.dengar()"
     ],
     "description": "Pelayan Web REST API Selasih lengkap dengan middleware"
+  },
+  "Pangkalan: Pangkalan Data Terbenam (db-crud)": {
+    "prefix": "db-crud",
+    "body": [
+      "ambil \"pangkalan\"",
+      "",
+      "ada db = Pangkalan(\"${1:data/storan.json}\")",
+      "db.ciptaJadual(\"${2:pengguna}\")",
+      "db.sisip(\"${2:pengguna}\", {\"nama\": \"${3:Ali}\", \"peranan\": \"admin\"})",
+      "ada rekod = db.cari(\"${2:pengguna}\", {\"peranan\": \"admin\"})",
+      "tunjuk rekod"
+    ],
+    "description": "Operasi CRUD pangkalan data terbenam Bahasa Melayu"
+  },
+  "AkalML: Rangkaian Adam (akal-adam)": {
+    "prefix": "akal-adam",
+    "body": [
+      "ambil \"akal\"",
+      "benihRawak(42)",
+      "",
+      "ada model = RangkaianAdam([${1:4, 10, 3}], ${2:0.05})",
+      "model.latih(${3:X_latih}, ${4:y_latih}, ${5:300}, betul)",
+      "tunjuk \"Akurasi:\", model.skor(${6:X_uji}, ${7:y_uji}) * 100, \"%\""
+    ],
+    "description": "Rangkaian Saraf Moden dengan ReLU, Softmax, dan Optimizer Adam"
   }
 }
 

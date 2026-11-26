@@ -648,6 +648,7 @@ fn modul_terbina(nama: &str) -> Option<&'static str> {
     match nama {
         "akal" | "akal_ml" | "akalml" | "std/akal" | "std/akal_ml" => Some(AKAL_ML_STDLIB),
         "selasih" | "wau" | "web" | "std/selasih" | "std/wau" => Some(SELASIH_STDLIB),
+        "pangkalan" | "db" | "std/pangkalan" | "std/db" => Some(PANGKALAN_STDLIB),
         _ => None,
     }
 }
@@ -3402,6 +3403,7 @@ pub fn builtin_info_perkakas(args: &[Value], pos: LineCol) -> Result<Value, Mela
 
 pub const AKAL_ML_STDLIB: &str = include_str!("../std/akal.ml");
 pub const SELASIH_STDLIB: &str = include_str!("../std/selasih.ml");
+pub const PANGKALAN_STDLIB: &str = include_str!("../std/pangkalan.ml");
 
 fn banding_nan_akhir(a: f64, b: f64) -> std::cmp::Ordering {
     a.is_nan().cmp(&b.is_nan()).then(a.total_cmp(&b))
