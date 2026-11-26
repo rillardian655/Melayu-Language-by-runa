@@ -2665,6 +2665,135 @@ pub fn builtin_mulakan_pelayan_http(args: &[Value], pos: LineCol) -> Result<Valu
     Ok(Value::Nombor(count as f64))
 }
 
+fn nyahkod_cebisan(badan: &[u8]) -> Option<Vec<u8>> {
+    let mut hasil = Vec::new();
+    let mut baki = badan;
+    loop {
+        let hujung = baki.windows(2).position(|w| w == b"\r\n")?;
+        let baris = std::str::from_utf8(&baki[..hujung]).ok()?;
+        let saiz = usize::from_str_radix(baris.split(';').next()?.trim(), 16).ok()?;
+        baki = &baki[hujung + 2..];
+        if saiz == 0 {
+            return Some(hasil);
+        }
+        hasil.extend_from_slice(baki.get(..saiz)?);
+        baki = baki.get(saiz..)?.strip_prefix(b"\r\n")?;
+    }
+}
+
+fn pengepala_tersuai(nilai: Option<&Value>) -> Result<(bool, String), String> {
+    let peta = match nilai {
+        None | Some(Value::Kosong) => return Ok((false, String::new())),
+        Some(Value::Kamus(peta)) => peta.borrow(),
+        Some(lain) => return Err(format!("Pengepala HTTP mestilah kamus, tetapi dapat {}.", lain.jenis())),
+    };
+    let mut ada_jenis = false;
+    let mut teks = String::new();
+    for (nama, nilai) in peta.iter() {
+        let nilai = match nilai {
+            Value::Teks(t) => t.clone(),
+            Value::Nombor(_) | Value::Betul | Value::Salah => nilai.to_string(),
+            lain => {
+                return Err(format!(
+                    "Nilai pengepala HTTP '{}' mestilah teks atau nombor, bukan {}.",
+                    nama.escape_debug(),
+                    lain.jenis()
+                ))
+            }
+        };
+        let nama_sah = !nama.is_empty()
+            && nama.bytes().all(|b| b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&b));
+        if !nama_sah || nilai.chars().any(|c| c.is_control() && c != '\t') {
+            return Err(format!("Pengepala HTTP '{}' mengandungi aksara yang tidak sah.", nama.escape_debug()));
+        }
+        match nama.to_ascii_lowercase().as_str() {
+            "host" | "content-length" | "connection" | "transfer-encoding" => {
+                return Err(format!("Pengepala HTTP '{}' ditetapkan secara automatik dan tidak boleh diubah.", nama));
+            }
+            "content-type" => ada_jenis = true,
+            _ => {}
+        }
+        teks.push_str(&format!("{}: {}\r\n", nama, nilai));
+    }
+    Ok((ada_jenis, teks))
+}
+
+enum Aliran {
+    Biasa(TcpStream),
+    #[cfg(feature = "https")]
+    Tls(Box<rustls::StreamOwned<rustls::ClientConnection, TcpStream>>),
+}
+
+impl Read for Aliran {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            Aliran::Biasa(s) => s.read(buf),
+            #[cfg(feature = "https")]
+            Aliran::Tls(s) => s.read(buf),
+        }
+    }
+}
+
+impl Write for Aliran {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            Aliran::Biasa(s) => s.write(buf),
+            #[cfg(feature = "https")]
+            Aliran::Tls(s) => s.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Aliran::Biasa(s) => s.flush(),
+            #[cfg(feature = "https")]
+            Aliran::Tls(s) => s.flush(),
+        }
+    }
+}
+
+#[cfg(feature = "https")]
+fn konfigurasi_tls() -> Result<std::sync::Arc<rustls::ClientConfig>, String> {
+    static KONFIGURASI: std::sync::OnceLock<std::sync::Arc<rustls::ClientConfig>> = std::sync::OnceLock::new();
+    if let Some(k) = KONFIGURASI.get() {
+        return Ok(k.clone());
+    }
+    let akar = rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let konfigurasi = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .map_err(|e| format!("Konfigurasi TLS gagal: {}", e))?
+    .with_root_certificates(akar)
+    .with_no_client_auth();
+    Ok(KONFIGURASI.get_or_init(|| std::sync::Arc::new(konfigurasi)).clone())
+}
+
+fn sambung_aliran(tcp: TcpStream, guna_tls: bool, host: &str) -> Result<Aliran, String> {
+    if !guna_tls {
+        return Ok(Aliran::Biasa(tcp));
+    }
+    #[cfg(feature = "https")]
+    {
+        let nama = rustls::pki_types::ServerName::try_from(host.to_string())
+            .map_err(|_| format!("Nama hos '{}' tidak sah untuk TLS.", host))?;
+        let mut sambungan = rustls::ClientConnection::new(konfigurasi_tls()?, nama)
+            .map_err(|e| format!("Sambungan TLS gagal: {}", e))?;
+        let mut tcp = tcp;
+        while sambungan.is_handshaking() {
+            sambungan
+                .complete_io(&mut tcp)
+                .map_err(|e| format!("Jabat tangan TLS dengan '{}' gagal: {}", host, e))?;
+        }
+        Ok(Aliran::Tls(Box::new(rustls::StreamOwned::new(sambungan, tcp))))
+    }
+    #[cfg(not(feature = "https"))]
+    {
+        let _ = (tcp, host);
+        Err("HTTPS tidak tersedia dalam binaan ini.".to_string())
+    }
+}
+
 fn ipv4_terbenam(v6: &Ipv6Addr) -> Vec<Ipv4Addr> {
     let o = v6.octets();
     let seg = v6.segments();
@@ -2745,17 +2874,23 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
         MelayuError::new("Alamak!", mesej, pos.line, pos.col).with_kind(ErrorKind::Runtime)
     };
 
-    let url_clean = if let Some(baki) = url_raw.strip_prefix("http://") {
-        baki
-    } else if url_raw.to_lowercase().starts_with("https://") {
-        return Err(ralat_url(
-            "HTTPS belum disokong kerana MELAYU tiada pustaka TLS terbina-dalam. Guna alamat http:// atau proksi tempatan.",
-        ));
+    let (ada_jenis, pengepala) = pengepala_tersuai(args.get(3)).map_err(|e| ralat_url(&e))?;
+
+    let (guna_tls, url_clean) = if let Some(baki) = url_raw.strip_prefix("http://") {
+        (false, baki)
+    } else if url_raw.get(..8).is_some_and(|awalan| awalan.eq_ignore_ascii_case("https://")) {
+        (true, &url_raw[8..])
     } else if url_raw.contains("://") {
-        return Err(ralat_url("Hanya URL http:// disokong oleh hantarPermintaanHTTP."));
+        return Err(ralat_url("Hanya URL http:// dan https:// disokong oleh hantarPermintaanHTTP."));
     } else {
-        url_raw
+        (false, url_raw)
     };
+    if guna_tls && !cfg!(feature = "https") {
+        return Err(ralat_url(
+            "HTTPS tidak tersedia kerana MELAYU ini dibina tanpa ciri 'https'. Guna alamat http:// atau bina semula dengan ciri lalai.",
+        ));
+    }
+    let port_lalai: u16 = if guna_tls { 443 } else { 80 };
 
     let (host_port, path) = if let Some(slash_idx) = url_clean.find('/') {
         (&url_clean[..slash_idx], &url_clean[slash_idx..])
@@ -2774,14 +2909,14 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
         let selepas = &baki[tutup + 1..];
         let p = match selepas.strip_prefix(':') {
             Some(teks_port) => baca_port(teks_port)?,
-            None if selepas.is_empty() => 80,
+            None if selepas.is_empty() => port_lalai,
             None => return Err(ralat_url("Format hos URL tidak sah.")),
         };
         (&baki[..tutup], p)
     } else if let Some(colon_idx) = host_port.find(':') {
         (&host_port[..colon_idx], baca_port(&host_port[colon_idx + 1..])?)
     } else {
-        (host_port, 80)
+        (host_port, port_lalai)
     };
 
     let host_lower = host.to_lowercase();
@@ -2818,7 +2953,7 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
             Err(e) => ralat_akhir = Some(e),
         }
     }
-    let mut stream = match sambungan {
+    let tcp = match sambungan {
         Some(s) => s,
         None => {
             return Err(ralat_url(&format!(
@@ -2830,15 +2965,18 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
         }
     };
 
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
-    let _ = stream.set_write_timeout(Some(Duration::from_secs(10)));
+    let _ = tcp.set_read_timeout(Some(Duration::from_secs(10)));
+    let _ = tcp.set_write_timeout(Some(Duration::from_secs(10)));
+    let mut stream = sambung_aliran(tcp, guna_tls, host).map_err(|e| ralat_url(&e))?;
 
     let req_content = format!(
-        "{} {} HTTP/1.1\r\nHost: {}:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        "{} {} HTTP/1.1\r\nHost: {}:{}\r\n{}{}Content-Length: {}\r\nConnection: close\r\n\r\n{}",
         kaedah,
         path,
         if host.contains(':') { format!("[{}]", host) } else { host.to_string() },
         port,
+        if ada_jenis { "" } else { "Content-Type: application/json\r\n" },
+        pengepala,
         badan_str.len(),
         badan_str
     );
@@ -2851,10 +2989,11 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
     let mut response_bytes = Vec::new();
     let _ = stream.take(5 * 1024 * 1024).read_to_end(&mut response_bytes);
 
-    let res_str = String::from_utf8_lossy(&response_bytes);
-    let mut parts = res_str.splitn(2, "\r\n\r\n");
-    let header_part = parts.next().unwrap_or("");
-    let body_part = parts.next().unwrap_or("").to_string();
+    let (bait_pengepala, bait_badan) = match response_bytes.windows(4).position(|w| w == b"\r\n\r\n") {
+        Some(i) => (&response_bytes[..i], &response_bytes[i + 4..]),
+        None => (&response_bytes[..], &[][..]),
+    };
+    let header_part = String::from_utf8_lossy(bait_pengepala).to_string();
 
     let mut header_lines = header_part.lines();
     let status_line = header_lines.next().unwrap_or("");
@@ -2864,16 +3003,38 @@ pub fn builtin_hantar_permintaan_http(args: &[Value], pos: LineCol) -> Result<Va
         .and_then(|s| s.parse().ok())
         .unwrap_or(0.0);
 
-    let mut map_resp = PetaNilai::new();
-    map_resp.insert("status".to_string(), Value::Nombor(status_code));
-    map_resp.insert("badan".to_string(), Value::Teks(body_part));
-
     let mut headers_resp = PetaNilai::new();
     for hl in header_lines {
         if let Some((k, v)) = hl.split_once(':') {
             headers_resp.insert(k.trim().to_lowercase(), Value::Teks(v.trim().to_string()));
         }
     }
+    let bercebisan = matches!(
+        headers_resp.get("transfer-encoding"),
+        Some(Value::Teks(t)) if t.to_lowercase().contains("chunked")
+    );
+    let panjang_dijangka = match headers_resp.get("content-length") {
+        Some(Value::Teks(t)) => t.parse::<usize>().ok(),
+        _ => None,
+    };
+    let tanpa_badan = kaedah == "HEAD" || status_code < 200.0 || status_code == 204.0 || status_code == 304.0;
+    let isi = if tanpa_badan {
+        Some(bait_badan.to_vec())
+    } else if bercebisan {
+        nyahkod_cebisan(bait_badan)
+    } else if panjang_dijangka.is_some_and(|n| bait_badan.len() < n) {
+        None
+    } else {
+        Some(bait_badan.to_vec())
+    };
+    let body_part = match isi {
+        Some(bait) => String::from_utf8_lossy(&bait).to_string(),
+        None => return Err(ralat_url("Respons HTTP terputus sebelum lengkap atau melebihi had 5 MB.")),
+    };
+
+    let mut map_resp = PetaNilai::new();
+    map_resp.insert("status".to_string(), Value::Nombor(status_code));
+    map_resp.insert("badan".to_string(), Value::Teks(body_part));
     map_resp.insert("pengepala".to_string(), Value::Kamus(Rc::new(RefCell::new(headers_resp))));
 
     Ok(Value::Kamus(Rc::new(RefCell::new(map_resp))))

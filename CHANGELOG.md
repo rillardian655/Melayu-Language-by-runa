@@ -5,6 +5,7 @@ Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut
 ## [Belum Dikeluarkan]
 
 ### Ditambah (Added)
+- `hantarPermintaanHTTP` menyokong `https://` melalui rustls (ciri cargo `https`, aktif secara lalai). Sijil disahkan dengan senarai CA Mozilla.
 - Pilihan `--had-langkah <n>` dan pemboleh ubah persekitaran `MELAYU_HAD_LANGKAH` untuk menaikkan atau mematikan (`0`) had 10 juta langkah.
 - `benihRawak(n)` untuk keputusan `rawak()` dan `rawakTensor()` yang boleh diulang.
 - `cariPecahanTerbaik(X, y, senaraiCiri)`: carian pecahan Gini asli yang digunakan oleh `PokokKeputusan`.
@@ -23,6 +24,9 @@ Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut
 - `muatIris()` kini memulangkan kesemua 150 rekod dataset Iris (sebelum ini 30).
 
 ### Dibaiki (Fixed)
+- Pengepala tersuai (hujah ke-4 `hantarPermintaanHTTP`) kini benar-benar dihantar; sebelum ini diabaikan.
+- Respons HTTP yang terputus atau melebihi 5 MB memberi ralat dan tidak lagi dipotong secara senyap.
+- Respons HTTP dengan `Transfer-Encoding: chunked` kini dinyahkod; sebelum ini saiz cebisan (contoh `241`) muncul di dalam `badan`.
 - Proses tamat dengan stack overflow apabila memaparkan, membandingkan atau melepaskan nilai yang merujuk diri sendiri atau sangat dalam, atau apabila kod sangat bersarang.
 - Sandbox fail: pautan simbolik (fail, folder atau rosak, dengan laluan relatif atau mutlak) tidak lagi boleh membaca, menulis, memadam atau mengimport di luar direktori kerja, atau mencapai fail sensitif seperti `.env`.
 - Semakan anti-SSRF boleh dipintas dengan bentuk alamat lain (`2852039166`, `0xa9fea9fe`, IPv4 terbenam dalam IPv6, NAT64, 6to4 dan Teredo).
