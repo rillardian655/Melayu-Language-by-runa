@@ -568,8 +568,17 @@ fn nama_sensitif(laluan: &Path) -> Option<String> {
     })
 }
 
+static AKAR_SANDBOX: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+pub fn tetapkan_akar_sandbox(akar: PathBuf) {
+    let _ = AKAR_SANDBOX.set(akar);
+}
+
 fn akar_sandbox() -> io::Result<PathBuf> {
-    std::env::current_dir()?.canonicalize()
+    match AKAR_SANDBOX.get() {
+        Some(akar) => Ok(akar.clone()),
+        None => std::env::current_dir()?.canonicalize(),
+    }
 }
 
 pub fn semak_laluan_selamat(laluan_str: &str, pos: LineCol) -> Result<PathBuf, MelayuError> {
@@ -611,7 +620,10 @@ pub fn semak_laluan_selamat(laluan_str: &str, pos: LineCol) -> Result<PathBuf, M
     sebenar.extend(baki.into_iter().rev());
 
     match sebenar.strip_prefix(&akar) {
-        Err(_) => Err(ralat("Akses ke laluan fail di luar direktori kerja disekat.")),
+        Err(_) => Err(ralat(&format!(
+            "Laluan ini berada di luar sandbox projek ({}).",
+            akar.display()
+        ))),
         Ok(dalam) => match nama_sensitif(dalam) {
             Some(nama) => Err(ralat(&format!(
                 "Akses ke fail/direktori sensitif '{}' disekat demi keselamatan.",

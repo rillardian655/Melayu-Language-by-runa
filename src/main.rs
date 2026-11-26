@@ -51,9 +51,68 @@ fn main() {
     main_utama();
 }
 
+fn folder_sandbox(nilai: &str) -> std::path::PathBuf {
+    match std::path::Path::new(nilai).canonicalize() {
+        Ok(folder) if folder.is_dir() => folder,
+        _ => {
+            eprintln!("\x1b[1;31mAlamak! Folder sandbox '{}' tidak wujud.\x1b[0m", nilai);
+            process::exit(1);
+        }
+    }
+}
+
+fn ambil_pilihan_sandbox(args: &mut Vec<String>) -> Option<std::path::PathBuf> {
+    let i = args
+        .iter()
+        .position(|a| a == "--sandbox" || a.starts_with("--sandbox="))?;
+    let nilai = match args[i].strip_prefix("--sandbox=") {
+        Some(v) => v.to_string(),
+        None if i + 1 < args.len() => args.remove(i + 1),
+        None => {
+            eprintln!("\x1b[1;31mAlamak! '--sandbox' memerlukan folder, contoh: --sandbox .\x1b[0m");
+            process::exit(1);
+        }
+    };
+    args.remove(i);
+    Some(folder_sandbox(&nilai))
+}
+
+fn tentukan_akar_sandbox(
+    pilihan: Option<std::path::PathBuf>,
+    skrip: Option<&str>,
+) -> Option<std::path::PathBuf> {
+    if pilihan.is_some() {
+        return pilihan;
+    }
+    if let Ok(v) = env::var("MELAYU_SANDBOX") {
+        if !v.trim().is_empty() {
+            return Some(folder_sandbox(v.trim()));
+        }
+    }
+    let folder = std::path::Path::new(skrip?).canonicalize().ok()?.parent()?.to_path_buf();
+    let rumah = env::var_os("HOME")
+        .or_else(|| env::var_os("USERPROFILE"))
+        .and_then(|r| std::path::PathBuf::from(r).canonicalize().ok());
+    let projek = folder
+        .ancestors()
+        .take_while(|f| f.parent().is_some() && Some(*f) != rumah.as_deref())
+        .find(|f| f.join("pakej.json").is_file())
+        .map(|f| f.to_path_buf());
+    Some(projek.unwrap_or(folder))
+}
+
 fn main_utama() {
     let mut args: Vec<String> = env::args().collect();
     ambil_pilihan_had_langkah(&mut args);
+    let pilihan_sandbox = ambil_pilihan_sandbox(&mut args);
+    let skrip = match args.get(1).map(|s| s.as_str()) {
+        Some("jalankan" | "run" | "semak" | "check" | "uji" | "test" | "tanda-aras" | "benchmark") => args.get(2).cloned(),
+        Some(fail) if fail.ends_with(".ml") => Some(fail.to_string()),
+        _ => None,
+    };
+    if let Some(akar) = tentukan_akar_sandbox(pilihan_sandbox, skrip.as_deref()) {
+        melayu_core::builtins::tetapkan_akar_sandbox(akar);
+    }
 
     if args.len() <= 1 {
         // Tanpa argumen: Buka REPL
@@ -393,6 +452,8 @@ fn cetak_bantuan() {
     println!("PILIHAN:");
     println!("  --had-langkah <n>                  Had langkah pelaksanaan (lalai: 10000000, 0 = tiada had)");
     println!("                                     Boleh juga guna pemboleh ubah persekitaran MELAYU_HAD_LANGKAH");
+    println!("  --sandbox <folder>                 Sempadan akses fail (lalai: folder projek dengan pakej.json,");
+    println!("                                     atau folder fail .ml). Juga MELAYU_SANDBOX");
     println!();
     println!("CONTOH:");
     println!("  melayu mula aplikasi_saya");
@@ -903,7 +964,10 @@ fn jalankan_taman_permainan(port: u16) {
             // Jalankan dalam direktori sandbox dengan had masa maksimum 10 saat
             let (ok, text) = match process::Command::new(exe)
                 .env_remove("MELAYU_HAD_LANGKAH")
+                .env_remove("MELAYU_SANDBOX")
                 .current_dir(&tmp_dir)
+                .arg("--sandbox")
+                .arg(&tmp_dir)
                 .arg(&tmp_path)
                 .stdout(process::Stdio::piped())
                 .stderr(process::Stdio::piped())
