@@ -4,7 +4,9 @@
 //! secara dinamik pada masa larian tanpa kebergantungan luar. Sekiranya tiada GPU disokong,
 //! pengiraan akan jatuh balik (fallback) ke CPU selari multi-teras secara automatik.
 
+#[cfg(target_os = "linux")]
 use std::ffi::c_void;
+#[cfg(target_os = "linux")]
 use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,19 +45,19 @@ mod linux_ffi {
     type FnMemcpy = unsafe extern "C" fn(*mut c_void, *const c_void, usize, c_int) -> c_int;
     type FnDeviceSync = unsafe extern "C" fn() -> c_int;
     type FnCreateHandle = unsafe extern "C" fn(*mut *mut c_void) -> c_int;
-    type FnDgemm = unsafe extern "C" fn(
+    type FnGemm<T> = unsafe extern "C" fn(
         *mut c_void,
         c_int,
         c_int,
         c_int,
         c_int,
         c_int,
-        *const f64,
+        *const T,
         *const c_void,
         c_int,
         *const c_void,
         c_int,
-        *const f64,
+        *const T,
         *mut c_void,
         c_int,
     ) -> c_int;
@@ -66,7 +68,8 @@ mod linux_ffi {
         pub free_fn: FnFree,
         pub memcpy_fn: FnMemcpy,
         pub sync_fn: FnDeviceSync,
-        pub dgemm_fn: FnDgemm,
+        pub dgemm_fn: FnGemm<f64>,
+        pub sgemm_fn: FnGemm<f32>,
         pub handle: std::sync::Mutex<usize>,
         pub op_none: c_int,
         pub memcpy_h2d: c_int,
@@ -86,6 +89,23 @@ mod linux_ffi {
             }
         }
         std::ptr::null_mut()
+    }
+
+    unsafe fn load_cuda_pair() -> (*mut c_void, *mut c_void) {
+        for (cudart, cublas) in [
+            ("libcudart.so", "libcublas.so"),
+            ("/usr/local/cuda/lib64/libcudart.so", "/usr/local/cuda/lib64/libcublas.so"),
+            ("libcudart.so.13", "libcublas.so.13"),
+            ("libcudart.so.12", "libcublas.so.12"),
+            ("libcudart.so.11.0", "libcublas.so.11"),
+        ] {
+            let rt = load_lib(&[cudart]);
+            let blas = load_lib(&[cublas]);
+            if !rt.is_null() && !blas.is_null() {
+                return (rt, blas);
+            }
+        }
+        (std::ptr::null_mut(), std::ptr::null_mut())
     }
 
     unsafe fn load_sym(lib: *mut c_void, name: &str) -> *mut c_void {
@@ -130,6 +150,9 @@ mod linux_ffi {
     }
 
     pub fn init_driver() -> Option<GpuDriver> {
+        if !super::gpu_dibenarkan() {
+            return None;
+        }
         unsafe {
             // 1. Cuba AMD ROCm (HIP + rocBLAS) jika seni bina GPU disokong oleh TensileLibrary
             if rocm_arch_supported() {
@@ -151,6 +174,7 @@ mod linux_ffi {
                 let sync_p = load_sym(hip, "hipDeviceSynchronize");
                 let create_p = load_sym(rocblas, "rocblas_create_handle");
                 let dgemm_p = load_sym(rocblas, "rocblas_dgemm");
+                let sgemm_p = load_sym(rocblas, "rocblas_sgemm");
 
                 if !malloc_p.is_null()
                     && !free_p.is_null()
@@ -158,6 +182,7 @@ mod linux_ffi {
                     && !sync_p.is_null()
                     && !create_p.is_null()
                     && !dgemm_p.is_null()
+                    && !sgemm_p.is_null()
                 {
                     let create_fn: FnCreateHandle = std::mem::transmute(create_p);
                     let mut test_handle: *mut c_void = std::ptr::null_mut();
@@ -169,6 +194,7 @@ mod linux_ffi {
                             memcpy_fn: std::mem::transmute(memcpy_p),
                             sync_fn: std::mem::transmute(sync_p),
                             dgemm_fn: std::mem::transmute(dgemm_p),
+                            sgemm_fn: std::mem::transmute(sgemm_p),
                             handle: std::sync::Mutex::new(test_handle as usize),
                             op_none: 111, // rocblas_operation_none
                             memcpy_h2d: 1, // hipMemcpyHostToDevice
@@ -183,8 +209,7 @@ mod linux_ffi {
             }
 
             // 2. Cuba NVIDIA CUDA (cudart + cuBLAS)
-            let cudart = load_lib(&["libcudart.so", "/usr/local/cuda/lib64/libcudart.so"]);
-            let cublas = load_lib(&["libcublas.so", "/usr/local/cuda/lib64/libcublas.so"]);
+            let (cudart, cublas) = load_cuda_pair();
             if !cudart.is_null() && !cublas.is_null() {
                 let malloc_p = load_sym(cudart, "cudaMalloc");
                 let free_p = load_sym(cudart, "cudaFree");
@@ -192,6 +217,7 @@ mod linux_ffi {
                 let sync_p = load_sym(cudart, "cudaDeviceSynchronize");
                 let create_p = load_sym(cublas, "cublasCreate_v2");
                 let dgemm_p = load_sym(cublas, "cublasDgemm_v2");
+                let sgemm_p = load_sym(cublas, "cublasSgemm_v2");
 
                 if !malloc_p.is_null()
                     && !free_p.is_null()
@@ -199,6 +225,7 @@ mod linux_ffi {
                     && !sync_p.is_null()
                     && !create_p.is_null()
                     && !dgemm_p.is_null()
+                    && !sgemm_p.is_null()
                 {
                     let create_fn: FnCreateHandle = std::mem::transmute(create_p);
                     let mut test_handle: *mut c_void = std::ptr::null_mut();
@@ -210,6 +237,7 @@ mod linux_ffi {
                             memcpy_fn: std::mem::transmute(memcpy_p),
                             sync_fn: std::mem::transmute(sync_p),
                             dgemm_fn: std::mem::transmute(dgemm_p),
+                            sgemm_fn: std::mem::transmute(sgemm_p),
                             handle: std::sync::Mutex::new(test_handle as usize),
                             op_none: 0, // CUBLAS_OP_N
                             memcpy_h2d: 1, // cudaMemcpyHostToDevice
@@ -228,7 +256,7 @@ mod linux_ffi {
         std::thread::spawn(move || {
             let a = [1.0, 2.0, 3.0, 4.0];
             let b = [1.0, 0.0, 0.0, 1.0];
-            let ok = dgemm_row_major(&drv, &a, &b, 2, 2, 2)
+            let ok = gemm_row_major(&drv, drv.dgemm_fn, 1.0f64, &a, &b, 2, 2, 2)
                 .map(|res| res == [1.0, 2.0, 3.0, 4.0])
                 .unwrap_or(false);
             let _ = tx.send(if ok { Some(drv) } else { None });
@@ -238,17 +266,20 @@ mod linux_ffi {
             .flatten()
     }
 
-    pub fn dgemm_row_major(
+    #[allow(clippy::too_many_arguments)]
+    pub fn gemm_row_major<T: Copy + Default>(
         drv: &GpuDriver,
-        a: &[f64],
-        b: &[f64],
+        gemm: FnGemm<T>,
+        satu: T,
+        a: &[T],
+        b: &[T],
         m: usize,
         k: usize,
         n: usize,
-    ) -> Option<Vec<f64>> {
-        let size_a = m.checked_mul(k)?.checked_mul(std::mem::size_of::<f64>())?;
-        let size_b = k.checked_mul(n)?.checked_mul(std::mem::size_of::<f64>())?;
-        let size_c = m.checked_mul(n)?.checked_mul(std::mem::size_of::<f64>())?;
+    ) -> Option<Vec<T>> {
+        let size_a = m.checked_mul(k)?.checked_mul(std::mem::size_of::<T>())?;
+        let size_b = k.checked_mul(n)?.checked_mul(std::mem::size_of::<T>())?;
+        let size_c = m.checked_mul(n)?.checked_mul(std::mem::size_of::<T>())?;
 
         unsafe {
             let guard = drv.handle.lock().ok()?;
@@ -274,14 +305,14 @@ mod linux_ffi {
             let ok_copy = (drv.memcpy_fn)(d_a, a.as_ptr() as *const c_void, size_a, drv.memcpy_h2d) == 0
                 && (drv.memcpy_fn)(d_b, b.as_ptr() as *const c_void, size_b, drv.memcpy_h2d) == 0;
 
-            let mut out = vec![0.0f64; m * n];
+            let mut out = vec![T::default(); m * n];
             let mut success = false;
 
             if ok_copy {
-                let alpha: f64 = 1.0;
-                let beta: f64 = 0.0;
+                let alpha = satu;
+                let beta = T::default();
                 // Row-major C(m x n) = A(m x k) * B(k x n) melalui column-major C^T = B^T * A^T
-                let rc = (drv.dgemm_fn)(
+                let rc = gemm(
                     handle,
                     drv.op_none,
                     drv.op_none,
@@ -313,6 +344,22 @@ mod linux_ffi {
     }
 }
 
+fn tetapan_gpu() -> String {
+    std::env::var("MELAYU_GPU").unwrap_or_default().trim().to_lowercase()
+}
+
+pub fn gpu_dibenarkan() -> bool {
+    !matches!(tetapan_gpu().as_str(), "0" | "tiada" | "mati")
+}
+
+pub fn ketepatan() -> &'static str {
+    if tetapan_gpu() == "fp32" {
+        "FP32"
+    } else {
+        "FP64"
+    }
+}
+
 #[cfg(target_os = "linux")]
 static GPU_DRIVER: OnceLock<Option<linux_ffi::GpuDriver>> = OnceLock::new();
 
@@ -332,7 +379,16 @@ pub fn gpu_kind() -> GpuKind {
 #[cfg(target_os = "linux")]
 pub fn gpu_matmul(a: &[f64], b: &[f64], m: usize, k: usize, n: usize) -> Option<Vec<f64>> {
     let drv = GPU_DRIVER.get_or_init(linux_ffi::init_driver).as_ref()?;
-    linux_ffi::dgemm_row_major(drv, a, b, m, k, n)
+    if ketepatan() == "FP64" {
+        return linux_ffi::gemm_row_major(drv, drv.dgemm_fn, 1.0, a, b, m, k, n);
+    }
+    let a: Vec<f32> = a.iter().map(|&x| x as f32).collect();
+    let b: Vec<f32> = b.iter().map(|&x| x as f32).collect();
+    let hasil = linux_ffi::gemm_row_major(drv, drv.sgemm_fn, 1.0, &a, &b, m, k, n)?;
+    if hasil.iter().any(|x| !x.is_finite()) {
+        return None;
+    }
+    Some(hasil.into_iter().map(f64::from).collect())
 }
 
 #[cfg(not(target_os = "linux"))]

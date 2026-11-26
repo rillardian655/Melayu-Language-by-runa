@@ -121,8 +121,10 @@ pub fn cetak_ralat(e: &MelayuError, source: &str) {
     };
 
     let mut err = e.clone();
-    if let Some(src) = src_line {
-        err = err.with_source(&src);
+    if err.source_line.is_none() && err.modul.is_none() {
+        if let Some(src) = src_line {
+            err = err.with_source(&src);
+        }
     }
 
     eprintln!("\x1b[1;31m{}\x1b[0m", err);

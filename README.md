@@ -459,7 +459,7 @@ app.dapatkan("/", kendaliLamanUtama)
 app.dapatkan("/api/status", kendaliAPIStatus)
 
 tunjuk "Pelayan Selasih beroperasi pada http://localhost:8080"
-app.dengar()
+app.dengar(0)
 ```
 
 #### Pengurus Pakej CLI Melayu (`melayu mula`, `pasang`, `pakej`)

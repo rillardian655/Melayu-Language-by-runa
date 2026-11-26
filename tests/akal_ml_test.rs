@@ -287,8 +287,8 @@ ambil "akal"
 # 1. Uji dataset bawaan muatIris
 ada iris = muatIris()
 semak iris["nama"] == "Iris", "Nama dataset mestilah Iris"
-semak panjang(iris["ciri"]) == 30, "Bilangan sampel Iris mestilah 30"
-semak panjang(iris["sasaran"]) == 30, "Bilangan sasaran Iris mestilah 30"
+semak panjang(iris["ciri"]) == 150, "Bilangan sampel Iris mestilah 150"
+semak panjang(iris["sasaran"]) == 150, "Bilangan sasaran Iris mestilah 150"
 
 # 2. Uji dataset bawaan muatKredit
 ada kredit = muatKredit()

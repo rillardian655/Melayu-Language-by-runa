@@ -130,12 +130,15 @@ selesai
 Bahasa MELAYU dilengkapi dengan benteng keselamatan aras enjin untuk melindungi sistem hos:
 
 1. **Perlindungan 'Stack Overflow'**: Had kedalaman rekursi fungsi ditetapkan kepada 1,000 tahap secara lalai.
-2. **Perlindungan 'Runaway Loop' DoS**: Had langkah pelaksanaan memastikan gelung tak terhingga ditamatkan secara anggun.
+2. **Perlindungan 'Runaway Loop' DoS**: Had langkah pelaksanaan memastikan gelung tak terhingga ditamatkan secara anggun. Had lalai ialah 10 juta langkah; ubah dengan `melayu --had-langkah <n> fail.ml` atau `MELAYU_HAD_LANGKAH=<n>` (`0` bermaksud tiada had).
 3. **Pengesahan Indeks Ketat**:
    - Menolak indeks tidak terhingga (`NaN`, `Infiniti`) atau perpuluhan (`s[1.5]`).
    - Menyokong indeks negatif yang sah (contoh `senarai[-1]` untuk elemen terakhir).
 4. **Perlindungan 'Path Traversal'**: Operasi fail (`bacaFail`, `tulisFail`, `wujudFail`, `padamFail`) disekat daripada mengakses luar direktori kerja projek.
 5. **Had Saiz Fail**: Bacaan dan penulisan fail dihadkan kepada saiz maksimum 5 MB.
+6. **Sempadan sandbox fail ialah direktori kerja semasa** (tempat arahan `melayu` dijalankan), bukan folder fail `.ml`. Jalankan program dari folder projek.
+
+7. **Anti-SSRF**: `hantarPermintaanHTTP` menyemak alamat IP sebenar hos dan menyekat alamat link-local dan metadata awan. Localhost dan rangkaian peribadi dibenarkan untuk pembangunan tempatan. Hanya `http://` disokong (tiada TLS).
 
 ---
 

@@ -207,8 +207,12 @@ kelas PengelasKNN
             selesai
 
             ada n = panjang(jarak_senarai)
+            ada had_isih = diri.k
+            jika had_isih > n
+                had_isih = n
+            selesai
             ada a = 0
-            selagi a < n
+            selagi a < had_isih
                 ada min_idx = a
                 ada b = a + 1
                 selagi b < n
@@ -600,6 +604,18 @@ kelas PengelasBayesNaif
             i = i + 1
         selesai
 
+        ada varians_maks = 0.0
+        ada f = 0
+        selagi f < n_fitur
+            ada lajur = []
+            untuk baris dalam X
+                lajur.tambah(baris[f])
+            selesai
+            varians_maks = maksimum(varians_maks, diri.variansPopulasi(lajur))
+            f = f + 1
+        selesai
+        ada pelicin = varians_maks * 0.000000001
+
         # Hitung kebarangkalian prior, purata (mean) dan sisihan piawai setiap ciri
         untuk label dalam diri.kelas_unik
             ada sampel_c = data_kelas[label]
@@ -617,8 +633,8 @@ kelas PengelasBayesNaif
                 selesai
 
                 ada m = purata(nilai_fitur)
-                ada s = sisihanPiawai(nilai_fitur)
-                jika s < 0.000001
+                ada s = puncaKuasaDua(diri.variansPopulasi(nilai_fitur) + pelicin)
+                jika s == 0
                     s = 0.000001
                 selesai
 
@@ -630,6 +646,20 @@ kelas PengelasBayesNaif
             diri.min_fitur[label] = senarai_purata
             diri.sisihan_fitur[label] = senarai_sisihan
         selesai
+    selesai
+
+    kerja variansPopulasi(nilai)
+        ada n = panjang(nilai)
+        jika n < 2
+            pulang 0.0
+        selesai
+        ada s = sisihanPiawai(nilai)
+        pulang s * s * (n - 1) / n
+    selesai
+
+    kerja logKebarangkalianGaussian(x, m, s)
+        ada z = (x - m) / s
+        pulang 0.0 - logaritmaAsli(2.5066282746310002 * s) - (z * z / 2.0)
     selesai
 
     kerja kebarangkalianGaussian(x, m, s)
@@ -645,7 +675,7 @@ kelas PengelasBayesNaif
         ada n_fitur = panjang(diri.min_fitur[diri.kelas_unik[0]])
 
         untuk baris dalam X_baru
-            ada posterior_terbaik = -1000000000.0
+            ada posterior_terbaik = 0.0
             ada kelas_terbaik = kosong
 
             untuk label dalam diri.kelas_unik
@@ -656,15 +686,11 @@ kelas PengelasBayesNaif
                 selagi d < n_fitur
                     ada m = diri.min_fitur[label][d]
                     ada s = diri.sisihan_fitur[label][d]
-                    ada prob = diri.kebarangkalianGaussian(baris[d], m, s)
-                    jika prob < 0.000000000001
-                        prob = 0.000000000001
-                    selesai
-                    log_posterior = log_posterior + logaritmaAsli(prob)
+                    log_posterior = log_posterior + diri.logKebarangkalianGaussian(baris[d], m, s)
                     d = d + 1
                 selesai
 
-                jika log_posterior > posterior_terbaik
+                jika kelas_terbaik == kosong atau log_posterior > posterior_terbaik
                     posterior_terbaik = log_posterior
                     kelas_terbaik = label
                 selesai
@@ -716,6 +742,28 @@ kelas PokokKeputusan
         selesai
         diri.kedalamanMaks = k
         diri.pokok = kosong
+        diri.maksCiri = kosong
+    selesai
+
+    kerja pilihCiri(n_ciri)
+        ada semua = []
+        ada i = 0
+        selagi i < n_ciri
+            semua.tambah(i)
+            i = i + 1
+        selesai
+        jika diri.maksCiri == kosong
+            pulang semua
+        selesai
+        ada a = n_ciri - 1
+        selagi a > 0
+            ada b = rawak(0, a)
+            ada sementara = semua[a]
+            semua[a] = semua[b]
+            semua[b] = sementara
+            a = a - 1
+        selesai
+        pulang semua
     selesai
 
     kerja kiraGini(y_label)
@@ -789,58 +837,27 @@ kelas PokokKeputusan
             pulang {"jenis": "daun", "kelas": maj}
         selesai
 
-        ada n_ciri = panjang(X[0])
-        ada skor_terbaik = 1000.0
-        ada ciri_terbaik = kosong
-        ada ambang_terbaik = kosong
+        ada pecahan = cariPecahanTerbaik(X, y, diri.pilihCiri(panjang(X[0])), diri.maksCiri)
+        jika pecahan == kosong
+            pulang {"jenis": "daun", "kelas": maj}
+        selesai
+        ada ciri_terbaik = pecahan["ciri"]
+        ada ambang_terbaik = pecahan["ambang"]
+
         ada X_kiri_t = []
         ada y_kiri_t = []
         ada X_kanan_t = []
         ada y_kanan_t = []
-
-        ada f = 0
-        selagi f < n_ciri
-            ada s_idx = 0
-            selagi s_idx < n_sampel
-                ada ambang = X[s_idx][f]
-                ada X_kiri = []
-                ada y_kiri = []
-                ada X_kanan = []
-                ada y_kanan = []
-
-                ada i = 0
-                selagi i < n_sampel
-                    jika X[i][f] <= ambang
-                        X_kiri.tambah(X[i])
-                        y_kiri.tambah(y[i])
-                    jika tidak
-                        X_kanan.tambah(X[i])
-                        y_kanan.tambah(y[i])
-                    selesai
-                    i = i + 1
-                selesai
-
-                jika panjang(X_kiri) > 0 && panjang(X_kanan) > 0
-                    ada gini_kiri = diri.kiraGini(y_kiri)
-                    ada gini_kanan = diri.kiraGini(y_kanan)
-                    ada skor_pembahagian = (panjang(X_kiri) / n_sampel * gini_kiri) + (panjang(X_kanan) / n_sampel * gini_kanan)
-                    jika skor_pembahagian < skor_terbaik
-                        skor_terbaik = skor_pembahagian
-                        ciri_terbaik = f
-                        ambang_terbaik = ambang
-                        X_kiri_t = X_kiri
-                        y_kiri_t = y_kiri
-                        X_kanan_t = X_kanan
-                        y_kanan_t = y_kanan
-                    selesai
-                selesai
-                s_idx = s_idx + 1
+        ada i = 0
+        selagi i < n_sampel
+            jika X[i][ciri_terbaik] <= ambang_terbaik
+                X_kiri_t.tambah(X[i])
+                y_kiri_t.tambah(y[i])
+            jika tidak
+                X_kanan_t.tambah(X[i])
+                y_kanan_t.tambah(y[i])
             selesai
-            f = f + 1
-        selesai
-
-        jika ciri_terbaik == kosong
-            pulang {"jenis": "daun", "kelas": maj}
+            i = i + 1
         selesai
 
         ada cabang_kiri = diri.binaNod(X_kiri_t, y_kiri_t, kedalaman + 1)
@@ -1078,24 +1095,56 @@ selesai
 # ==============================================================================
 
 fungsi muatIris()
-    # Dataset Bunga Iris Fisher (Sampel Terpilih 30 Rekod: Setosa, Versicolor, Virginica)
+    # Dataset Bunga Iris Fisher (150 rekod: Setosa, Versicolor, Virginica)
     # Ciri: [Panjang Sepal, Lebar Sepal, Panjang Petal, Lebar Petal] (cm)
     ada X = [
         [5.1, 3.5, 1.4, 0.2], [4.9, 3.0, 1.4, 0.2], [4.7, 3.2, 1.3, 0.2], [4.6, 3.1, 1.5, 0.2],
         [5.0, 3.6, 1.4, 0.2], [5.4, 3.9, 1.7, 0.4], [4.6, 3.4, 1.4, 0.3], [5.0, 3.4, 1.5, 0.2],
-        [4.4, 2.9, 1.4, 0.2], [4.9, 3.1, 1.5, 0.1],
-        [7.0, 3.2, 4.7, 1.4], [6.4, 3.2, 4.5, 1.5], [6.9, 3.1, 4.9, 1.5], [5.5, 2.3, 4.0, 1.3],
-        [6.5, 2.8, 4.6, 1.5], [5.7, 2.8, 4.5, 1.3], [6.3, 3.3, 4.7, 1.6], [4.9, 2.4, 3.3, 1.0],
-        [6.6, 2.9, 4.6, 1.3], [5.2, 2.7, 3.9, 1.4],
+        [4.4, 2.9, 1.4, 0.2], [4.9, 3.1, 1.5, 0.1], [5.4, 3.7, 1.5, 0.2], [4.8, 3.4, 1.6, 0.2],
+        [4.8, 3.0, 1.4, 0.1], [4.3, 3.0, 1.1, 0.1], [5.8, 4.0, 1.2, 0.2], [5.7, 4.4, 1.5, 0.4],
+        [5.4, 3.9, 1.3, 0.4], [5.1, 3.5, 1.4, 0.3], [5.7, 3.8, 1.7, 0.3], [5.1, 3.8, 1.5, 0.3],
+        [5.4, 3.4, 1.7, 0.2], [5.1, 3.7, 1.5, 0.4], [4.6, 3.6, 1.0, 0.2], [5.1, 3.3, 1.7, 0.5],
+        [4.8, 3.4, 1.9, 0.2], [5.0, 3.0, 1.6, 0.2], [5.0, 3.4, 1.6, 0.4], [5.2, 3.5, 1.5, 0.2],
+        [5.2, 3.4, 1.4, 0.2], [4.7, 3.2, 1.6, 0.2], [4.8, 3.1, 1.6, 0.2], [5.4, 3.4, 1.5, 0.4],
+        [5.2, 4.1, 1.5, 0.1], [5.5, 4.2, 1.4, 0.2], [4.9, 3.1, 1.5, 0.2], [5.0, 3.2, 1.2, 0.2],
+        [5.5, 3.5, 1.3, 0.2], [4.9, 3.6, 1.4, 0.1], [4.4, 3.0, 1.3, 0.2], [5.1, 3.4, 1.5, 0.2],
+        [5.0, 3.5, 1.3, 0.3], [4.5, 2.3, 1.3, 0.3], [4.4, 3.2, 1.3, 0.2], [5.0, 3.5, 1.6, 0.6],
+        [5.1, 3.8, 1.9, 0.4], [4.8, 3.0, 1.4, 0.3], [5.1, 3.8, 1.6, 0.2], [4.6, 3.2, 1.4, 0.2],
+        [5.3, 3.7, 1.5, 0.2], [5.0, 3.3, 1.4, 0.2], [7.0, 3.2, 4.7, 1.4], [6.4, 3.2, 4.5, 1.5],
+        [6.9, 3.1, 4.9, 1.5], [5.5, 2.3, 4.0, 1.3], [6.5, 2.8, 4.6, 1.5], [5.7, 2.8, 4.5, 1.3],
+        [6.3, 3.3, 4.7, 1.6], [4.9, 2.4, 3.3, 1.0], [6.6, 2.9, 4.6, 1.3], [5.2, 2.7, 3.9, 1.4],
+        [5.0, 2.0, 3.5, 1.0], [5.9, 3.0, 4.2, 1.5], [6.0, 2.2, 4.0, 1.0], [6.1, 2.9, 4.7, 1.4],
+        [5.6, 2.9, 3.6, 1.3], [6.7, 3.1, 4.4, 1.4], [5.6, 3.0, 4.5, 1.5], [5.8, 2.7, 4.1, 1.0],
+        [6.2, 2.2, 4.5, 1.5], [5.6, 2.5, 3.9, 1.1], [5.9, 3.2, 4.8, 1.8], [6.1, 2.8, 4.0, 1.3],
+        [6.3, 2.5, 4.9, 1.5], [6.1, 2.8, 4.7, 1.2], [6.4, 2.9, 4.3, 1.3], [6.6, 3.0, 4.4, 1.4],
+        [6.8, 2.8, 4.8, 1.4], [6.7, 3.0, 5.0, 1.7], [6.0, 2.9, 4.5, 1.5], [5.7, 2.6, 3.5, 1.0],
+        [5.5, 2.4, 3.8, 1.1], [5.5, 2.4, 3.7, 1.0], [5.8, 2.7, 3.9, 1.2], [6.0, 2.7, 5.1, 1.6],
+        [5.4, 3.0, 4.5, 1.5], [6.0, 3.4, 4.5, 1.6], [6.7, 3.1, 4.7, 1.5], [6.3, 2.3, 4.4, 1.3],
+        [5.6, 3.0, 4.1, 1.3], [5.5, 2.5, 4.0, 1.3], [5.5, 2.6, 4.4, 1.2], [6.1, 3.0, 4.6, 1.4],
+        [5.8, 2.6, 4.0, 1.2], [5.0, 2.3, 3.3, 1.0], [5.6, 2.7, 4.2, 1.3], [5.7, 3.0, 4.2, 1.2],
+        [5.7, 2.9, 4.2, 1.3], [6.2, 2.9, 4.3, 1.3], [5.1, 2.5, 3.0, 1.1], [5.7, 2.8, 4.1, 1.3],
         [6.3, 3.3, 6.0, 2.5], [5.8, 2.7, 5.1, 1.9], [7.1, 3.0, 5.9, 2.1], [6.3, 2.9, 5.6, 1.8],
         [6.5, 3.0, 5.8, 2.2], [7.6, 3.0, 6.6, 2.1], [4.9, 2.5, 4.5, 1.7], [7.3, 2.9, 6.3, 1.8],
-        [6.7, 2.5, 5.8, 1.8], [7.2, 3.6, 6.1, 2.5]
+        [6.7, 2.5, 5.8, 1.8], [7.2, 3.6, 6.1, 2.5], [6.5, 3.2, 5.1, 2.0], [6.4, 2.7, 5.3, 1.9],
+        [6.8, 3.0, 5.5, 2.1], [5.7, 2.5, 5.0, 2.0], [5.8, 2.8, 5.1, 2.4], [6.4, 3.2, 5.3, 2.3],
+        [6.5, 3.0, 5.5, 1.8], [7.7, 3.8, 6.7, 2.2], [7.7, 2.6, 6.9, 2.3], [6.0, 2.2, 5.0, 1.5],
+        [6.9, 3.2, 5.7, 2.3], [5.6, 2.8, 4.9, 2.0], [7.7, 2.8, 6.7, 2.0], [6.3, 2.7, 4.9, 1.8],
+        [6.7, 3.3, 5.7, 2.1], [7.2, 3.2, 6.0, 1.8], [6.2, 2.8, 4.8, 1.8], [6.1, 3.0, 4.9, 1.8],
+        [6.4, 2.8, 5.6, 2.1], [7.2, 3.0, 5.8, 1.6], [7.4, 2.8, 6.1, 1.9], [7.9, 3.8, 6.4, 2.0],
+        [6.4, 2.8, 5.6, 2.2], [6.3, 2.8, 5.1, 1.5], [6.1, 2.6, 5.6, 1.4], [7.7, 3.0, 6.1, 2.3],
+        [6.3, 3.4, 5.6, 2.4], [6.4, 3.1, 5.5, 1.8], [6.0, 3.0, 4.8, 1.8], [6.9, 3.1, 5.4, 2.1],
+        [6.7, 3.1, 5.6, 2.4], [6.9, 3.1, 5.1, 2.3], [5.8, 2.7, 5.1, 1.9], [6.8, 3.2, 5.9, 2.3],
+        [6.7, 3.3, 5.7, 2.5], [6.7, 3.0, 5.2, 2.3], [6.3, 2.5, 5.0, 1.9], [6.5, 3.0, 5.2, 2.0],
+        [6.2, 3.4, 5.4, 2.3], [5.9, 3.0, 5.1, 1.8]
     ]
     # Sasaran: 0 = Setosa, 1 = Versicolor, 2 = Virginica
     ada y = [
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        2, 2, 2, 2, 2, 2, 2, 2, 2, 2
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
     ]
     pulang {
         "nama": "Iris",
@@ -1206,6 +1255,7 @@ kelas HutanRawak
             selesai
 
             ada pokok = PokokKeputusan(diri.kedalamanMaks)
+            pokok.maksCiri = maksimum(1, lantai(puncaKuasaDua(panjang(X[0]))))
             pokok.latih(X_boot, y_boot)
             diri.hutan.tambah(pokok)
             p = p + 1
@@ -1737,6 +1787,21 @@ fungsi pengesahanSilang(kilangModel, X, y, k_lipatan)
         baling "Dataset terlalu kecil untuk K-Fold Cross Validation!"
     selesai
 
+    ada urutan = []
+    ada p = 0
+    selagi p < n
+        urutan.tambah(p)
+        p = p + 1
+    selesai
+    ada a = n - 1
+    selagi a > 0
+        ada b = rawak(0, a)
+        ada sementara = urutan[a]
+        urutan[a] = urutan[b]
+        urutan[b] = sementara
+        a = a - 1
+    selesai
+
     ada skor_semua = []
     ada jumlah_skor = 0.0
     ada fold = 0
@@ -1754,12 +1819,13 @@ fungsi pengesahanSilang(kilangModel, X, y, k_lipatan)
 
         ada i = 0
         selagi i < n
+            ada j = urutan[i]
             jika i >= mula_uji && i < tamat_uji
-                X_uji.tambah(X[i])
-                y_uji.tambah(y[i])
+                X_uji.tambah(X[j])
+                y_uji.tambah(y[j])
             jika tidak
-                X_latih.tambah(X[i])
-                y_latih.tambah(y[i])
+                X_latih.tambah(X[j])
+                y_latih.tambah(y[j])
             selesai
             i = i + 1
         selesai
