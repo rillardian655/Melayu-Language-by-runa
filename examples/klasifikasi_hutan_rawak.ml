@@ -72,4 +72,3 @@ tunjuk "  Pemohon 2 [23 thn, 4.2jt,  skor 500] -> " + keputusan_teks[1]
 
 padamFail(fail_model)
 tunjuk "Selesai! Pipeline JadualData + HutanRawak berfungsi cemerlang!"
-

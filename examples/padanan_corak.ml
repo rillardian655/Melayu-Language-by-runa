@@ -8,26 +8,26 @@
 
 kerja nilai_gred(markah)
     pulang padan markah
-        bila 90 hingga 100 => "A+ (Cemerlang Tertinggi)"
-        bila 80 hingga 89  => "A  (Cemerlang)"
-        bila 70 hingga 79  => "B  (Kepujian)"
-        bila 50 hingga 69  => "C  (Lulus)"
-        bila 0 hingga 49   => "F  (Gagal)"
-        lain               => "Markah tidak sah!"
-    selesai
+bila 90 hingga 100 => "A+ (Cemerlang Tertinggi)"
+bila 80 hingga 89  => "A  (Cemerlang)"
+bila 70 hingga 79  => "B  (Kepujian)"
+bila 50 hingga 69  => "C  (Lulus)"
+bila 0 hingga 49   => "F  (Gagal)"
+lain               => "Markah tidak sah!"
+selesai
 selesai
 
 kerja analisis_status_http(kod)
     pulang padan kod
-        bila 200 => "200 OK: Permintaan berjaya."
-        bila 201 => "201 Dicipta: Sumber berjaya dicipta."
-        bila 400 => "400 Permintaan Buruk: Sintaks klien salah."
-        bila 401 => "401 Tidak Sah: Perlu pengesahan identiti."
-        bila 404 => "404 Tidak Dijumpai: URL tidak wujud."
-        bila 500 => "500 Ralat Pelayan: Gangguan pada sistem dalaman."
-        bila k jika kod >= 500 dan kod <= 599 => "Ralat Pelayan Kategori 5xx: Kod " + k
-        lain => "Status tidak diketahui: " + kod
-    selesai
+bila 200 => "200 OK: Permintaan berjaya."
+bila 201 => "201 Dicipta: Sumber berjaya dicipta."
+bila 400 => "400 Permintaan Buruk: Sintaks klien salah."
+bila 401 => "401 Tidak Sah: Perlu pengesahan identiti."
+bila 404 => "404 Tidak Dijumpai: URL tidak wujud."
+bila 500 => "500 Ralat Pelayan: Gangguan pada sistem dalaman."
+bila k jika kod >= 500 dan kod <= 599 => "Ralat Pelayan Kategori 5xx: Kod " + k
+lain => "Status tidak diketahui: " + kod
+selesai
 selesai
 
 cetak("--- ANALISIS GRED PEPERIKSAAN ---")

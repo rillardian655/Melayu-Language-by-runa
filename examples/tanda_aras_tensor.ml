@@ -23,4 +23,3 @@ ada tamat = capMasa()
 tunjuk "Bentuk hasil       : " + teks(C.bentuk())
 tunjuk "Purata elemen      : " + teks(C.purata())
 tunjuk "Masa pelaksanaan   : " + teks(tamat - mula) + " ms"
-

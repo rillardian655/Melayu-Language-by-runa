@@ -27,11 +27,11 @@ cetak("--- UJIAN SALURAN PAIP (|>) ---")
 # Cara lama (bersarang / nested):
 # format_ringgit(tolak_angka(ganda(tambah_lima(10)), 5))
 # Cara baharu yang sangat bersih dan mudah dibaca:
-ada nilai_akhir = 10 
-    |> tambah_lima 
-    |> ganda 
-    |> tolak_angka(5) 
-    |> format_ringgit
+ada nilai_akhir = 10
+|> tambah_lima
+|> ganda
+|> tolak_angka(5)
+|> format_ringgit
 
 cetak("Hasil pemprosesan paip: " + nilai_akhir)
 

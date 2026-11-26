@@ -81,4 +81,3 @@ ada jsonRingkasan = tulisJSON(ringkasan, betul)
 tunjuk jsonRingkasan
 tunjuk ""
 tunjuk "Program pemprosesan data berjaya disempurnakan!".hurufAwalBesar()
-

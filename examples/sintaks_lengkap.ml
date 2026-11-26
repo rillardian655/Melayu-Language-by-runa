@@ -50,4 +50,3 @@ akhirnya
 selesai
 
 mangan
-

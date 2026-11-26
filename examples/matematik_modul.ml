@@ -18,4 +18,3 @@ kerja purata(senaraiNombor)
     selesai
     pulang jumlah bahagi panjang(senaraiNombor)
 selesai
-

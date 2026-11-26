@@ -44,4 +44,3 @@ tunjuk "   Siling 3.1:", siling(3.1)
 tunjuk "   Maksimum(12, 99, 45):", maksimum(12, 99, 45)
 
 tunjuk "=== SELESAI ==="
-

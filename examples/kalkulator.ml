@@ -36,4 +36,3 @@ cuba
 tangkap e
     tunjuk "Ujian keselamatan: " + e
 selesai
-

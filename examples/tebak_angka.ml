@@ -19,4 +19,3 @@ jika tidak jika tekaan lebih rahsia
 jika tidak
     tunjuk "Tahniah! Betul tepat! Kau tebak dalam " + cubaan + " cubaan."
 selesai
-

@@ -16,13 +16,13 @@ tunjuk ""
 tunjuk "--- 1. OPERASI ALJABAR LINEAR & MATRIKS NATIVE ---"
 
 ada A = Matriks([
-    [1.0, 2.0],
-    [3.0, 4.0]
+        [1.0, 2.0],
+        [3.0, 4.0]
 ])
 
 ada B = Matriks([
-    [2.0, 0.0],
-    [1.0, 2.0]
+        [2.0, 0.0],
+        [1.0, 2.0]
 ])
 
 ada C = A.darab(B)
@@ -134,4 +134,3 @@ tunjuk "Titik [8.8, 8.2] dimasukkan ke kelompok :", ramalan_kelompok[1]
 tunjuk ""
 
 tunjuk "Semua ujian modul AkalML berjaya disempurnakan dengan pantas!"
-

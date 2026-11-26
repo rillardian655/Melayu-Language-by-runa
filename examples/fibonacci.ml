@@ -15,4 +15,3 @@ tunjuk "=== 10 NOMBOR PERTAMA FIBONACCI ==="
 untuk k dari 0 hingga 9
     tunjuk "F(" + k + ") = " + fiboRekursif(k)
 selesai
-

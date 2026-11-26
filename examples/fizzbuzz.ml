@@ -12,4 +12,3 @@ untuk i dari 1 hingga 20
         tunjuk i
     selesai
 selesai
-
