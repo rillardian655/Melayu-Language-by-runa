@@ -396,12 +396,12 @@ ada penyekala = SkalaMinMaks()
 ada X_skala = penyekala.latihTransformasi(X)
 
 # Bina model [2 masukan -> 4 neuron tersembunyi -> 1 keluaran]
-ada nn = JaringanSaraf([2, 4, 1], 0.85)
+ada nn = JaringanSaraf([2, 4, 1], 3.4)
 nn.latih(X_skala, y, 2000, betul)
 
 # Simpan dan muat semula model
 nn.simpan("model_xor.json")
-ada model_muat = JaringanSaraf([2, 4, 1], 0.85)
+ada model_muat = JaringanSaraf([2, 4, 1], 3.4)
 model_muat.muat("model_xor.json")
 
 ada ramalan = model_muat.ramal(X_skala)

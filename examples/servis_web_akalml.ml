@@ -29,8 +29,8 @@ ada penyekala = SkalaMinMaks()
 ada data_terskala = penyekala.latihTransformasi(data_latih)
 
 # 3. Bina & Latih Model Jaringan Saraf Tiruan
-tunjuk "[2/4] Melatih JaringanSaraf (Lapisan Tersembunyi: 4 nod, Kadar: 0.5)..."
-ada model = JaringanSaraf([2, 4, 1], 0.5)
+tunjuk "[2/4] Melatih JaringanSaraf (Lapisan Tersembunyi: 4 nod, Kadar: 2.0)..."
+ada model = JaringanSaraf([2, 4, 1], 2.0)
 model.latih(data_terskala, label_benar, 500, salah)
 
 # 4. Simpan Model ke Fail JSON Tempatan
@@ -39,7 +39,7 @@ model.simpan(laluan_model)
 tunjuk "[3/4] Model neural network berjaya disimpan ke: " + laluan_model
 
 # 5. Muat Semula Model untuk Mengesahkan Kemampuan Simpan & Muat
-ada model_sedia = JaringanSaraf([2, 4, 1], 0.5)
+ada model_sedia = JaringanSaraf([2, 4, 1], 2.0)
 model_sedia.muat(laluan_model)
 tunjuk "[4/4] Model berjaya dimuatkan semula untuk inferens masa nyata."
 

@@ -178,7 +178,7 @@ ada y = [
     [0.0]
 ]
 
-ada nn = JaringanSaraf([2, 4, 1], 0.8)
+ada nn = JaringanSaraf([2, 4, 1], 3.2)
 nn.latih(X, y, 2000, salah)
 
 ada ramalan = nn.ramal(X)
@@ -468,6 +468,39 @@ semak G3.bentuk() == [128, 128], "Bentuk hasil 128x128 mestilah [128, 128]"
 ada g_list = G3.keSenarai()
 semak g_list[0][0] == 128.0, "Elemen [0][0] mestilah 128.0"
 semak g_list[127][127] == 128.0, "Elemen [127][127] mestilah 128.0"
+"#;
+    let res = laksana_kod(code);
+    assert!(res.is_ok(), "Ralat: {:?}", res);
+}
+
+#[test]
+fn test_jaringan_saraf_kecerunan_tidak_bergantung_pada_saiz_dataset() {
+    let code = r#"
+ambil "akal"
+
+ada X = [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]]
+ada Y = [[0.0], [1.0], [1.0], [0.0]]
+ada X_besar = []
+ada Y_besar = []
+untuk i dari 1 hingga 25
+    untuk j dari 0 hingga 3
+        X_besar.tambah(X[j])
+        Y_besar.tambah(Y[j])
+    selesai
+selesai
+
+ada a = JaringanSaraf([2, 4, 1], 3.2)
+ada b = JaringanSaraf([2, 4, 1], 3.2)
+b.wajaran = [a.wajaran[0], a.wajaran[1]]
+b.pincang = [a.pincang[0], a.pincang[1]]
+a.latih(X, Y, 200, salah)
+b.latih(X_besar, Y_besar, 200, salah)
+
+ada pa = a.ramalKebarangkalian(X)
+ada pb = b.ramalKebarangkalian(X)
+untuk j dari 0 hingga 3
+    semak mutlak(pa[j][0] - pb[j][0]) < 0.000001, "Latihan mestilah sama untuk data yang diulang"
+selesai
 "#;
     let res = laksana_kod(code);
     assert!(res.is_ok(), "Ralat: {:?}", res);
