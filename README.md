@@ -443,6 +443,11 @@ Bahasa Melayu kini dilengkapi kerangka kerja pelayan HTTP native bernama **Selas
 Menyediakan storan jadual dan dokumen JSON berstruktur yang patuh sepenuhnya kepada sandbox keselamatan Bahasa Melayu:
 * `Pangkalan(laluan_fail)`: `.ciptaJadual()`, `.sisip()`, `.cari()`, `.cariSatu()`, `.cariSemua()`, `.kemaskini()`, `.padam()`, dan `.bilang()`.
 
+Panduan modul terperinci tersedia di:
+* [Panduan AkalML](docs/akalml.md)
+* [Panduan Selasih Web](docs/selasih.md)
+* [Panduan Pangkalan Data](docs/pangkalan.md)
+
 #### Pengurus Pakej & Utiliti CLI (`melayu mula`, `format`, `taman`)
 
 * **`melayu format <fail.ml> [--semak]`**: Merapikan indentasi (4 ruang) dan susunan kod Bahasa Melayu secara automatik.
