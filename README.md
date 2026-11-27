@@ -17,7 +17,10 @@
 
   <p align="center">
     <a href="https://github.com/rillardian655/Melayu-Language-by-runa/releases">
-      <img src="https://img.shields.io/badge/Versi-0.4.0-00ADD8?style=for-the-badge&logo=git&logoColor=white" alt="Versi" />
+      <img src="https://img.shields.io/badge/Versi-0.5.0-00ADD8?style=for-the-badge&logo=git&logoColor=white" alt="Versi" />
+    </a>
+    <a href="https://github.com/rillardian655/Melayu-Language-by-runa">
+      <img src="https://komarev.com/ghpvc/?username=rillardian655-melayu-lang&label=Pelawat&color=27f2ff&style=for-the-badge" alt="Pelawat" />
     </a>
     <a href="editors/vscode">
       <img src="https://img.shields.io/badge/VS_Code-Ekstensi_Rasmi-007ACC?style=for-the-badge&logo=visual-studio-code&logoColor=white" alt="VS Code Extension" />
@@ -443,10 +446,12 @@ Bahasa Melayu kini dilengkapi kerangka kerja pelayan HTTP native bernama **Selas
 Menyediakan storan jadual dan dokumen JSON berstruktur yang patuh sepenuhnya kepada sandbox keselamatan Bahasa Melayu:
 * `Pangkalan(laluan_fail)`: `.ciptaJadual()`, `.sisip()`, `.cari()`, `.cariSatu()`, `.cariSemua()`, `.kemaskini()`, `.padam()`, dan `.bilang()`.
 
-Panduan modul terperinci tersedia di:
+Panduan modul terperinci dan demo full-stack tersedia di:
 * [Panduan AkalML](docs/akalml.md)
 * [Panduan Selasih Web](docs/selasih.md)
 * [Panduan Pangkalan Data](docs/pangkalan.md)
+* [Demo Papan Pemuka AI (Selasih + HTML/CSS/JS + Pangkalan)](examples/papan_pemuka_ai.ml)
+* [Taman Permainan Web](playground/index.html)
 
 #### Pengurus Pakej & Utiliti CLI (`melayu mula`, `format`, `taman`)
 

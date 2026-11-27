@@ -2,9 +2,13 @@
 
 Semua perubahan ketara pada projek ini akan didokumenkan dalam fail ini mengikut format [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Belum Dikeluarkan]
+## [0.5.0] - 2026-11-27
 
 ### Ditambah (Added)
+- Dokumentasi rujukan modul di `docs/akalml.md`, `docs/selasih.md`, dan `docs/pangkalan.md`.
+- Aplikasi full-stack `examples/servis_ai_pangkalan.ml` dan papan pemuka web interaktif `examples/papan_pemuka_ai.ml` (`Selasih` HTML/CSS/JS + `Pangkalan` + `RangkaianAdam`).
+- Ujian kes tepi `Pangkalan` dan ujian CLI `melayu format` di `tests/`.
+- Sokongan mod pratonton statis, butang salin kod, dan muat turun `.ml` di `playground/index.html`.
 - `hantarPermintaanHTTP` menyokong `https://` melalui rustls (ciri cargo `https`, aktif secara lalai). Sijil disahkan dengan senarai CA Mozilla.
 - Pilihan `--had-langkah <n>` dan pemboleh ubah persekitaran `MELAYU_HAD_LANGKAH` untuk menaikkan atau mematikan (`0`) had 10 juta langkah.
 - `benihRawak(n)` untuk keputusan `rawak()` dan `rawakTensor()` yang boleh diulang.
