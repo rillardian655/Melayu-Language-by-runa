@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Taman Permainan MELAYU & AkalML</title>
+  <meta name="color-scheme" content="dark" />
+  <title>Taman Permainan MELAYU &amp; AkalML</title>
   <style>
     :root {
+      color-scheme: dark;
       --bg: #070b14;
       --panel: #0f172a;
       --border: #1e293b;
@@ -14,9 +16,41 @@
       --text: #e2e8f0;
       --muted: #94a3b8;
       --success: #34d399;
+      --warning: #fbbf24;
       --error: #f87171;
+      --scrollbar-track: #0b1222;
+      --scrollbar-thumb: #334155;
+      accent-color: var(--accent);
+      scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    @supports not (scrollbar-color: auto) {
+      textarea,
+      pre#output {
+        scrollbar-width: auto;
+      }
+      textarea::-webkit-scrollbar,
+      pre#output::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      textarea::-webkit-scrollbar-thumb,
+      pre#output::-webkit-scrollbar-thumb {
+        background: var(--scrollbar-thumb);
+        border-radius: 6px;
+      }
+      textarea::-webkit-scrollbar-track,
+      pre#output::-webkit-scrollbar-track {
+        background: var(--scrollbar-track);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     body {
       font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
@@ -25,6 +59,7 @@
       display: flex;
       flex-direction: column;
     }
+
     header {
       background: var(--panel);
       border-bottom: 1px solid var(--border);
@@ -35,41 +70,69 @@
       gap: 16px;
       flex-wrap: wrap;
     }
+
     .brand {
       display: flex;
       align-items: center;
       gap: 12px;
     }
+
     .brand h1 {
       font-size: 1.15rem;
       font-weight: 700;
       letter-spacing: 0.4px;
     }
-    .brand span {
+
+    .badge {
       font-size: 0.78rem;
       color: var(--accent);
       background: rgba(39, 242, 255, 0.1);
-      padding: 2px 8px;
+      padding: 3px 10px;
       border-radius: 999px;
       border: 1px solid rgba(39, 242, 255, 0.25);
     }
+
+    .badge.static-mode {
+      color: var(--warning);
+      background: rgba(251, 191, 36, 0.1);
+      border-color: rgba(251, 191, 36, 0.3);
+    }
+
     .controls {
       display: flex;
       align-items: center;
       gap: 10px;
+      flex-wrap: wrap;
     }
-    select, button {
+
+    select,
+    button {
       font-family: inherit;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       border-radius: 8px;
       padding: 8px 14px;
+      min-block-size: 36px;
+      min-inline-size: 36px;
       cursor: pointer;
       border: 1px solid var(--border);
     }
+
     select {
       background: var(--bg);
       color: var(--text);
     }
+
+    button.secondary-btn {
+      background: #162033;
+      color: var(--text);
+      transition: border-color 0.15s, background-color 0.15s;
+    }
+
+    button.secondary-btn:hover {
+      border-color: #334155;
+      background: #1e293b;
+    }
+
     button.run-btn {
       background: linear-gradient(135deg, var(--accent), var(--accent-dark));
       color: #04101d;
@@ -77,8 +140,92 @@
       border: none;
       transition: opacity 0.15s;
     }
-    button.run-btn:hover { opacity: 0.9; }
-    button.run-btn:disabled { opacity: 0.5; cursor: wait; }
+
+    button.run-btn:hover {
+      opacity: 0.92;
+    }
+
+    button.run-btn:disabled {
+      opacity: 0.5;
+      cursor: wait;
+    }
+
+    .copy-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .copy-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .copy-button[data-copied] {
+      border-color: rgba(52, 211, 153, 0.6);
+      color: var(--success);
+    }
+
+    .copy-button[data-failed] {
+      border-color: rgba(248, 113, 113, 0.6);
+      color: var(--error);
+    }
+
+    .tip {
+      position: absolute;
+      inset-block-start: calc(100% + 6px);
+      inset-inline-end: 0;
+      background: #020617;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.76rem;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      z-index: 20;
+    }
+
+    .copy-button[data-copied] + .tip,
+    .copy-button[data-failed] + .tip {
+      opacity: 1;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tip,
+      button.run-btn,
+      button.secondary-btn {
+        transition: none;
+      }
+    }
+
+    .banner {
+      margin: 14px 24px 0;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      background: rgba(251, 191, 36, 0.08);
+      color: #fde68a;
+      font-size: 0.86rem;
+      line-height: 1.5;
+      display: none;
+    }
+
+    .banner.visible {
+      display: block;
+    }
+
+    .banner code {
+      background: rgba(15, 23, 42, 0.9);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent);
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
     main {
       flex: 1;
       display: grid;
@@ -86,9 +233,13 @@
       gap: 16px;
       padding: 16px 24px;
     }
+
     @media (max-width: 900px) {
-      main { grid-template-columns: 1fr; }
+      main {
+        grid-template-columns: 1fr;
+      }
     }
+
     .pane {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -98,6 +249,7 @@
       overflow: hidden;
       min-height: 460px;
     }
+
     .pane-header {
       padding: 10px 16px;
       border-bottom: 1px solid var(--border);
@@ -108,7 +260,34 @@
       letter-spacing: 0.6px;
       display: flex;
       justify-content: space-between;
+      align-items: center;
+      gap: 10px;
     }
+
+    .pane-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .mini-btn {
+      padding: 4px 10px;
+      min-block-size: 26px;
+      min-inline-size: 26px;
+      font-size: 0.76rem;
+      text-transform: none;
+      letter-spacing: 0;
+      border-radius: 6px;
+      background: #162033;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    .mini-btn:hover {
+      color: var(--text);
+      border-color: #334155;
+    }
+
     textarea {
       flex: 1;
       width: 100%;
@@ -123,6 +302,7 @@
       resize: none;
       tab-size: 4;
     }
+
     pre#output {
       flex: 1;
       padding: 16px;
@@ -134,66 +314,207 @@
       overflow-y: auto;
       color: var(--success);
     }
-    pre#output.err { color: var(--error); }
+
+    pre#output.err {
+      color: var(--error);
+    }
+
+    footer {
+      padding: 10px 24px 16px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
   <header>
     <div class="brand">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path fill-rule="evenodd" clip-rule="evenodd" d="M 2.0 4.24 L 4.04 4.24 L 5.0 4.68 L 6.92 7.11 L 7.05 7.43 L 7.81 8.33 L 8.84 9.86 L 9.09 10.05 L 9.22 10.37 L 9.48 10.56 L 9.6 10.88 L 9.86 10.75 L 13.44 5.77 L 14.4 4.81 L 15.74 4.24 L 19.0 4.24 L 18.93 16.7 L 17.65 16.7 L 17.46 16.5 L 17.46 5.77 L 15.93 5.77 L 15.29 6.09 L 14.84 6.47 L 14.33 7.3 L 14.08 7.5 L 13.95 7.81 L 9.67 13.5 L 7.18 10.18 L 7.05 9.86 L 5.51 7.94 L 5.39 7.62 L 4.81 6.98 L 4.68 6.66 L 4.43 6.47 L 4.3 6.15 L 3.98 5.83 L 3.6 5.77 L 3.6 19.76 L 2.0 19.76 Z" fill="#27F2FF"/>
         <path fill-rule="evenodd" clip-rule="evenodd" d="M 15.8 7.75 L 15.87 16.63 L 16.12 17.4 L 16.5 17.85 L 17.34 18.23 L 22.0 18.23 L 22.0 18.36 L 21.87 18.42 L 21.17 19.76 L 17.08 19.76 L 16.12 19.44 L 15.55 19.06 L 14.78 18.17 L 14.4 17.21 L 14.33 12.48 L 11.33 16.44 L 10.63 17.4 L 9.99 17.65 L 9.35 17.65 L 8.96 17.53 L 8.39 17.02 L 8.26 16.7 L 7.11 15.29 L 6.98 14.97 L 5.51 13.12 L 5.39 12.8 L 5.13 12.61 L 5.13 9.99 L 9.6 16.06 L 9.73 16.06 Z" fill="#27F2FF"/>
       </svg>
       <h1>Taman Permainan MELAYU</h1>
-      <span>AkalML v1.1 + Tensor</span>
+      <span class="badge" id="modeBadge">v0.5.0 &bull; AkalML + Selasih + Pangkalan</span>
     </div>
     <div class="controls">
-      <select id="preset" onchange="loadPreset()">
-        <option value="tensor">1. Tensor Native & Operator @</option>
-        <option value="hutan">2. AkalML: HutanRawak & JadualData</option>
+      <select id="preset" aria-label="Pilih contoh kod" onchange="loadPreset()">
+        <option value="tensor">1. Tensor Native &amp; Operator @</option>
+        <option value="hutan">2. AkalML: HutanRawak &amp; JadualData</option>
         <option value="tfidf">3. AkalML: NLP TF-IDF</option>
         <option value="nn">4. AkalML: Jaringan Saraf (XOR)</option>
+        <option value="oop">5. OOP: Kelas &amp; Pewarisan (warisi)</option>
+        <option value="pangkalan">6. Pangkalan: Pangkalan Data JSON</option>
       </select>
-      <button class="run-btn" id="runBtn" onclick="runCode()">Jalankan Kod</button>
+      <span class="copy-wrap">
+        <button type="button" class="secondary-btn copy-button" command="--copy" commandfor="editor" aria-label="Salin kod sumber">Salin Kod</button>
+        <span class="tip" role="status"></span>
+      </span>
+      <button type="button" class="secondary-btn" onclick="downloadCode()">Muat Turun .ml</button>
+      <button type="button" class="run-btn" id="runBtn" onclick="runCode()">Jalankan Kod</button>
     </div>
   </header>
+
+  <div class="banner" id="staticBanner">
+    <strong>Mod Pratonton Statis:</strong> Halaman ini sedang dibuka tanpa pelayan tempatan <code>melayu taman</code>. Anda masih boleh menyunting, menyalin, dan memuat turun fail <code>.ml</code>. Untuk menjalankan kod secara langsung, jalankan <code>melayu taman</code> dari repositori.
+  </div>
 
   <main>
     <section class="pane">
       <div class="pane-header">
         <span>Kod Sumber (.ml)</span>
-        <span>Ctrl+Enter untuk jalan</span>
+        <span>Tab = 4 ruang &bull; Ctrl+Enter untuk jalan</span>
       </div>
-      <textarea id="editor" spellcheck="false"></textarea>
+      <textarea id="editor" aria-label="Editor kod sumber Bahasa Melayu" spellcheck="false"></textarea>
     </section>
     <section class="pane">
       <div class="pane-header">
         <span>Keluaran Konsol</span>
-        <span id="execTime">Sedia</span>
+        <div class="pane-actions">
+          <span id="execTime">Sedia</span>
+          <button type="button" class="mini-btn" onclick="clearOutput()">Bersihkan</button>
+        </div>
       </div>
       <pre id="output">Tekan "Jalankan Kod" untuk melihat hasil pelaksanaan...</pre>
     </section>
   </main>
 
+  <footer>
+    <span>Bahasa Pemrograman Melayu v0.5.0 &mdash; Dibina dengan Rust</span>
+    <a href="https://github.com/rillardian655/Melayu-Language-by-runa" target="_blank" rel="noopener noreferrer">Repositori GitHub</a>
+  </footer>
+
   <script>
+    const IS_STATIC_PREVIEW = ('__MELAYU_CSRF_TOKEN__').startsWith('__MELAYU_CSRF' + '_TOKEN__');
+
     const PRESETS = {
       tensor: `# Primitif Tensor Native & Operator @\nada X = tensor([[1.0, 2.0], [3.0, 4.0]])\nada W = tensor([[0.5, 1.0], [1.5, 2.0]])\nada b = tensor([0.1, 0.2])\n\nada Z = ((X @ W) + b).relu()\ntunjuk "Bentuk Z:", Z.bentuk()\ntunjuk "Hasil Z :", Z\ntunjuk "Purata  :", Z.purata()`,
       hutan: `ambil "akal"\n\nada jadual = JadualData(\n    ["umur", "gaji", "status"],\n    [[22.0, 4.0, "Tolak"], [40.0, 18.0, "Lulus"], [24.0, 5.0, "Tolak"], [45.0, 22.0, "Lulus"]]\n)\nada pengkod = PengkodLabel()\nada y = pengkod.latihTransformasi(jadual.dapatkanLajur("status"))\nada X = jadual.pilihLajur(["umur", "gaji"]).keMatriks()\n\nada hutan = HutanRawak(5, 3)\nhutan.latih(X, y)\nada ramal = hutan.ramal([[42.0, 20.0], [21.0, 3.5]])\ntunjuk "Ramalan:", pengkod.songsang(ramal)`,
       tfidf: `ambil "akal"\n\nada dokumen = [\n    "saya suka belajar bahasa melayu dan kecerdasan buatan",\n    "pembelajaran mesin dengan akalml sangat laju",\n    "bahasa melayu menyokong pembelajaran mesin"\n]\nada pengira = PengiraTFIDF()\nada vektor = pengira.latihTransformasi(dokumen)\ntunjuk "Kosakata:", panjang(pengira.senarai_kata), "perkataan"\ntunjuk "Kesamaan Dok 1 & 3:", kesamaanCosine(vektor[0], vektor[2])`,
-      nn: `ambil "akal"\n\nada X = [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]]\nada y = [[0.0], [1.0], [1.0], [0.0]]\n\nada nn = JaringanSaraf([2, 4, 1], 0.8)\nnn.latih(X, y, 1200, salah)\ntunjuk "Akurasi XOR:", nn.skor(X, [0, 1, 1, 0]) * 100, "%"`
+      nn: `ambil "akal"\n\nada X = [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]]\nada y = [[0.0], [1.0], [1.0], [0.0]]\n\nada nn = JaringanSaraf([2, 4, 1], 0.8)\nnn.latih(X, y, 1200, salah)\ntunjuk "Akurasi XOR:", nn.skor(X, [0, 1, 1, 0]) * 100, "%"`,
+      oop: `# Sistem OOP Natif (kelas, bina, warisi, induk)\nkelas Kenderaan\n    kerja bina(nama, kelajuan)\n        diri.nama = nama\n        diri.kelajuan = kelajuan\n    selesai\n\n    kerja info()\n        pulang diri.nama + " (" + teks(diri.kelajuan) + " km/j)"\n    selesai\nselesai\n\nkelas KeretaElektrik warisi Kenderaan\n    kerja bina(nama, kelajuan, bateri)\n        induk.bina(nama, kelajuan)\n        diri.bateri = bateri\n    selesai\n\n    kerja info()\n        pulang induk.info() + " - Bateri " + teks(diri.bateri) + "%"\n    selesai\nselesai\n\nada ev = KeretaElektrik("Proton e.MAS", 185, 92)\ntunjuk ev.info()`,
+      pangkalan: `ambil "pangkalan"\n\nada db = Pangkalan("demo_taman.json")\ndb.ciptaJadual("nota")\ndb.sisip("nota", {"tajuk": "Belajar Melayu", "selesai": betul})\ndb.sisip("nota", {"tajuk": "Cuba AkalML", "selesai": salah})\ntunjuk "Jumlah rekod:", db.bilang("nota")\ntunjuk "Semua rekod:", db.cariSemua("nota")\npadamFail("demo_taman.json")`
     };
 
     const editor = document.getElementById('editor');
     const output = document.getElementById('output');
     const runBtn = document.getElementById('runBtn');
     const execTime = document.getElementById('execTime');
+    const staticBanner = document.getElementById('staticBanner');
+    const modeBadge = document.getElementById('modeBadge');
+
+    if (IS_STATIC_PREVIEW) {
+      staticBanner.classList.add('visible');
+      modeBadge.textContent = 'Mod Pratonton Statis';
+      modeBadge.classList.add('static-mode');
+    }
 
     function loadPreset() {
       const key = document.getElementById('preset').value;
       editor.value = PRESETS[key] || '';
     }
 
+    function clearOutput() {
+      output.className = '';
+      output.textContent = '';
+      execTime.textContent = 'Sedia';
+    }
+
+    function downloadCode() {
+      const key = document.getElementById('preset').value || 'kod';
+      const blob = new Blob([editor.value], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${key}.ml`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    const timers = new WeakMap();
+    let lastMessage = '';
+
+    function reportCopy(button, ok) {
+      const tip = button.nextElementSibling;
+      clearTimeout(timers.get(button));
+      button.removeAttribute('data-copied');
+      button.removeAttribute('data-failed');
+      let message = ok ? 'Disalin' : 'Gagal menyalin';
+      if (message === lastMessage) message += '\u00A0';
+      lastMessage = message;
+      tip.textContent = '';
+      void button.offsetWidth;
+      button.setAttribute(ok ? 'data-copied' : 'data-failed', '');
+      requestAnimationFrame(() => {
+        tip.textContent = message;
+      });
+      timers.set(button, setTimeout(() => {
+        button.removeAttribute('data-copied');
+        button.removeAttribute('data-failed');
+        tip.textContent = '';
+      }, 2000));
+    }
+
+    function legacyCopy(text) {
+      const previousFocus = document.activeElement;
+      const field = Object.assign(document.createElement('textarea'), { value: text });
+      field.setAttribute('readonly', '');
+      field.style.cssText = 'position:fixed;inset-block-start:0;opacity:0';
+      document.body.append(field);
+      field.select();
+      try {
+        return document.execCommand('copy');
+      } finally {
+        field.remove();
+        previousFocus?.focus({ preventScroll: true });
+      }
+    }
+
+    async function copyTarget(button, target) {
+      const text = target.matches('input, textarea') ? target.value : target.innerText.trim();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        reportCopy(button, true);
+      } catch {
+        reportCopy(button, legacyCopy(text));
+      }
+    }
+
+    if ('CommandEvent' in window) {
+      document.addEventListener('command', (event) => {
+        if (event.command === '--copy') copyTarget(event.source, event.target);
+      }, true);
+    } else {
+      document.addEventListener('click', (event) => {
+        if (event.defaultPrevented) return;
+        const button = event.target.closest('button[command="--copy"]');
+        if (!button) return;
+        const target = document.getElementById(button.getAttribute('commandfor'));
+        if (target) copyTarget(button, target);
+      });
+    }
+
     async function runCode() {
+      if (IS_STATIC_PREVIEW) {
+        output.className = 'err';
+        output.textContent = 'Mod pratonton statis aktif: jalankan `melayu taman` di terminal untuk melaksanakan kod Bahasa Melayu secara langsung.';
+        execTime.textContent = 'Statis';
+        return;
+      }
+
       runBtn.disabled = true;
       execTime.textContent = 'Menjalankan...';
       output.className = '';
@@ -231,6 +552,12 @@
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         runCode();
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        editor.value = editor.value.substring(0, start) + '    ' + editor.value.substring(end);
+        editor.selectionStart = editor.selectionEnd = start + 4;
       }
     });
 
@@ -238,4 +565,3 @@
   </script>
 </body>
 </html>
-
