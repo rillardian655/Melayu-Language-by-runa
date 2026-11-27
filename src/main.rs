@@ -197,7 +197,7 @@ fn main_utama() {
             cetak_bantuan();
         }
         "versi" | "--version" | "-v" => {
-            println!("MELAYU v0.4.1");
+            println!("MELAYU v{}", env!("CARGO_PKG_VERSION"));
             println!("Bahasa programming serumpun, untuk serumpun developer.");
         }
         fail if fail.ends_with(".ml") => {
