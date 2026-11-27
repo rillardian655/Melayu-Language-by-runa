@@ -40,3 +40,4 @@ ada res = hantarPermintaanHTTP("GET", "https://example.com/")
 tunjuk res["status"], res["badan"]
 ```
 Menyokong `https://` melalui `rustls` serta dilengkapi sekatan anti-SSRF terhadap alamat metadata awan.
+

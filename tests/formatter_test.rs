@@ -40,3 +40,4 @@ fn test_cli_melayu_format_dan_semak() {
 
     let _ = fs::remove_file(&test_file);
 }
+

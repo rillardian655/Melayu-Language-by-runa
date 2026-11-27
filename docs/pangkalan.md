@@ -31,3 +31,4 @@ tunjuk "Baki produk:", db.bilang("produk")
 * `db.senaraiJadual()`: Mengembalikan senarai nama jadual yang wujud.
 * `db.padamJadual(nama)`: Memadam keseluruhan jadual dan mengemaskini fail cakera.
 * Setiap operasi tulis (`ciptaJadual`, `sisip`, `kemaskini`, `padam`, `padamJadual`) disimpan ke cakera secara automatik.
+

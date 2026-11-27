@@ -37,3 +37,4 @@ Pilihan GPU & Had Langkah:
 * **Penyekala & Pengkod**: `SkalaMinMaks`, `PenyelarasanPiawai`, `PengkodLabel`, `PengkodSatuPanas`.
 * **NLP**: `PengiraTFIDF` & `kesamaanCosine(v1, v2)`.
 * **Dataset Terbina & Validasi**: `muatIris()` (150 rekod), `muatKredit()`, `janaDataSintetik()`, `benihRawak(n)`, `bahagiLatihUji()`, dan `pengesahanSilang()`.
+
